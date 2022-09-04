@@ -1,22 +1,21 @@
 // CMenu Mutator
 // Created by the 29th Infantry Division Engineer Corps
 // ====================================================
-// TODO: Initial Release (Released date)
+// Revision 1 (8/27/22) //TODO
 // ====================================================
 // Code tech: T/5 Scovel
 // ====================================================
 class MutCMenu extends ROMutator
   config(MutCMenu);
 
-var string TempAdminPass;
+var array<string>       LoggedInMutatorAdmins; // list of the names of all the players that are currently logged in as a mutator admin
+var config array<string>  MutatorAdmins; // A list of all mutator admins and their passwords
 
 simulated function NotifyLogin(Controller NewPlayer)
 {
     local DummyActor DA;
 
     DA = spawn(class'DummyActor', NewPlayer); //Spawn a dummyactor to do client side functions without replacing the playercontroller
-    //DA.bMutCommands = bIsMutThere("Commands");
-    //DA.bMutExtras = bIsMutThere("Extras");
     if (WorldInfo.NetMode != NM_Standalone) DA.CMenuSetup(bIsMutThere("Commands"), bIsMutThere("Extras"));
     DA.ClientCMenuSetup(bIsMutThere("Commands"), bIsMutThere("Extras"));
     DA.Destroy();
@@ -28,10 +27,17 @@ simulated function NotifyLogin(Controller NewPlayer)
 simulated function Mutate(string mutateString, PlayerController sender)
 {
     local DummyActor DA;
+    /* local rotator PRot;
+	local vector HitLocation, HitNormal, StartTrace, EndTrace, ViewDirection;
+	local StaticMesh sm;
+    local StaticMeshActor SMA;
+    local float     TraceLength; */
+
     local array<string> params;
     local string        command;
     local string        secondaryparam, tertiaryparam;
     local int           i;
+   
 
     params = SplitString(mutateString, " to ", false);
     tertiaryparam = params[1];
@@ -49,10 +55,6 @@ simulated function Mutate(string mutateString, PlayerController sender)
             secondaryparam = secondaryparam$" "$params[i];
         }
     }
-
-    /* `log (command);
-    `log (secondaryparam);
-    `log (tertiaryparam); */
     
     switch (command) // Commands that do not need admin
     {
@@ -77,24 +79,44 @@ simulated function Mutate(string mutateString, PlayerController sender)
         case "CMENU":
             if (secondaryparam != "")
             {
-                SetCMenuVisible(sender, secondaryparam);
+                ToggleCMenuVisiblity(sender, secondaryparam);
             }
             else
             {
-                SetCMenuVisible(sender, "CMENUMAIN");
+                ToggleCMenuVisiblity(sender, "CMENUMAIN");
             }
             break;
 
         case "SWITCHTEAM":
             ROPlayerController(Sender).SwapTeam(1);
             break;
+
+        case "SCRIMADMINLOGIN":
+            LogInAdmin(sender, secondaryparam);
+            break;
+            
+        case "SCRIMADMINLOGOUT":
+            LogOutAdmin(sender);
+            break;
+
+        /* case "SPAWNSM":
+	        sender.GetPlayerViewPoint(StartTrace, PRot);
+            ViewDirection = Vector(sender.Pawn.GetViewRotation());
+            TraceLength = 40000;
+            EndTrace = StartTrace + ViewDirection * TraceLength;
+	        trace(HitLocation, HitNormal, EndTrace, StartTrace, false);
+
+			SMA = Spawn(class'CMBuilderSM',,,HitLocation,sender.Pawn.Rotation);
+			sm = StaticMesh(DynamicLoadObject(secondaryparam, class'StaticMesh'));
+            SMA.StaticMeshComponent.SetStaticMesh(sm);
+            break; */
     }
     if (IsAuthorized(sender))
     {
         switch (command)
         {
             case "CMENUPCMANAGER":
-                SetCMenuVisible(sender, "CMENUPCMANAGER", secondaryparam);
+                ToggleCMenuVisiblity(sender, "CMENUPCMANAGER", secondaryparam);
                 break;
 
             // Commands not in other mutators (I have to use the dummy actor to execute console commands on the target client)
@@ -113,15 +135,14 @@ simulated function Mutate(string mutateString, PlayerController sender)
 
             case "TEMPADMINLOGIN":
                 DA = spawn(class'DummyActor', FindPlayer(secondaryparam));
-                // DA.CMConsoleCommand("mutate scrimadminlogin "$TempAdminPass);
-                DA.ClientCMConsoleCommand("mutate scrimadminlogin "$TempAdminPass);
+                DA.ClientCMConsoleCommand("mutate scrimadminlogin "$MutRealismMatch(WorldInfo.Game.BaseMutator).MutatorAdmins[0]);
+                `log (MutRealismMatch(WorldInfo.Game.BaseMutator).MutatorAdmins[0]);
                 DA.Destroy();
                 WorldInfo.Game.Broadcast(self, "[CMenu] "$sender.PlayerReplicationInfo.PlayerName$" gave temporary scrim admin powers to "$secondaryparam);
                 break;
 
             case "TEMPADMINLOGOUT":
                 DA = spawn(class'DummyActor', FindPlayer(secondaryparam));
-                // DA.CMConsoleCommand("mutate scrimadminlogout");
                 DA.ClientCMConsoleCommand("mutate scrimadminlogout");
                 DA.Destroy();
                 WorldInfo.Game.Broadcast(self, "[CMenu] "$sender.PlayerReplicationInfo.PlayerName$" revoked temporary scrim admin powers from "$secondaryparam);
@@ -129,35 +150,30 @@ simulated function Mutate(string mutateString, PlayerController sender)
 
             case "FORCERESPAWN":
                 DA = spawn(class'DummyActor', FindPlayer(secondaryparam));
-                // DA.CMConsoleCommand("mutate respawn");
                 DA.ClientCMConsoleCommand("mutate respawn");
                 DA.Destroy();
                 break;
 
             case "FDAO": //ForceDropAtObj
                 DA = spawn(class'DummyActor', FindPlayer(secondaryparam));
-                // DA.CMConsoleCommand("mutate dropatobj "$tertiaryparam);
                 DA.ClientCMConsoleCommand("mutate dropatobj "$tertiaryparam);
                 DA.Destroy();
                 break;
 
             case "FDAG": //ForceDropAtGrid
                 DA = spawn(class'DummyActor', FindPlayer(secondaryparam));
-                // DA.CMConsoleCommand("mutate dropatgrid "$tertiaryparam);
                 DA.ClientCMConsoleCommand("mutate dropatgrid "$tertiaryparam);
                 DA.Destroy();
                 break;
             
             case "FORCESAFETYON":
                 DA = spawn(class'DummyActor', FindPlayer(secondaryparam));
-                // DA.CMConsoleCommand("mutate safetyon");
                 DA.ClientCMConsoleCommand("mutate safetyon");
                 DA.Destroy();
                 break;
 
             case "FORCESAFETYOFF":
                 DA = spawn(class'DummyActor', FindPlayer(secondaryparam));
-                // DA.CMConsoleCommand("mutate safetyoff");
                 DA.ClientCMConsoleCommand("mutate safetyoff");
                 DA.Destroy();
                 break;
@@ -166,27 +182,79 @@ simulated function Mutate(string mutateString, PlayerController sender)
     super.Mutate(MutateString, sender);
 }
 
-simulated function SetCMenuVisible(PlayerController PC, string CMenu, optional string TargetName)
+function ToggleCMenuVisiblity(PlayerController PC, string CMenu, optional string TargetName)
 {
     local DummyActor DA;
 
     DA = spawn(class'DummyActor', PC); //Spawn a dummyactor to do client side functions without replacing the playercontroller
-    //DA.bIsAuthorized = IsAuthorized(PC);
-    DA.SetCMenuVisible(CMenu, IsAuthorized(PC), TargetName);
-    DA.ClientSetCMenuVisible(CMenu, IsAuthorized(PC), TargetName);
+    if (WorldInfo.NetMode != NM_Standalone) DA.ToggleCMenuVisiblity(CMenu, IsAuthorized(PC), TargetName);
+    DA.ClientToggleCMenuVisiblity(CMenu, IsAuthorized(PC), TargetName);
     DA.Destroy();
+}
+
+function LogInAdmin(PlayerController sender, string MyAdminInfo)
+{
+    local string PlayerName;
+    local string AdminInfo;
+    local bool AlreadyAdmin;
+    local int i;
+    
+    PlayerName = sender.PlayerReplicationInfo.PlayerName;
+    AlreadyAdmin = False;
+    foreach MutatorAdmins(AdminInfo)
+    if(MyAdminInfo == AdminInfo)
+    {
+        for(i = 0; i < LoggedInMutatorAdmins.Length; i++)
+        {
+            if(PlayerName == LoggedInMutatorAdmins[i])
+            {
+                AlreadyAdmin = True;
+            }
+        }
+        if(!AlreadyAdmin)
+        {
+            LoggedInMutatorAdmins.AddItem(PlayerName);
+        }
+    }
+}
+
+function LogOutAdmin(PlayerController sender)
+{
+    local string PlayerName;
+    local int i;
+    local array<string> MyArray;
+    
+    PlayerName = sender.PlayerReplicationInfo.PlayerName;
+    
+    for(i = 0; i < LoggedInMutatorAdmins.Length; i++)
+    {
+        if(PlayerName != LoggedInMutatorAdmins[i])
+        {
+            MyArray.AddItem(LoggedInMutatorAdmins[i]);
+        }
+    }
+    LoggedInMutatorAdmins = MyArray;
 }
 
 function bool IsAuthorized(PlayerController Sender)
 {
-    if (WorldInfo.NetMode == NM_Standalone) //In singleplayer IsAuthorized() doesn't work so just assume authorized
+    local bool IsServerAdmin;
+    local bool IsMutatorAdmin;
+    local int i;
+    local string PlayerName;
+    
+    PlayerName = sender.PlayerReplicationInfo.PlayerName;
+    IsServerAdmin = self.WorldInfo.Game.AccessControl.IsAdmin(Sender);
+    
+    IsMutatorAdmin = False;
+    for(i = 0; i < LoggedInMutatorAdmins.Length; i++)
     {
-        return true;
+        if(LoggedInMutatorAdmins[i] == PlayerName)
+        {
+            IsMutatorAdmin = True;
+        }
     }
-    else
-    {
-        return MutRealismMatch(WorldInfo.Game.BaseMutator).IsAuthorized(Sender);
-    }
+    return IsServerAdmin || IsMutatorAdmin;
 }
 
 function bool bIsMutThere(string Mutator)
@@ -198,12 +266,10 @@ function bool bIsMutThere(string Mutator)
 
     mut = ROGI.BaseMutator;
 
-    //`Log("IsMutThere: "$Mutator);
     for (mut = ROGI.BaseMutator; mut != none; mut = mut.NextMutator)
     {
         if(InStr(string(mut.name), Mutator,,true) != -1) 
         {
-            //`Log("IsMutThere: found "$mut.name);
             return true;
         }
     }
@@ -224,9 +290,4 @@ function ROPlayerController FindPlayer(string PlayerName)
             }
         }
     }
-}
-
-defaultproperties
-{
-    TempAdminPass="Lev 1"
 }

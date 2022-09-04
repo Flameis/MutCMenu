@@ -1,21 +1,18 @@
 class CMenuPCManager extends CMenuBase;
 
-simulated state MenuVisible
+function Initialize()
 {
-    function BeginState(name PreviousStateName)
-	{
-        local int i;
+    local int i;
 
-        super.BeginState(PreviousStateName);
+	super.Initialize();
+    
+    MenuName=TargetName;
 
-        MenuName=TargetName;
-
-        for (i = 0; i < MenuCommand.Length; i++)
-        {
-            MenuCommand[i] = default.menucommand[i]@TargetName;
-            if(bCMenuDebug) `log(MenuCommand[i]);
-        }
-	}
+    for (i = 0; i < MenuCommand.Length; i++)
+    {
+        MenuCommand[i] = default.menucommand[i]@TargetName;
+        if(bCMenuDebug) `log(MenuCommand[i]);
+    }
 }
 
 function bool CheckExceptions(string Command)

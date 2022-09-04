@@ -11,45 +11,30 @@ const ITEMS_PER_PAGE = 8;
 var bool bCMenuDebug, bVisible, bIsAuthorized, bMutCommands, bMutExtras;
 var array<string> MenuText, MenuCommand, PlayerList;
 var string MenuName, TargetName, MenuBorderLengthString;
-var name NumberKeys[10];
-var int MenuPage, MenuHeight, PreviousMenuPage;
+var name NumberKeys[20];
+var int MenuPage, MenuHeight;
 
-function MessageSelf(string Message)
+function Initialize()
 {
-	if(Message != "")
+	bVisible = true;
+	MenuPage = 0;
+
+	if (TextColor.a == 0)
 	{
-		PC.ClientMessage(Message);
+		TextColor.r = 255;
+		TextColor.g = 128;
+		TextColor.b = 0;
+		TextColor.a = 255;
 	}
+
+	FindCMenuLength(); // Do this here and in HandleInput() so we aren't spamming a loop every tick
 }
 
 simulated state MenuVisible
 {
 	function BeginState(name PreviousStateName)
 	{
-		local int i, MenuTextMaxLength;
-
-		bVisible = true;
-		PreviousMenuPage = -1;
-		MenuPage = 0;
-
-		for (i = 0; i < MenuText.Length; i++)
-		{
-			if (Len(MenuText[i]) > MenuTextMaxLength)
-			{
-				MenuTextMaxLength = Len(MenuText[i]);
-				MenuBorderLengthString = MenuText[i];
-			}
-			if (i == ITEMS_PER_PAGE-1 )
-			{
-				MenuTextMaxLength = 0;
-			}	
-			if (i == MenuText.Length-1)
-			{
-				`log (MenuBorderLengthString);
-			}	
-		}
-
-		UpdatePlayerList(); // Do this here because doing it in PostRender() repeats it over & over
+		Initialize();
 	}
 
 	function EndState(name PreviousStateName)
@@ -59,16 +44,19 @@ simulated state MenuVisible
 
 	function bool InputKey( int ControllerId, name Key, EInputEvent EventType, float AmountDepressed = 1.f, bool bGamepad = FALSE )
 	{
-	    if(EventType == IE_Pressed)
+	    if(EventType == IE_Pressed )
 	    {
-	        return HandleInput(Key, MenuCommand);
+			if (KeyToNumber(Key) != -1)
+	        	return HandleInput(Key, MenuCommand);
+			else
+				return false;
 	    }
 	    return false;
 	}
 
 	function PostRender(Canvas HUDCanvas)
     {
-	    DrawMenu(HUDCanvas, 10, 250, MenuName, MenuText);
+	    DrawMenu(ROCanvas(HUDCanvas), 10, 250, MenuName, MenuText);
     }
 }
 
@@ -83,10 +71,21 @@ function int KeyToNumber(name InKey)
 {
 	local int i;
 
-	for(i=0; i<10; i++)
+	if (InStr(InKey, "NumPad",,true) != -1)
 	{
-		if(InKey == NumberKeys[i])
-			return i;
+		for(i=10; i<20; i++)
+		{
+			if(InKey == NumberKeys[i])
+				return i-10;
+		}
+	}
+	else
+	{
+		for(i=0; i<10; i++)
+		{
+			if(InKey == NumberKeys[i])
+				return i;
+		}
 	}
 
 	return -1;
@@ -108,12 +107,16 @@ function bool HandleInput(name Key, array<string> SelectionList)
 	if(NumKey == 9 && SelectionList.Length > ((MenuPage+1)*ITEMS_PER_PAGE)) // next page
 	{
 		MenuPage++;
+		FindCMenuLength(); // Do this here and in BeginState() so we aren't spamming a loop every tick
 		return true;
 	}
 	else if(NumKey == 0)
 	{
 		if(MenuPage > 0) // previous page
+		{
 			MenuPage--;
+			FindCMenuLength(); // Do this here and in BeginState() so we aren't spamming a loop every tick
+		}
 		else
 			GotoState(''); // Close Menu
 		return true;
@@ -139,60 +142,42 @@ function bool HandleInput(name Key, array<string> SelectionList)
 	}
 }
 
-//Just here to provide a way to catch exceptions in children without redefining the entire HandleInput() function
+// Find the longest string currently displayed on the menu
+function FindCMenuLength()
+{
+	local int i, MenuTextMaxLength;
+
+	for (i = MenuPage * ITEMS_PER_PAGE; i < (MenuPage+1)*ITEMS_PER_PAGE; i++)
+	{
+		if (Len(MenuText[i]) > MenuTextMaxLength)
+		{
+			MenuTextMaxLength = Len(MenuText[i]);
+			MenuBorderLengthString = MenuText[i];
+		}
+	}
+}
+
+// Just here to provide a way to catch exceptions in children without redefining the entire HandleInput() function
 function bool CheckExceptions(string Command) 
 {
 	return false;
 }
 
 // Displays the menu based on an input list
-function DrawMenu(canvas MenuCanvas, int MenuX, int MenuY, string title, array<string> LineText)
+function DrawMenu(ROCanvas MenuCanvas, int MenuX, int MenuY, string title, array<string> LineText)
 {
 	local int height, i, key;
 	local float BL, BH;
-	local int MenuTextMaxLength;
-
-	if (MenuPage != PreviousMenuPage)
-	{
-		PreviousMenuPage = MenuPage;
-		for (i = 0; i < MenuText.Length; i++)
-		{
-			if (Len(MenuText[i]) > MenuTextMaxLength)
-			{
-				MenuTextMaxLength = Len(MenuText[i]);
-				MenuBorderLengthString = MenuText[i];
-			}
-			if (i == ITEMS_PER_PAGE-1 && MenuPage == 1)
-			{
-				MenuTextMaxLength = 0;
-			}
-			else if (i == ITEMS_PER_PAGE*2-1 && MenuPage == 2)
-			{
-				MenuTextMaxLength = 0;
-			}
-			else if (i == ITEMS_PER_PAGE*3-1 && MenuPage == 3)
-			{
-				MenuTextMaxLength = 0;
-			}
-			else if (i == ITEMS_PER_PAGE*4-1 && MenuPage == 4)
-			{
-				MenuTextMaxLength = 0;
-			}
-			if (i == MenuText.Length-1)
-			{
-				`log (MenuBorderLengthString);
-			}
-		}
-	}
 
 	height = 50; // line height
 	key = 1;
 
 	MenuCanvas.Font = Font'VN_UI_Mega_Fonts.Font_VN_Mega_36';
-	MenuCanvas.StrLen("-----"$MenuBorderLengthString, BL, BH);
 
 	if (bDrawBackground)
 	{
+		MenuCanvas.PushDepthSortPriority(DSP_SkyHigh); // If I don't do this the text will disappear when hovering over a player due to the playername
+		MenuCanvas.StrLen("-----"$MenuBorderLengthString, BL, BH);
 		// draw the background
 		MenuCanvas.SetPos(MenuX-10, MenuY-10);
 		MenuCanvas.SetDrawColorStruct(BackgroundColor);
@@ -203,6 +188,7 @@ function DrawMenu(canvas MenuCanvas, int MenuX, int MenuY, string title, array<s
 		MenuCanvas.DrawBox(BL, MenuHeight-180);
 	}
 
+	MenuCanvas.PushDepthSortPriority(DSP_Insane); // If I don't do this the text will disappear when hovering over a player due to the playername
 	MenuCanvas.SetDrawColorStruct(TextColor); //Orange by default in config (255,128,0,255)
 
 	// Title
@@ -240,30 +226,11 @@ function DrawMenu(canvas MenuCanvas, int MenuX, int MenuY, string title, array<s
 	MenuHeight = MenuY;
 }
 
-// Updates a global array of playernames (used for player manager menu)
-function UpdatePlayerList()
+function MessageSelf(string Message)
 {
-	local array<PlayerReplicationInfo> PRIArray;
-	local ROPlayerReplicationInfo ROPRI;
-    local ROGameReplicationInfo ROGRI;
-    local int i;
-
-	PlayerList.Length = 0;
-
-	ROGRI = ROGameReplicationInfo(PC.WorldInfo.GRI);
-	ROGRI.GetPRIArray(PRIArray, true);
-
-    // Loops through all PRIs
-	for ( i = 0; i < PRIArray.Length; i++ )
+	if(Message != "")
 	{
-		ROPRI = ROPlayerReplicationInfo(PRIArray[i]);
-		
-		// This check is to verify if we should be on the list & !ROPRI.bIsInactive if we're a legit player and not '<<TeamChatProx>>' or '<<WebAdmin>>' or 'Player'
-		if (ROPRI != none && !ROPRI.bIsInactive)
-		{
-			PlayerList.AddItem(ROPRI.PlayerName);
-		}
-        if(bCMenuDebug) `Log("UpdatePlayerList()"$ROPRI.PlayerName);
+		PC.ClientMessage(Message);
 	}
 }
 
@@ -328,6 +295,16 @@ defaultproperties
     NumberKeys[7]=seven
     NumberKeys[8]=eight
     NumberKeys[9]=nine
+	NumberKeys[10]=numpadzero
+    NumberKeys[11]=numpadone
+    NumberKeys[12]=numpadtwo
+    NumberKeys[13]=numpadthree
+    NumberKeys[14]=numpadfour
+    NumberKeys[15]=numpadfive
+    NumberKeys[16]=numpadsix
+    NumberKeys[17]=numpadseven
+    NumberKeys[18]=numpadeight
+    NumberKeys[19]=numpadnine
 
 	DefaultTexture_Black=Texture2D'EngineResources.Black'
 	DefaultTexture_White=Texture2D'EngineResources.WhiteSquareTexture'
