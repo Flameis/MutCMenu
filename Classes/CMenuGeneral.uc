@@ -40,6 +40,26 @@ function bool CheckExceptions(string Command)
             PC.ConsoleCommand(Command);
             return true;
 
+        case "TOGGLESPECTATOR":
+            if (!ROPlayerController(PC).PlayerReplicationInfo.bOnlySpectator)
+            {
+                ROPlayerController(PC).PlayerReplicationInfo.bOnlySpectator = true;
+                ROPlayerController(PC).bForcedSpectating = false;
+                ROPlayerController(PC).ServerSpectatorReset();
+                ROPlayerController(PC).ServerViewSelf();
+                //ROPlayerController(PC).myHUD = PC.Spawn(class'CMHUD', PC);
+                /* ROPlayerController(PC).GotoState('Spectating');
+			    ROPlayerController(PC).ClientGotoState('Spectating');
+                ROPlayerController(PC).SetCameraMode('FreeCam'); */
+            }
+            else
+            {
+                ROPlayerController(PC).PlayerReplicationInfo.bOnlySpectator = false;
+                ROPlayerController(PC).Reset();
+            }
+            
+            return true;
+
         default:
             return false;
     }
@@ -47,7 +67,7 @@ function bool CheckExceptions(string Command)
 
 defaultproperties
 {
-    bCMenuDebug=true
+    
 
     MenuName="GENERAL"
 
@@ -63,6 +83,7 @@ defaultproperties
     MenuText(8)="Switch Team"
     MenuText(9)="Set Team Not Ready"
     MenuText(10)="Set Team Ready"
+    MenuText(11)="Toggle Spectator"
     
     MenuCommand(0)="RESPAWN"
     MenuCommand(1)="SUICIDE"
@@ -76,4 +97,5 @@ defaultproperties
     MenuCommand(8)="SWITCHTEAM"
     MenuCommand(9)="SAY /NOTREADY"
     MenuCommand(10)="SAY /READY"
+    MenuCommand(11)="TOGGLESPECTATOR"
 }

@@ -31,13 +31,23 @@ function bool CheckExceptions(string Command)
             return true;
 
         case "SETFF":
-            if(bCMenuDebug) `Log("SetRoundDuration");
+            if(bCMenuDebug) `Log("SETFF");
             LocalPlayer(PC.Player).ViewportClient.ViewportConsole.TypedStr="Mutate "$Command$" ";
             LocalPlayer(PC.Player).ViewportClient.ViewportConsole.TypedStrPos=Len(LocalPlayer(PC.Player).ViewportClient.ViewportConsole.TypedStr); // set the value high in case name is quite long
             LocalPlayer(PC.Player).ViewportClient.ViewportConsole.GoToState('Typing');
             LocalPlayer(PC.Player).ViewportClient.ClearProgressMessages();
             LocalPlayer(PC.Player).ViewportClient.SetProgressTime(6);
             MessageSelf("Please Specify a Decimal (Example: 0.5)");
+            return true;
+
+        case "SETCAPTIME":
+            if(bCMenuDebug) `Log("SETCAPTIME");
+            LocalPlayer(PC.Player).ViewportClient.ViewportConsole.TypedStr="Mutate "$Command$" ";
+            LocalPlayer(PC.Player).ViewportClient.ViewportConsole.TypedStrPos=Len(LocalPlayer(PC.Player).ViewportClient.ViewportConsole.TypedStr); // set the value high in case name is quite long
+            LocalPlayer(PC.Player).ViewportClient.ViewportConsole.GoToState('Typing');
+            LocalPlayer(PC.Player).ViewportClient.ClearProgressMessages();
+            LocalPlayer(PC.Player).ViewportClient.SetProgressTime(6);
+            MessageSelf("Please specify a OBJ letter and a minimum capture timer in seconds (Example: A 45)");
             return true;
 
         default:
@@ -47,7 +57,7 @@ function bool CheckExceptions(string Command)
 
 defaultproperties
 {
-    bCMenuDebug=true
+    
     MenuName="REALISM MATCH"
 
     MenuText(0)="Scrimmage Admin Help"
@@ -79,7 +89,7 @@ defaultproperties
 
     MenuText(24)="Swap North to South"
     MenuText(25)="Swap South to North"
-
+    MenuText(26)="Set Obj Minimum Capture Time"
     
     MenuCommand(0)="SCRIMADMINHELP"
     MenuCommand(1)="ENABLEMATCH"
@@ -110,4 +120,5 @@ defaultproperties
 
     MenuCommand(24)="SWAPNORTH"
     MenuCommand(25)="SWAPSOUTH"
+    MenuCommand(26)="SETCAPTIME"
 }

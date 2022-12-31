@@ -57,8 +57,6 @@ function bool CheckExceptions(string Command)
 
 defaultproperties
 {
-    bCMenuDebug=true
-
     MenuText(0)="Respawn"
     MenuText(1)="Kill"
     MenuText(2)="Drop At Objective"

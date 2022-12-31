@@ -1,0 +1,1 @@
+class CMHUDWidgetSpectator extends ROHUDWidgetSpectator;

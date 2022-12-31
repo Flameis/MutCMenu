@@ -24,25 +24,23 @@ function bool CheckExceptions(string Command)
 
 defaultproperties
 {
-    bCMenuDebug=true
-
     MenuName="WEAPONS"
 
-    MenuText(0)="Give Weapon To Self"
-    MenuText(1)="Give Weapon To North Team"
-    MenuText(2)="Give Weapon To South Team"
-    MenuText(3)="Give Weapon To All"
-    /* MenuText(4)="Clear Weapons From Self"
+    MenuText(0)="GIVE WEAPON SELF"
+    MenuText(1)="GIVE WEAPON NORTH"
+    MenuText(2)="GIVE WEAPON SOUTH"
+    MenuText(3)="GIVE WEAPON All"
+    MenuText(4)="Clear Weapons From Self"
     MenuText(5)="Clear Weapons From North Team"
     MenuText(6)="Clear Weapons From South Team"
-    MenuText(7)="Clear Weapons From All" */
+    MenuText(7)="Clear Weapons From All"
     
     MenuCommand(0)="GIVEWEAPON"
     MenuCommand(1)="GIVEWEAPONNORTH"
     MenuCommand(2)="GIVEWEAPONSOUTH"
     MenuCommand(3)="GIVEWEAPONALL"
-    /* MenuCommand(4)="CLEARWEAPONS"
+    MenuCommand(4)="CLEARWEAPONS"
     MenuCommand(5)="CLEARWEAPONSNORTH"
     MenuCommand(6)="CLEARWEAPONSSOUTH"
-    MenuCommand(7)="CLEARWEAPONSALL" */
+    MenuCommand(7)="CLEARWEAPONSALL"
 }

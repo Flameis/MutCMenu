@@ -1,22 +1,22 @@
 class CMenuBase extends Interaction
-	config(MutCMenuClient);
+	config(MutCMenu_Client);
 
 var PlayerController PC;
+var DummyActor MyDA;
 var Texture2D DefaultTexture_Black, DefaultTexture_White;
 
-var config Color TextColor, BackgroundColor, BorderColor;
-var config bool bKeepOpen, bDrawBackground;
-
 const ITEMS_PER_PAGE = 8;
-var bool bCMenuDebug, bVisible, bIsAuthorized, bMutCommands, bMutExtras;
-var array<string> MenuText, MenuCommand, PlayerList;
-var string MenuName, TargetName, MenuBorderLengthString;
-var name NumberKeys[20];
+var string MenuName, TargetName, MenuBorderLengthString, LastCmd;
+var bool bIsAuthorized;
 var int MenuPage, MenuHeight;
+var array<string> MenuText, MenuCommand, PlayerList;
+var name NumberKeys[20];
+
+var config Color TextColor, BackgroundColor, BorderColor;
+var config bool bKeepOpen, bDrawBackground, bCMenuDebug;
 
 function Initialize()
 {
-	bVisible = true;
 	MenuPage = 0;
 
 	if (TextColor.a == 0)
@@ -36,12 +36,7 @@ simulated state MenuVisible
 	{
 		Initialize();
 	}
-
-	function EndState(name PreviousStateName)
-	{
-		bVisible = false;
-	}
-
+	
 	function bool InputKey( int ControllerId, name Key, EInputEvent EventType, float AmountDepressed = 1.f, bool bGamepad = FALSE )
 	{
 	    if(EventType == IE_Pressed )
@@ -124,6 +119,7 @@ function bool HandleInput(name Key, array<string> SelectionList)
 	else if(SelectionList.Length >= IniLine)
 	{
 		Command = SelectionList[IniLine];
+		LastCmd	= Command;
 
 		if (CheckExceptions(Command)) //Check for any exceptions in child classes
 		{
@@ -176,7 +172,7 @@ function DrawMenu(ROCanvas MenuCanvas, int MenuX, int MenuY, string title, array
 
 	if (bDrawBackground)
 	{
-		MenuCanvas.PushDepthSortPriority(DSP_SkyHigh); // If I don't do this the text will disappear when hovering over a player due to the playername
+		MenuCanvas.PushDepthSortPriority(DSP_SkyHigh); // If we don't do this the text will disappear when hovering over a player due to the playername
 		MenuCanvas.StrLen("-----"$MenuBorderLengthString, BL, BH);
 		// draw the background
 		MenuCanvas.SetPos(MenuX-10, MenuY-10);
@@ -188,7 +184,7 @@ function DrawMenu(ROCanvas MenuCanvas, int MenuX, int MenuY, string title, array
 		MenuCanvas.DrawBox(BL, MenuHeight-180);
 	}
 
-	MenuCanvas.PushDepthSortPriority(DSP_Insane); // If I don't do this the text will disappear when hovering over a player due to the playername
+	MenuCanvas.PushDepthSortPriority(DSP_Insane); // If we don't do this the text will disappear when hovering over a player due to the playername
 	MenuCanvas.SetDrawColorStruct(TextColor); //Orange by default in config (255,128,0,255)
 
 	// Title
@@ -282,9 +278,6 @@ function SetCMenuColor(color InColor, string Type)
 
 defaultproperties
 {
-    bCMenuDebug=true
-	MenuName="CMENUBASE"
-
     NumberKeys[0]=zero
     NumberKeys[1]=one
     NumberKeys[2]=two

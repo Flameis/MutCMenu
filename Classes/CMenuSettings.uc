@@ -31,7 +31,7 @@ function bool CheckExceptions(string Command)
 
 defaultproperties
 {
-    bCMenuDebug=true
+    
 
     MenuName="SETTINGS"
 

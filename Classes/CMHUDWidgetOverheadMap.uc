@@ -1,0 +1,1 @@
+class CMHUDWidgetOverheadMap extends ROHUDWidgetOverheadMap;

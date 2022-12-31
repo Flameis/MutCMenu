@@ -44,5 +44,5 @@ defaultproperties
 {
     MenuName="PLAYERS"
 
-    bCMenuDebug=true
+    
 }
