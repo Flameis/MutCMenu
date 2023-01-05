@@ -11,6 +11,7 @@ var bool                        	bShowPreviewMesh, bPreviewIsSkeletal;
 var Vector  				    	PlaceLoc, ModifyLoc;
 var	rotator					    	PlaceRot, ModifyRot;
 var float							ModifyScale;
+var int 							ModifyTime;	
 var Actor							TracedActor;
 
 var array<Vector2D> 				Corners;
@@ -22,29 +23,7 @@ const LOC_MODIFIER = 50;
 
 function bool CheckExceptions(string Command)
 {
-    switch (Command)
-    {
-		case "CUSTOMVIC":
-            LocalPlayer(PC.Player).ViewportClient.ViewportConsole.TypedStr="mutate CMenuBuilder ";
-            LocalPlayer(PC.Player).ViewportClient.ViewportConsole.TypedStrPos=Len(LocalPlayer(PC.Player).ViewportClient.ViewportConsole.TypedStr); // set the value high in case name is quite long
-            LocalPlayer(PC.Player).ViewportClient.ViewportConsole.GoToState('Typing');
-            LocalPlayer(PC.Player).ViewportClient.ClearProgressMessages();
-            LocalPlayer(PC.Player).ViewportClient.SetProgressTime(6);
-            MessageSelf("Please Type Your Desired Vehicle (Example: ROGameContent.ROHeli_AH1G_Content)");
-            return true;
-
-		case "CUSTOMWEP":
-            LocalPlayer(PC.Player).ViewportClient.ViewportConsole.TypedStr="mutate CMenuBuilder ";
-            LocalPlayer(PC.Player).ViewportClient.ViewportConsole.TypedStrPos=Len(LocalPlayer(PC.Player).ViewportClient.ViewportConsole.TypedStr); // set the value high in case name is quite long
-            LocalPlayer(PC.Player).ViewportClient.ViewportConsole.GoToState('Typing');
-            LocalPlayer(PC.Player).ViewportClient.ClearProgressMessages();
-            LocalPlayer(PC.Player).ViewportClient.SetProgressTime(6);
-            MessageSelf("Please Type Your Desired Weapon (Example: ROGameContent.ROWeap_Owen_SMG_Content)");
-            return true;
-	}
-
     GoToState('ReadyToPlace',, true);
-
     return false;
 }
 
@@ -54,7 +33,10 @@ simulated state ReadyToPlace extends MenuVisible
 	{
 		local int i;
 
+		// ModifyLoc = vect(0,0,0);
         ModifyRot = rot(0,0,0);
+		ModifyScale = 1;
+		ModifyTime = 0;
 
 		if (ReferenceSkeletalMesh[0] != none)
 		{
@@ -86,7 +68,6 @@ simulated state ReadyToPlace extends MenuVisible
 
 	function bool InputKey( int ControllerId, name Key, EInputEvent EventType, float AmountDepressed = 1.f, bool bGamepad = FALSE )
 	{
-		
         if (EventType == IE_Pressed)
         {
 			switch (Key)
@@ -116,11 +97,29 @@ simulated state ReadyToPlace extends MenuVisible
 					return true;
 
 				case 'MouseScrollUp':
-            	    ModifyScale = ModifyScale + 0.1;
+            	    ModifyScale += 0.1;
+					MessageSelf("Scale: " $ string(ModifyScale));
 					return true;
 
 				case 'MouseScrollDown':
-            	    ModifyScale = ModifyScale - 0.1;
+				 	if (ModifyScale > 0.15)
+					{
+            	    	ModifyScale -= 0.1;
+						MessageSelf("Scale: "$string(ModifyScale));
+					}
+					return true;
+
+				case 'Add':
+            	    ModifyTime += 5;
+					MessageSelf("Time: "$string(ModifyTime));
+					return true;
+
+				case 'Subtract':
+				 	if (ModifyTime > 1)
+					{
+            	    	ModifyTime -= 5;
+						MessageSelf("Time: "$string(ModifyTime));
+					}
 					return true;
 
 				default:
@@ -181,11 +180,13 @@ simulated function UpdatePreviewMesh() // Update the postion of the Preview Mesh
 	{
 		PreviewSkeletalMesh[0].SetTranslation(PlaceLoc);
 		PreviewSkeletalMesh[0].SetRotation(PlaceRot);
+		PreviewSkeletalMesh[0].SetScale(ModifyScale);
 	}
 	else 
 	{
 		PreviewStaticMesh[0].SetTranslation(PlaceLoc);
 		PreviewStaticMesh[0].SetRotation(PlaceRot);
+		PreviewStaticMesh[0].SetScale(ModifyScale);
 	}
 }
 

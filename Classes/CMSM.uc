@@ -93,7 +93,17 @@ simulated event ReplicatedEvent( name VarName )
 event TakeDamage(int DamageAmount, Controller EventInstigator, vector HitLocation, vector Momentum, class<DamageType> DamageType, optional TraceHitInfo HitInfo, optional Actor DamageCauser)
 {
 	local int i;
+	//local KActorFromStatic NewKActor;
 
+	/* StaticMeshComponent.StaticMesh.bCanBecomeDynamic=true;
+	NewKActor = class'KActorFromStatic'.Static.MakeDynamic(StaticMeshComponent);
+	NewKActor.TakeDamage(DamageAmount, EventInstigator, HitLocation, Momentum, DamageType, HitInfo, DamageCauser); */
+	/* `log(StaticMeshComponent.StaticMesh.UseSimpleRigidBodyCollision);
+
+	StaticMeshComponent.StaticMesh.UseSimpleRigidBodyCollision=true;
+	//`log(NewKActor);
+	`log(StaticMeshComponent.bSelfShadowOnly);
+	`log(StaticMeshComponent.StaticMesh.bCanBecomeDynamic); */
 	`log(DamageAmount);
 	`log(DamageType);
 
@@ -122,6 +132,7 @@ event TakeDamage(int DamageAmount, Controller EventInstigator, vector HitLocatio
 		Shutdown();
 		SetTimer(Lifespan, false, 'Destroy');
 	}
+
 	super.TakeDamage(DamageAmount, EventInstigator, HitLocation, Momentum, DamageType, HitInfo, DamageCauser);
 }
 
@@ -240,12 +251,15 @@ defaultproperties
 	NetPriority = 3
 	bAlwaysRelevant = true
 
+	//CustomTimeDilation=0.00001;
+	CollisionType=COLLIDE_RO_CanBecomeDynamic
+	Physics=PHYS_NONE
+
     bCollideActors=true
+	bCollideWorld=true
 	bBlockActors=true
-	CollisionType=COLLIDE_BlockAll
-	bProjTarget=true
 	bWorldGeometry=true
-	bCollideWorld=false
+
 	bStatic=false
 	bNoDelete=false
 	bHidden=false
@@ -257,16 +271,24 @@ defaultproperties
 	LightEnvironment=MyLightEnvironment
 	Components.Add(MyLightEnvironment)
 
+	/* Begin Object class=StaticMesh Name=StaticMesh0
+		UseSimpleRigidBodyCollision=true
+        bCanBecomeDynamic=true
+    End Object */
+
     Begin Object class=StaticMeshComponent Name=StaticMeshComponent0
-        StaticMesh=StaticMesh'ENV_VN_Sandbags.Mesh.S_ENV_Sandbags_112uu'
 	    CollideActors=true
 		BlockActors=true
 		BlockZeroExtent=true
 		BlockNonZeroExtent=true
-		BlockRigidBody=false
-		bNotifyRigidBodyCollision=false
+		// BlockRigidBody=false
+		// bNotifyRigidBodyCollision=false
+		bUseAsOccluder=false
 		CastShadow=true
+		bUsePrecomputedShadows=false
 		bCastDynamicShadow=true
+		bSelfShadowOnly=false
+		bNeverBecomeDynamic=false
 		LightEnvironment=MyLightEnvironment
     End Object
 	StaticMeshComponent=StaticMeshComponent0

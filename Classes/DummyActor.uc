@@ -2,7 +2,7 @@ class DummyActor extends actor;
 
 var MutCMenu                     MyMut;
 
-var bool bIsAuthorized, bNewTankPhys, bLoadGOM3, bLoadGOM4, bLoadWW;
+var bool bIsAuthorized, bNewTankPhys, bLoadExtras, bLoadGOM3, bLoadGOM4, bLoadWW;
 var string TargetName;
 
 var array<vector2d>				Corners;
@@ -10,7 +10,7 @@ var array<vector2d>				Corners;
 replication
 {
     if (bNetDirty)
-        bIsAuthorized, bNewTankPhys, bLoadGOM3, bLoadGOM4, bLoadWW;
+        bIsAuthorized, bNewTankPhys, bLoadExtras, bLoadGOM3, bLoadGOM4, bLoadWW;
 }
 
 reliable client function CMenuSetup()
@@ -33,6 +33,7 @@ reliable client function CMenuSetup()
     pc.Interactions.additem(new(pc) class'CMenuBSM');
     pc.Interactions.additem(new(pc) class'CMenuBPrefab');
     pc.Interactions.additem(new(pc) class'CMenuBVehicles');
+    pc.Interactions.additem(new(pc) class'CMenuBWeapons');
 
     pc.Interactions.additem(new(pc) class'CMenuWeapons');
     
@@ -228,16 +229,30 @@ reliable server function ServerSpawnActor(
 	optional rotator    SpawnRotation,
 	optional Actor      ActorTemplate,
 	optional bool	    bNoCollisionFail,
-    optional string     SMesh)
+    optional string     SMesh,
+    optional float      Scale)
 {
-    local CMSM CMSM;  
-
-    CMSM = CMSM(Spawn(SpawnClass, SpawnOwner, SpawnTag, SpawnLocation, SpawnRotation, ActorTemplate, bNoCollisionFail));
+    local CMSM CMSM;
 
     if (SpawnTag == 'StaticMesh')
-        CMSM.SetStaticMesh(StaticMesh(DynamicLoadObject(SMesh, class'StaticMesh')));
+    {
+        CMSM =  CMSM(Spawn(SpawnClass, SpawnOwner, SpawnTag, SpawnLocation, SpawnRotation, ActorTemplate, bNoCollisionFail));
+        CMSM.SetStaticMesh(StaticMesh(DynamicLoadObject(SMesh, class'StaticMesh')),,, CMSM.StaticMeshComponent.Scale3D*Scale);
+    }
     /* else 
         CMSM.SetSkeletalMesh(SkeletalMesh(DynamicLoadObject(SMesh, class'SkeletalMesh'))); */
+}
+
+reliable server function ServerSpawnPickup(
+    class<ROWeapon>    WeaponClass,
+	optional vector     SpawnLocation,
+	optional rotator    SpawnRotation,
+    optional int        RespawnTime)
+{
+    local CMAPickupFactory CMAPF;
+
+    CMAPF = Spawn(class'CMAPickupFactory', Owner,, SpawnLocation, SpawnRotation);
+    CMAPF.Init(WeaponClass, RespawnTime);
 }
 
 reliable server function ServerSpawnDecal(

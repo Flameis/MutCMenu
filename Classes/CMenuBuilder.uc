@@ -14,5 +14,5 @@ defaultproperties
     MenuCommand.Add("CMENU CMENUBSM")
     MenuCommand.Add("CMENU CMENUBPREFAB")
     MenuCommand.Add("CMENU CMENUBVEHICLES")
-    MenuCommand.Add("CMENU CMENUWEAPONS")
+    MenuCommand.Add("CMENU CMENUBWEAPONS")
 }

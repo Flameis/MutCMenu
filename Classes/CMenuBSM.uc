@@ -5,7 +5,6 @@ simulated state MenuVisible
 	function BeginState(name PreviousStateName)
 	{
         super.BeginState(PreviousStateName);
-        ModifyRot = rot(0,0,0);
 
 		if (InStr(TargetName, "_",,true) != -1)
 		{
@@ -34,8 +33,14 @@ function bool CheckExceptions(string Command)
             return true;
 
         case "COPY":
-            LastCmd = PathName(StaticMeshActor(TracedActor).StaticMeshComponent.StaticMesh);
-            Command = LastCmd;
+            Command = PathName(StaticMeshActor(TracedActor).StaticMeshComponent.StaticMesh);
+            LastCmd = Command;
+            if(LastCmd != "None")
+            {
+                PC.CopyToClipboard(LastCmd);
+                MessageSelf("Copied Mesh Name To Clipboard:"@LastCmd);
+            }
+            else MessageSelf("No Mesh Found");
             break;
     }
     if (InStr(Command, "_",,true) != -1)
@@ -54,7 +59,7 @@ function DoPlace()
 {
 	if (InStr(LastCmd, "_",, true) != -1)
 	{
-		MyDA.ServerSpawnActor(class'CMSM',,'StaticMesh', PlaceLoc, PlaceRot,,, LastCmd);
+		MyDA.ServerSpawnActor(class'CMSM',,'StaticMesh', PlaceLoc, PlaceRot,,, LastCmd, ModifyScale);
 	}
 }
 

@@ -1,8 +1,38 @@
 class CMenuBVehicles extends CMenuBBase;
 
+simulated state MenuVisible
+{
+	function BeginState(name PreviousStateName)
+	{
+        local class<ROVehicle>          VehicleClass;
+
+        super.BeginState(PreviousStateName);
+
+		if (InStr(TargetName, "Heli",,true) != -1 || InStr(TargetName, "Vehicle",,true) != -1)
+		{
+            LastCmd = TargetName;
+            VehicleClass = class<ROVehicle>(DynamicLoadObject(LastCmd, class'Class'));
+            ReferenceSkeletalMesh[0] = VehicleClass.default.Mesh.SkeletalMesh;
+            ModifyLoc.z = 140;
+            GoToState('ReadyToPlace',, true);
+		}
+	}
+}
+
 function bool CheckExceptions(string Command)
 {
     local class<ROVehicle>          VehicleClass;
+
+    if (Command == "CUSTOM")
+    {
+        LocalPlayer(PC.Player).ViewportClient.ViewportConsole.TypedStr="mutate CMenuBuilder ";
+        LocalPlayer(PC.Player).ViewportClient.ViewportConsole.TypedStrPos=Len(LocalPlayer(PC.Player).ViewportClient.ViewportConsole.TypedStr); // set the value high in case name is quite long
+        LocalPlayer(PC.Player).ViewportClient.ViewportConsole.GoToState('Typing');
+        LocalPlayer(PC.Player).ViewportClient.ClearProgressMessages();
+        LocalPlayer(PC.Player).ViewportClient.SetProgressTime(6);
+        MessageSelf("Please Type Your Desired Vehicle (Example: ROGameContent.ROHeli_AH1G_Content)");
+        return true;
+    }
 
     VehicleClass = class<ROVehicle>(DynamicLoadObject(Command, class'Class'));
     ReferenceSkeletalMesh[0] = VehicleClass.default.Mesh.SkeletalMesh;
@@ -21,6 +51,7 @@ defaultproperties
 {
     MenuName="VEHICLES"
 
+    MenuText.add("Custom")
     MenuText.add("Cobra")
     MenuText.add("Loach")
     MenuText.add("Huey")
@@ -47,6 +78,7 @@ defaultproperties
     MenuText.add("Vickers")
     MenuText.add("Skis")
     
+    MenuCommand.add("CUSTOM")
     MenuCommand.add("ROGameContent.ROHeli_AH1G_Content")
     MenuCommand.add("ROGameContent.ROHeli_OH6_Content")
     MenuCommand.add("ROGameContent.ROHeli_UH1H_Content")

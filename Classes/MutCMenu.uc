@@ -1,10 +1,10 @@
-// CMenu Mutator
+// Command Menu Mutator
 // Created by T/5 Scovel for the 29th Infantry Division Realism Unit
-// ====================================================
+// =================================================================
 // Version 2.0
-// ====================================================
+// =================================================================
 // Code tech: T/5 Scovel
-// ====================================================
+// =================================================================
 class MutCMenu extends ROMutator
     config(MutCMenu_Server);
 
@@ -16,7 +16,7 @@ var int                         NumObjs;
 
 var config ENorthernForces      MyNorthForce;
 var config ESouthernForces      MySouthForce;
-var config bool                 bUseDefaultFactions, bLoadGOM3, bLoadGOM4, bLoadWW, bNewTankPhys;
+var config bool                 bUseDefaultFactions, bLoadExtras, bLoadGOM3, bLoadGOM4, bLoadWW, bNewTankPhys;
 var config array<string>        MutatorAdmins; // A list of all mutator admins and their passwords
 
 function PreBeginPlay()
@@ -26,11 +26,11 @@ function PreBeginPlay()
     ROGameInfo(WorldInfo.Game).GameReplicationInfoClass = class'CMGameReplicationInfo';
 }
 
-/* auto state StartUp
+auto state StartUp
 {
     Begin:
     SetTimer(1, false, 'LoadObjects');
-} */
+}
 
 simulated function NotifyLogin(Controller NewPlayer)
 {
@@ -42,6 +42,7 @@ simulated function NotifyLogin(Controller NewPlayer)
 
     DA.MyMut = self;
     DA.bNewTankPhys = bNewTankPhys;
+    DA.bLoadExtras = bLoadExtras;
     DA.bLoadGOM3 = bLoadGOM3;
     DA.bLoadGOM4 = bLoadGOM4;
     DA.bLoadWW = bLoadWW;
@@ -51,7 +52,7 @@ simulated function NotifyLogin(Controller NewPlayer)
     if (!bUseDefaultFactions)
     {
         if (WorldInfo.NetMode != NM_Standalone) DA.FactionSetup(MyNorthForce, MySouthForce);
-            DA.ClientFactionSetup(MyNorthForce, MySouthForce);
+        DA.ClientFactionSetup(MyNorthForce, MySouthForce);
     }
 
     super.NotifyLogin(NewPlayer);
@@ -386,15 +387,18 @@ function PrivateMessage(PlayerController receiver, coerce string msg)
     receiver.TeamMessage(None, msg, '');
 }
 
-/* function LoadObjects()
+function LoadObjects()
 {
     local ROMapInfo               ROMI;
 
     ROMI = ROMapInfo(WorldInfo.GetMapInfo());
 
-    //`log ("[MutExtras LoadObjects]");
-    ROMI.SharedContentReferences.AddItem(class<Settings>(DynamicLoadObject("MutExtrasTB.MutExtrasSettings", class'Class')));
+    ROMI.SharedContentReferences.AddItem(class<Settings>(DynamicLoadObject("MutCMenuTB.MutCMenuSettings", class'Class')));
 
+    if (bLoadExtras)
+    {
+        ROMI.SharedContentReferences.AddItem(class<ROVehicle>(DynamicLoadObject("GOM3.GOMVehicle_M113_ACAV_ActualContent", class'Class')));
+    }
     if (bLoadGOM3)
     {
         ROMI.SharedContentReferences.AddItem(class<ROVehicle>(DynamicLoadObject("GOM3.GOMVehicle_M113_ACAV_ActualContent", class'Class')));
@@ -506,4 +510,4 @@ function PrivateMessage(PlayerController receiver, coerce string msg)
         ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject("WinterWar.WWWeapon_SVT38_ActualContent", class'Class')));
         ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject("WinterWar.WWWeapon_TT33_ActualContent", class'Class')));
     }
-} */
+}
