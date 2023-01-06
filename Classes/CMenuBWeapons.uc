@@ -34,7 +34,31 @@ function bool CheckExceptions(string Command)
     }
     else if (Command == "COPY")
     {
-        WeaponClass = class<ROWeapon>(DynamicLoadObject("ROGameContent."$Repl(string(PC.Pawn.Weapon), Right(string(PC.Pawn.Weapon), 2), "", false), class'Class'));
+        if (InStr(string(PC.Pawn.Weapon), "RO",,true) != -1)
+		{
+            WeaponClass = class<ROWeapon>(DynamicLoadObject("ROGameContent."$Repl(string(PC.Pawn.Weapon), Right(string(PC.Pawn.Weapon), 2), "", false), class'Class'));
+        }
+        else if (InStr(string(PC.Pawn.Weapon), "GOM",,true) != -1)
+        {
+            WeaponClass = class<ROWeapon>(DynamicLoadObject("GOM4."$Repl(string(PC.Pawn.Weapon), Right(string(PC.Pawn.Weapon), 2), "", false), class'Class'));
+        }
+        else if (InStr(string(PC.Pawn.Weapon), "WW",,true) != -1)
+        {
+            WeaponClass = class<ROWeapon>(DynamicLoadObject("WinterWar."$Repl(string(PC.Pawn.Weapon), Right(string(PC.Pawn.Weapon), 2), "", false), class'Class'));
+        }
+        else if (InStr(string(PC.Pawn.Weapon), "AC",,true) != -1)
+		{
+            WeaponClass = class<ROWeapon>(DynamicLoadObject("MutExtrasTB."$Repl(string(PC.Pawn.Weapon), Right(string(PC.Pawn.Weapon), 2), "", false), class'Class'));
+        }
+        else if (InStr(string(PC.Pawn.Weapon), "GM",,true) != -1)
+        {
+            WeaponClass = class<ROWeapon>(DynamicLoadObject("GreenMenMod."$Repl(string(PC.Pawn.Weapon), Right(string(PC.Pawn.Weapon), 2), "", false), class'Class'));
+        }
+        else if (InStr(string(PC.Pawn.Weapon), "DR",,true) != -1)
+        {
+            WeaponClass = class<ROWeapon>(DynamicLoadObject("DesertRats."$Repl(string(PC.Pawn.Weapon), Right(string(PC.Pawn.Weapon), 2), "", false), class'Class'));
+        }
+        
         ReferenceSkeletalMesh[0] = SkeletalMeshComponent(WeaponClass.default.Mesh).SkeletalMesh;
         ModifyLoc.z = 5;
         GoToState('ReadyToPlace',, true);

@@ -110,16 +110,19 @@ simulated state ReadyToPlace extends MenuVisible
 					return true;
 
 				case 'Add':
-            	    ModifyTime += 5;
+					if (ModifyTime == -1)
+            	    	ModifyTime = 0;
+					else
+						ModifyTime += 5;
 					MessageSelf("Time: "$string(ModifyTime));
 					return true;
 
 				case 'Subtract':
-				 	if (ModifyTime > 1)
-					{
+				 	if (ModifyTime > 0)
             	    	ModifyTime -= 5;
-						MessageSelf("Time: "$string(ModifyTime));
-					}
+					else
+						ModifyTime = -1;
+					MessageSelf("Time: "$string(ModifyTime));
 					return true;
 
 				default:

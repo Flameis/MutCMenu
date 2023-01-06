@@ -1,6 +1,23 @@
 class CMAPickupFactory extends ROPickupFactory;
 
-simulated event Init(class<ROWeapon> WPClass, int Time)
+var repnotify class<ROWeapon> WPClass;
+var float Time;
+
+replication
+{
+	if (bNetDirty && (Role == ROLE_Authority))
+		WPClass, Time;
+}
+
+simulated event ReplicatedEvent(name VarName)
+{
+	if (VarName == 'WPClass')
+	{
+		InitializePickup();
+	}
+}
+
+simulated function InitializePickup()
 {
 	WeaponPickupClass = WPClass;
 	InventoryType = WPClass;
@@ -19,13 +36,24 @@ simulated event Init(class<ROWeapon> WPClass, int Time)
 
     SetCollision(true,true);
     EnablePickup();
+	SetPickupVisible();
 
-    /* `log(WeaponPickupClass);
+    `log(WeaponPickupClass);
     `log(InventoryType);
     `log(PreviewMesh);
     `log(bIsEnabled);
     `log(bPickupHidden);
-    `log(bIsSleeping); */
+    `log(bIsSleeping);
+}
+
+// Enable/Disable areas is whether this pickup has been enabled by Kismet (which it must to work!)
+simulated function EnablePickup()
+{
+	if( CanEnable() )
+	{
+		bIsEnabled = true;
+		WakeUp();
+	}
 }
 
 /* // RS2PR-4967 - Cache our preview skeletal mesh for highlighting.

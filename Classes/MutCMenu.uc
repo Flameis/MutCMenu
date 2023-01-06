@@ -80,16 +80,14 @@ if a NavigationPoint is returned, it will be used as the playerstart
 */
 function NavigationPoint FindPlayerStart(Controller Player, optional byte InTeam, optional string incomingName)
 {
-    local CMSMSpawn SMS;
+    local CMASpawn SMS;
     local NavigationPoint SpawnPoint;
     local ROGameInfo ROGI;
     local vector SpawnLoc;
     
-    super.FindPlayerStart(Player, InTeam, incomingName);
-
     ROGI = ROGameInfo(WorldInfo.Game);
 
-    foreach AllActors(class'CMSMSpawn', SMS)
+    foreach AllActors(class'CMASpawn', SMS)
     {
         if (SMS.TeamIndex == Player.GetTeamNum())
         {
@@ -99,14 +97,14 @@ function NavigationPoint FindPlayerStart(Controller Player, optional byte InTeam
             return SpawnPoint;
         }
     }
-    return none;
+    return super.FindPlayerStart(Player, InTeam, incomingName);
 }
 
 // Interprets commands and broadcasts their execution
 simulated function Mutate(string mutateString, PlayerController sender)
 {
     local DummyActor DA, DASender, DAFound;
-    local CMSMSpawn SMS;
+    local CMASpawn SMS;
 	local CMAObjective CMPO;
 
     local array<string> params;
@@ -194,7 +192,7 @@ simulated function Mutate(string mutateString, PlayerController sender)
             break;
 
         case "DELNORTHSPAWNS":
-            foreach AllActors(class'CMSMSpawn', SMS)
+            foreach AllActors(class'CMASpawn', SMS)
             {
                 if (SMS.TeamIndex == 0)
                 {
@@ -204,7 +202,7 @@ simulated function Mutate(string mutateString, PlayerController sender)
             break;
 
         case "DELSOUTHSPAWNS":
-            foreach AllActors(class'CMSMSpawn', SMS)
+            foreach AllActors(class'CMASpawn', SMS)
             {
                 if (SMS.TeamIndex == 1)
                 {

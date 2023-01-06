@@ -30,8 +30,9 @@ reliable client function CMenuSetup()
     pc.Interactions.additem(new(pc) class'CMenuPCManager');
 
     pc.Interactions.additem(new(pc) class'CMenuBuilder');
-    pc.Interactions.additem(new(pc) class'CMenuBSM');
-    pc.Interactions.additem(new(pc) class'CMenuBPrefab');
+    pc.Interactions.additem(new(pc) class'CMenuBActors');
+    pc.Interactions.additem(new(pc) class'CMenuBMeshes');
+    pc.Interactions.additem(new(pc) class'CMenuBPrefabs');
     pc.Interactions.additem(new(pc) class'CMenuBVehicles');
     pc.Interactions.additem(new(pc) class'CMenuBWeapons');
 
@@ -181,7 +182,7 @@ reliable server function ServerSpawnOBJ(
 	ObjTemplate = CMAObjective(DynamicLoadObject("MutCMenuTBPkg.Objectives.OBJ"$MyMut.NumObjs+1, class'CMAObjective'));
 	MyMut.NumObjs++;
     `log(ObjTemplate);
-	CMPO = Spawn(class'CMAObjective', SpawnOwner, SpawnTag, SpawnLocation, SpawnRotation, ObjTemplate);
+	CMPO = Spawn(class'CMAObjective',, SpawnTag, SpawnLocation, SpawnRotation, ObjTemplate);
 	CMPO.Init(Corners);
 	Corners.Remove(0, Corners.Length);
 
@@ -191,7 +192,7 @@ reliable server function ServerSpawnOBJ(
     }
 }
 
-reliable client function ClientSetupObj(CMAObjective CMPO)
+reliable server function ClientSetupObj(CMAObjective CMPO)
 {
     local ROGameReplicationInfo ROGRI;
     local int i;
@@ -215,9 +216,9 @@ reliable server function ServerPlaceSpawn(
 	optional bool	    bNoCollisionFail,
     optional int        TeamIdx)
 {
-    local CMSMSpawn SMS;
+    local CMASpawn SMS;
 
-    SMS = Spawn(class'CMSMSpawn', SpawnOwner, SpawnTag, SpawnLocation, SpawnRotation, ActorTemplate, bNoCollisionFail);
+    SMS = Spawn(class'CMASpawn', SpawnOwner, SpawnTag, SpawnLocation, SpawnRotation, ActorTemplate, bNoCollisionFail);
 	SMS.TeamIndex = TeamIdx;
 }
 
@@ -251,8 +252,10 @@ reliable server function ServerSpawnPickup(
 {
     local CMAPickupFactory CMAPF;
 
-    CMAPF = Spawn(class'CMAPickupFactory', Owner,, SpawnLocation, SpawnRotation);
-    CMAPF.Init(WeaponClass, RespawnTime);
+    CMAPF = Spawn(class'CMAPickupFactory',,, SpawnLocation, SpawnRotation);
+    CMAPF.Time = RespawnTime;
+    CMAPF.WPClass = WeaponClass;
+    CMAPF.InitializePickup();
 }
 
 reliable server function ServerSpawnDecal(
@@ -260,37 +263,30 @@ reliable server function ServerSpawnDecal(
 	vector DecalLocation,
 	rotator DecalOrientation)
 {
-    // local DecalComponent Decal;
     local CMADecal Decal;
 	local float Height;
 
-    DecalLocation.x = FMin(Corners[1].x, Corners[0].x) + (Abs(Corners[1].x - Corners[0].x)/2);
-	DecalLocation.y = FMin(Corners[1].y, Corners[0].y) + (Abs(Corners[1].y - Corners[0].y)/2);
+    DecalLocation.x = FMin(Corners[Corners.Length-1].x, Corners[Corners.Length-2].x) + (Abs(Corners[Corners.Length-1].x - Corners[Corners.Length-2].x)/2);
+	DecalLocation.y = FMin(Corners[Corners.Length-1].y, Corners[Corners.Length-2].y) + (Abs(Corners[Corners.Length-1].y - Corners[Corners.Length-2].y)/2);
 	DecalLocation.z = DecalLocation.z;
-	DecalOrientation.Yaw = (atan2(Corners[1].y - Corners[0].y , Corners[1].x - Corners[0].x)*RadToUnrRot);
+
+	DecalOrientation.Yaw = (atan2(Corners[Corners.Length-1].y - Corners[Corners.Length-2].y , Corners[Corners.Length-1].x - Corners[Corners.Length-2].x)*RadToUnrRot);
 	DecalOrientation.Pitch = 270*DegToUnrRot;
 	DecalOrientation.Roll = 0;
-	Height = V2DSize(Corners[0] - Corners[1]);
 
+	Height = V2DSize(Corners[Corners.Length-2] - Corners[Corners.Length-1]);
 
-    Decal = Spawn(class'CMADecal', Owner,, DecalLocation, DecalOrientation);
-
-    Decal.DetachComponent(Decal.MyDecal);
-	Decal.MyDecal.TileX = 0.2;
-	Decal.MyDecal.TileY = 0.2;
-    Decal.MyDecal.Location = DecalLocation;
-	Decal.MyDecal.Orientation = DecalOrientation;
-	Decal.MyDecal.Width = 10;
-	Decal.MyDecal.Height = Height;
-    Decal.MyDecal.FarPlane = 5000;
-	Decal.MyDecal.NearPlane = -5000;
-	Decal.MyDecal.SetDecalMaterial(DecalMaterial);
-    Decal.MyDecal.bProjectOnTerrain = true;
-	Decal.MyDecal.bProjectOnSkeletalMeshes = true;
-	WorldInfo.MyDecalManager.AttachComponent(Decal.MyDecal);
 	Corners.Remove(0, Corners.Length);
-	`log(Decal.MyDecal.Location);
-	`log(Decal.MyDecal.Height);
+
+    Decal = Spawn(class'CMADecal',,, DecalLocation, DecalOrientation);
+    /* Decal.DecalLocation = DecalLocation;
+    Decal.DecalOrientation = DecalOrientation;
+    Decal.DecalLength = Height;
+    Decal.DecalMaterial = DecalMaterial; */
+    Decal.Initialize(DecalMaterial, DecalLocation, DecalOrientation, Height);
+
+	`log(Decal);
+
     // Decal = WorldInfo.MyDecalManager.SpawnDecal(DecalMaterial, DecalLocation, DecalOrientation, 10, Height, 10000, false, 0,, True, True,,,, 100000);
 	
     /* WorldInfo.MyDecalManager.DetachComponent(Decal.Decal);

@@ -1,4 +1,4 @@
-class CMenuBSM extends CMenuBBase;
+class CMenuBMeshes extends CMenuBBase;
 
 simulated state MenuVisible
 {
