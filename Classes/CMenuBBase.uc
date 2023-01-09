@@ -152,6 +152,23 @@ simulated function CanPhysicallyPlace()
     PlaceRot.Pitch = ModifyRot.Pitch;
 }
 
+simulated function actor TraceActors()
+{
+    local rotator PRot;
+	local vector HitLocation, HitNormal, StartTrace, EndTrace, ViewDirection;
+	
+    local float     TraceLength;
+
+	PC.GetPlayerViewPoint(StartTrace, PRot);
+    ViewDirection = Vector(PC.Pawn.GetViewRotation());
+    TraceLength = 40000;
+    EndTrace = StartTrace + ViewDirection * TraceLength;
+	foreach PC.TraceActors(class'Actor', TracedActor, HitLocation, HitNormal, EndTrace, StartTrace,,, PC.TRACEFLAG_Blocking | PC.TRACEFLAG_PhysicsVolumes)
+	{
+		return TracedActor;
+	}
+}
+
 function DoPlace() //Override in child class
 {
 }

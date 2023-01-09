@@ -42,6 +42,14 @@ function bool CheckExceptions(string Command)
             }
             else MessageSelf("No Mesh Found");
             break;
+
+        case "DELETE":
+            MyDA.DeleteActor(TraceActors());
+            break;
+
+        case "COLLISION":
+            MyDA.SetActorCollision(TraceActors());
+            break;
     }
     if (InStr(Command, "_",,true) != -1)
     {
@@ -69,11 +77,15 @@ defaultproperties
 
     MenuText.add("Custom")
     MenuText.add("Copy Mesh")
+    MenuText.add("Delete Actor")
+    MenuText.add("Toggle Collision")
     MenuText.add("Sandbags Straight")
     MenuText.add("F4 Phantom")
 
     MenuCommand.add("CUSTOMSM")
     MenuCommand.add("COPY")
+    MenuCommand.add("DELETE")
+    MenuCommand.add("COLLISION")
     MenuCommand.add("ENV_VN_Sandbags.Mesh.S_ENV_Sandbags_112uu")
     MenuCommand.add("VH_VN_US_F4Phantom.Mesh.F4_Phantom_SM")
 }

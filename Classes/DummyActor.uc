@@ -155,6 +155,34 @@ reliable client function ClientFactionSetup(ENorthernForces MyNorthForce, ESouth
     FactionSetup(MyNorthForce, MySouthForce);
 }
 
+reliable server function DeleteActor(actor ActorToDelete)
+{
+    `log("Deleting:"@ActorToDelete);
+    //TraceGeometryWorldActors
+
+    if(ActorToDelete == none)
+        return;
+
+    if(ActorToDelete.IsA('Terrain'))
+        return;
+
+    ActorToDelete.ShutDown();
+    ActorToDelete.Destroy();
+}
+
+reliable server function SetActorCollision(actor ActorToDo)
+{
+    `log("Ghosting:"@ActorToDo);
+    
+    if(ActorToDo == none)
+        return;
+
+    if(ActorToDo.IsA('Terrain'))
+        return;
+
+    ActorToDo.SetCollision(false, false);
+}
+
 reliable server function ServerSetCorners(Vector PlaceLoc, rotator PlaceRot)
 {
     local vector2d Point2d;
