@@ -6,6 +6,7 @@ var DummyActor MyDA;
 var Texture2D DefaultTexture_Black, DefaultTexture_White;
 
 const ITEMS_PER_PAGE = 8;
+const TEXT_OFFSET = 10;
 var string MenuName, TargetName, MenuBorderLengthString, LastCmd;
 var bool bIsAuthorized;
 var int MenuPage, MenuHeight;
@@ -51,11 +52,16 @@ simulated state MenuVisible
 
 	function PostRender(Canvas HUDCanvas)
     {
-	    DrawMenu(ROCanvas(HUDCanvas), 10, 250, MenuName, MenuText);
+	    DrawMenu(ROCanvas(HUDCanvas), 0, 240, MenuName, MenuText);
     }
 }
 
 function bool InputKey( int ControllerId, name Key, EInputEvent EventType, float AmountDepressed = 1.f, bool bGamepad = FALSE )
+{
+	return false;
+}
+
+function bool InputAxis( int ControllerId, name Key, float Delta, float DeltaTime, optional bool bGamepad )
 {
 	return false;
 }
@@ -175,17 +181,20 @@ function DrawMenu(ROCanvas MenuCanvas, int MenuX, int MenuY, string title, array
 		MenuCanvas.PushDepthSortPriority(DSP_SkyHigh); // If we don't do this the text will disappear when hovering over a player due to the playername
 		MenuCanvas.StrLen("-----"$MenuBorderLengthString, BL, BH);
 		// draw the background
-		MenuCanvas.SetPos(MenuX-10, MenuY-10);
+		MenuCanvas.SetPos(MenuX, MenuY);
 		MenuCanvas.SetDrawColorStruct(BackgroundColor);
 		MenuCanvas.DrawRect(BL, MenuHeight-180);
 		// draw the border
-		MenuCanvas.SetPos(MenuX-10, MenuY-10);
+		MenuCanvas.SetPos(MenuX, MenuY);
 		MenuCanvas.SetDrawColorStruct(BorderColor);
 		MenuCanvas.DrawBox(BL, MenuHeight-180);
 	}
 
 	MenuCanvas.PushDepthSortPriority(DSP_Insane); // If we don't do this the text will disappear when hovering over a player due to the playername
 	MenuCanvas.SetDrawColorStruct(TextColor); //Orange by default in config (255,128,0,255)
+
+	MenuX+=TEXT_OFFSET;
+	MenuY+=TEXT_OFFSET;
 
 	// Title
 	if(title != "")
@@ -304,4 +313,5 @@ defaultproperties
 
 	//Assigns the delegate to our Input function
 	OnReceivedNativeInputKey=InputKey
+	OnReceivedNativeInputAxis=InputAxis
 }

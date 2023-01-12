@@ -7,9 +7,11 @@ function Initialize()
         MenuText.additem("Realism Match Menu");
         MenuText.additem("Paradrop Menu");
         MenuText.additem("Manage Players");
+        MenuText.additem("Map");
         MenuCommand.additem("CMENU CMENUREALISMMATCH");
         MenuCommand.additem("CMENU CMENUPARADROPS");
         MenuCommand.additem("CMENU CMENUPLAYER");
+        MenuCommand.additem("CMENU CMENUMAP");
     }
 
     MenuText.AddItem("CMenu Settings");
