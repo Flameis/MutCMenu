@@ -24,6 +24,8 @@ function PreBeginPlay()
     super.PreBeginPlay();
 
     ROGameInfo(WorldInfo.Game).GameReplicationInfoClass = class'CMGameReplicationInfo';
+    ROGameInfo(WorldInfo.Game).PlayerControllerClass = class'GUICompatiblePlayerController';
+    ROGameInfo(WorldInfo.Game).HUDType = class'CMHUD';
 }
 
 auto state StartUp

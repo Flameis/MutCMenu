@@ -38,7 +38,7 @@ reliable client function CMenuSetup()
     pc.Interactions.additem(new(pc) class'CMenuBWeapons');
 
     pc.Interactions.additem(new(pc) class'CMenuWeapons');
-    
+
     pc.Interactions[pc.Interactions.Length] = pc.Interactions[0];
     pc.Interactions.remove(0, 1);
     

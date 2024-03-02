@@ -93,7 +93,7 @@ function DrawMenu(ROCanvas MenuCanvas, int MenuX, int MenuY, string title, array
 			else 
 				MenuCanvas.Draw2DLine(MouseClicks[I].X, MouseClicks[I].Y, MouseClicks[0].X, MouseClicks[0].Y, DrawColor);
 		}
-		if(MouseLocation.X != MapBounds or something like tha)
+		// if(MouseLocation.X != MapBounds or something like tha)
 		MenuCanvas.Draw2DLine(MouseClicks[0].X, MouseClicks[0].Y, MouseLocation.X, MouseLocation.Y, DrawColor);
 		MenuCanvas.Draw2DLine(MouseClicks[MouseClicks.Length-1].X, MouseClicks[MouseClicks.Length-1].Y, MouseLocation.X, MouseLocation.Y, DrawColor);
 	}
