@@ -1,4 +1,4 @@
-class CMenuBBase extends CMenuBase;
+class CMenuB extends CMenu;
 
 var	array<StaticMeshComponent>		PreviewStaticMesh;
 var array<StaticMesh> 				ReferenceStaticMesh;
@@ -18,8 +18,8 @@ var array<Vector2D> 				Corners;
 var string                     		SMToPlace;
 var int 							SpawnTeamIndex, NumObjs;
 
-const ROT_MODIFIER = 8196; //45 Degrees
-const LOC_MODIFIER = 50;
+const ROT_MODIFIER = 2048; // 12.25 degrees
+const LOC_MODIFIER = 50; // 50 units
 
 function bool CheckExceptions(string Command)
 {
@@ -78,14 +78,17 @@ simulated state ReadyToPlace extends MenuVisible
 				
 				case 'Z':
             	    ModifyRot.roll = ModifyRot.roll + ROT_MODIFIER;
+					MessageSelf("Roll: " $ string(ModifyRot.roll * UnrRotToDeg)); 
 					return true;
 
             	case 'X':
             	    ModifyRot.pitch = ModifyRot.pitch + ROT_MODIFIER;
+					MessageSelf("Pitch: " $ string(ModifyRot.pitch * UnrRotToDeg));
 					return true;
 
             	case 'C':
             	    ModifyRot.Yaw = ModifyRot.Yaw + ROT_MODIFIER;
+					MessageSelf("Yaw: " $ string(ModifyRot.Yaw * UnrRotToDeg));
 					return true;
 
 				case 'Up':

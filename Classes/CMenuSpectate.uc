@@ -1,4 +1,4 @@
-class CMenuSpectate extends CMenuBase
+class CMenuSpectate extends CMenu
 	config(MutCMenu_Client);
 
 function Initialize()

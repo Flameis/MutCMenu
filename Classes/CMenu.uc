@@ -1,4 +1,4 @@
-class CMenuBase extends Interaction
+class CMenu extends Interaction
 	config(MutCMenu_Client);
 
 var PlayerController PC;
@@ -252,8 +252,8 @@ function ToggleCMenuBackground()
     {
         if (InStr(PC.Interactions[i].name, "CMenu",,true) != -1)
         {
-            CMenuBase(PC.Interactions[i]).bDrawBackground = bDrawBackground;
-			CMenuBase(PC.Interactions[i]).SaveConfig();
+            CMenu(PC.Interactions[i]).bDrawBackground = bDrawBackground;
+			CMenu(PC.Interactions[i]).SaveConfig();
         }
     }
 }
@@ -271,8 +271,8 @@ function ToggleCMenuStay()
     {
         if (InStr(PC.Interactions[i].name, "CMenu",,true) != -1)
         {
-            CMenuBase(PC.Interactions[i]).bKeepOpen = bKeepOpen;
-			CMenuBase(PC.Interactions[i]).SaveConfig();
+            CMenu(PC.Interactions[i]).bKeepOpen = bKeepOpen;
+			CMenu(PC.Interactions[i]).SaveConfig();
         }
     }
 }

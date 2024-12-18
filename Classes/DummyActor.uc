@@ -28,9 +28,9 @@ reliable client function CMenuSetup()
     pc.Interactions.additem(new(pc) class'CMenuRealismMatch');
     pc.Interactions.additem(new(pc) class'CMenuPlayer');
     pc.Interactions.additem(new(pc) class'CMenuPCManager');
-    pc.Interactions.additem(new(pc) class'CMenuMap');
+    // pc.Interactions.additem(new(pc) class'CMenuMap');
 
-    pc.Interactions.additem(new(pc) class'CMenuBuilder');
+    pc.Interactions.additem(new(pc) class'CMenuBMain');
     pc.Interactions.additem(new(pc) class'CMenuBActors');
     pc.Interactions.additem(new(pc) class'CMenuBMeshes');
     pc.Interactions.additem(new(pc) class'CMenuBPrefabs');
@@ -46,8 +46,8 @@ reliable client function CMenuSetup()
     {
         if (InStr(PC.Interactions[i].name, "CMenu",,true) != -1)
         {
-            CMenuBase(PC.Interactions[i]).PC = PC;
-            CMenuBase(PC.Interactions[i]).MyDA = self;
+            CMenu(PC.Interactions[i]).PC = PC;
+            CMenu(PC.Interactions[i]).MyDA = self;
         }
     }
 }
@@ -65,15 +65,15 @@ reliable client function ToggleCMenuVisiblity(string CMenu, bool bAuthorized, st
     {
         if (InStr(PC.Interactions[i].name, CMenu,,true) != -1)
         {
-            if (CMenuBase(PC.Interactions[i]).GetStateName() == 'MenuVisible')
+            if (CMenu(PC.Interactions[i]).GetStateName() == 'MenuVisible')
             {
-                CMenuBase(PC.Interactions[i]).GoToState('');
+                CMenu(PC.Interactions[i]).GoToState('');
             }
             else 
             {
-                CMenuBase(PC.Interactions[i]).bIsAuthorized = bAuthorized;
-                CMenuBase(PC.Interactions[i]).TargetName = TName;
-                CMenuBase(PC.Interactions[i]).GoToState('MenuVisible');
+                CMenu(PC.Interactions[i]).bIsAuthorized = bAuthorized;
+                CMenu(PC.Interactions[i]).TargetName = TName;
+                CMenu(PC.Interactions[i]).GoToState('MenuVisible');
             }    
         }
         else if (InStr(PC.Interactions[i].name, "CMenu",,true) != -1)
@@ -121,7 +121,7 @@ reliable client function SetCMenuColor(string InColor, string type)
     {
         if (InStr(PC.Interactions[i].name, "CMenu",,true) != -1)
         {
-            CMenuBase(PC.Interactions[i]).SetCMenuColor(CMenuColor, Type);
+            CMenu(PC.Interactions[i]).SetCMenuColor(CMenuColor, Type);
         }
     }
 }

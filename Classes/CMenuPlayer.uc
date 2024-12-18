@@ -1,4 +1,4 @@
-class CMenuPlayer extends CMenuBase;
+class CMenuPlayer extends CMenu;
 
 function Initialize()
 {
@@ -43,6 +43,4 @@ function UpdatePlayerList()
 defaultproperties
 {
     MenuName="PLAYERS"
-
-    
 }

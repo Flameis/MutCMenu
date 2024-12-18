@@ -1,4 +1,4 @@
-class CMenuBActors extends CMenuBBase;
+class CMenuBActors extends CMenuB;
 
 function bool CheckExceptions(string Command)
 {
@@ -63,8 +63,8 @@ defaultproperties
 	MenuText.Add("Clear Corners")
     MenuText.Add("Clear Objs")
 
-    MenuText.Add("Red Decal")
-    MenuText.Add("Yellow Decal")
+    // MenuText.Add("Red Decal")
+    // MenuText.Add("Yellow Decal")
     
     MenuCommand.Add("NORTHSPAWN")
     MenuCommand.Add("SOUTHSPAWN")
@@ -75,6 +75,6 @@ defaultproperties
 	MenuCommand.Add("CLEARCORNERS")
     MenuCommand.Add("CLEAROBJS")
 
-    MenuCommand.Add("REDDECAL")
-    MenuCommand.Add("YELLOWDECAL")
+    // MenuCommand.Add("REDDECAL")
+    // MenuCommand.Add("YELLOWDECAL")
 }

@@ -1,4 +1,4 @@
-class CMenuPCManager extends CMenuBase;
+class CMenuPCManager extends CMenu;
 
 function Initialize()
 {

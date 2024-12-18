@@ -1,4 +1,4 @@
-class CMenuBVehicles extends CMenuBBase;
+class CMenuBVehicles extends CMenuB;
 
 simulated state MenuVisible
 {

@@ -1,4 +1,4 @@
-class CMenuRealismMatch extends CMenuBase;
+class CMenuRealismMatch extends CMenu;
 
 function bool CheckExceptions(string Command)
 {

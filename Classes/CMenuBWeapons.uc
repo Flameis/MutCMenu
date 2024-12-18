@@ -1,4 +1,4 @@
-class CMenuBWeapons extends CMenuBBase;
+class CMenuBWeapons extends CMenuB;
 
 var class<ROWeapon>          WeaponClass;
 

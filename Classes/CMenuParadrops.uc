@@ -1,4 +1,4 @@
-class CMenuParadrops extends CMenuBase;
+class CMenuParadrops extends CMenu;
 
 function bool CheckExceptions(string Command)
 {

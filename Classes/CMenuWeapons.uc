@@ -1,4 +1,4 @@
-class CMenuWeapons extends CMenuBase;
+class CMenuWeapons extends CMenu;
 
 function bool CheckExceptions(string Command)
 {

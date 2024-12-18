@@ -1,4 +1,4 @@
-class CMenuBPrefabs extends CMenuBBase;
+class CMenuBPrefabs extends CMenuB;
 
 function bool CheckExceptions(string Command)
 {

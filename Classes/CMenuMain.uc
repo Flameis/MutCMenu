@@ -1,4 +1,4 @@
-class CMenuMain extends CMenuBase;
+class CMenuMain extends CMenu;
 
 function Initialize()
 {
@@ -7,11 +7,11 @@ function Initialize()
         MenuText.additem("Realism Match Menu");
         MenuText.additem("Paradrop Menu");
         MenuText.additem("Manage Players");
-        MenuText.additem("Map");
+        // MenuText.additem("Map");
         MenuCommand.additem("CMENU CMENUREALISMMATCH");
         MenuCommand.additem("CMENU CMENUPARADROPS");
         MenuCommand.additem("CMENU CMENUPLAYER");
-        MenuCommand.additem("CMENU CMENUMAP");
+        // MenuCommand.additem("CMENU CMENUMAP");
     }
 
     MenuText.AddItem("CMenu Settings");
@@ -37,6 +37,6 @@ defaultproperties
     MenuText(1)="Builder Menu"
     MenuText(2)="Weapon Menu"
     MenuCommand(0)="CMENU CMENUGENERAL"
-    MenuCommand(1)="CMENU CMENUBUILDER"
+    MenuCommand(1)="CMENU CMENUBMAIN"
     MenuCommand(2)="CMENU CMENUWEAPONS"
 }

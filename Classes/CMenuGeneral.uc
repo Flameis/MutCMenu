@@ -1,4 +1,4 @@
-class CMenuGeneral extends CMenuBase;
+class CMenuGeneral extends CMenu;
 
 function bool CheckExceptions(string Command)
 {
