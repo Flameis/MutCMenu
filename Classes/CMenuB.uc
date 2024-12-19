@@ -18,8 +18,8 @@ var array<Vector2D> 				Corners;
 var string                     		SMToPlace;
 var int 							SpawnTeamIndex, NumObjs;
 
-const ROT_MODIFIER = 2048; // 12.25 degrees
-const LOC_MODIFIER = 50; // 50 units
+const ROT_MODIFIER = 2048; // 11.25 degrees
+const LOC_MODIFIER = 20; // 20 units
 
 function bool CheckExceptions(string Command)
 {
@@ -77,26 +77,38 @@ simulated state ReadyToPlace extends MenuVisible
             	    return true;
 				
 				case 'Z':
-            	    ModifyRot.roll = ModifyRot.roll + ROT_MODIFIER;
-					MessageSelf("Roll: " $ string(ModifyRot.roll * UnrRotToDeg)); 
+            	    ModifyRot.roll = ModifyRot.roll - ROT_MODIFIER;
+					MessageSelf("Roll: " $ string(-ModifyRot.roll * UnrRotToDeg)); 
 					return true;
 
             	case 'X':
-            	    ModifyRot.pitch = ModifyRot.pitch + ROT_MODIFIER;
-					MessageSelf("Pitch: " $ string(ModifyRot.pitch * UnrRotToDeg));
+            	    ModifyRot.pitch = ModifyRot.pitch - ROT_MODIFIER;
+					MessageSelf("Pitch: " $ string(-ModifyRot.pitch * UnrRotToDeg));
 					return true;
 
             	case 'C':
-            	    ModifyRot.Yaw = ModifyRot.Yaw + ROT_MODIFIER;
-					MessageSelf("Yaw: " $ string(ModifyRot.Yaw * UnrRotToDeg));
+            	    ModifyRot.Yaw = ModifyRot.Yaw - ROT_MODIFIER;
+					MessageSelf("Yaw: " $ string(-ModifyRot.Yaw * UnrRotToDeg));
 					return true;
 
 				case 'Up':
             	    ModifyLoc.z = ModifyLoc.z + LOC_MODIFIER;
+					MessageSelf("Z: " $ string(ModifyLoc.z));
 					return true;
 
 				case 'Down':
             	    ModifyLoc.z = ModifyLoc.z - LOC_MODIFIER;
+					MessageSelf("Z: " $ string(ModifyLoc.z));
+					return true;
+
+				case 'Left':
+				    ModifyLoc = ModifyLoc - (Vector(PC.Pawn.GetViewRotation()) >> rot(0, 16384, 0)) * LOC_MODIFIER;
+					MessageSelf("Left: " $ string(ModifyLoc));
+					return true;
+
+				case 'Right':
+				    ModifyLoc = ModifyLoc + (Vector(PC.Pawn.GetViewRotation()) >> rot(0, 16384, 0)) * LOC_MODIFIER;
+					MessageSelf("Right: " $ string(ModifyLoc));
 					return true;
 
 				case 'MouseScrollUp':
@@ -139,16 +151,17 @@ simulated state ReadyToPlace extends MenuVisible
 simulated function CanPhysicallyPlace()
 {
     local rotator PRot;
-	local vector HitLocation, HitNormal, StartTrace, EndTrace, ViewDirection;
+	local vector HitLocation, HitNormal, StartTrace, EndTrace, ViewDirection, RightVector;
 	
     local float     TraceLength;
 
 	PC.GetPlayerViewPoint(StartTrace, PRot);
     ViewDirection = Vector(PC.Pawn.GetViewRotation());
+    RightVector = ViewDirection >> rot(0, 16384, 0); // Calculate the right vector based on the player's view direction
     TraceLength = 40000;
     EndTrace = StartTrace + ViewDirection * TraceLength;
 	TracedActor = PC.trace(HitLocation, HitNormal, EndTrace, StartTrace, true);
-    PlaceLoc = HitLocation + ModifyLoc;
+    PlaceLoc = HitLocation + ModifyLoc.X * RightVector + ModifyLoc.Y * ViewDirection + ModifyLoc.Z * vect(0, 0, 1);
     PlaceRot = PC.Pawn.GetViewRotation();
     PlaceRot.Yaw = PlaceRot.Yaw + ModifyRot.Yaw;
     PlaceRot.Roll = ModifyRot.Roll;

@@ -64,6 +64,11 @@ function bool CheckExceptions(string Command)
         GoToState('ReadyToPlace',, true);
         return true;
     }
+    else if (Command == "CLEARALLPICKUPS")
+    {
+        ClearAllPickups();
+        return true;
+    }
     return false;
 }
 
@@ -72,13 +77,26 @@ function DoPlace()
 	MyDA.ServerSpawnPickup(WeaponClass, PlaceLoc, PlaceRot, ModifyTime);
 }
 
+function ClearAllPickups()
+{
+    local ROPickupFactory WeaponToClear;
+
+    foreach MyDA.AllActors(class'ROPickupFactory', WeaponToClear)
+    {
+        WeaponToClear.Destroy();
+    }
+    `log("All weapon pickups have been cleared.");
+}
+
 defaultproperties
 {
     MenuName="WEAPON PICKUPS"
 
     MenuText(0)="Custom"
     MenuText(1)="Copy Held Weapon"
+    MenuText(2)="Clear All Pickups"
     
     MenuCommand(0)="CUSTOM"
     MenuCommand(1)="COPY"
+    MenuCommand(2)="CLEARALLPICKUPS"
 }

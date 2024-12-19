@@ -50,6 +50,20 @@ function DoPlace()
 	}
 }
 
+function ClearAllActors()
+{
+    local Actor ActorToClear;
+
+    foreach MyDA.AllActors(class'Actor', ActorToClear)
+    {
+        if (ActorToClear.IsA('CMASpawn') || ActorToClear.IsA('CMAObjective') || ActorToClear.IsA('DecalActor'))
+        {
+            ActorToClear.Destroy();
+        }
+    }
+    `log("All actors have been cleared.");
+}
+
 defaultproperties
 {
     MenuName="ACTORS"
@@ -62,6 +76,7 @@ defaultproperties
     MenuText.Add("Spawn Obj")
 	MenuText.Add("Clear Corners")
     MenuText.Add("Clear Objs")
+    MenuText.Add("Clear All")
 
     // MenuText.Add("Red Decal")
     // MenuText.Add("Yellow Decal")
@@ -74,6 +89,7 @@ defaultproperties
     MenuCommand.Add("SPAWNOBJ")
 	MenuCommand.Add("CLEARCORNERS")
     MenuCommand.Add("CLEAROBJS")
+    MenuCommand.Add("CLEARALLACTORS")
 
     // MenuCommand.Add("REDDECAL")
     // MenuCommand.Add("YELLOWDECAL")

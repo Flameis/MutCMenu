@@ -26,14 +26,14 @@ defaultproperties
 {
     MenuName="WEAPONS"
 
-    MenuText(0)="GIVE WEAPON SELF"
-    MenuText(1)="GIVE WEAPON NORTH"
-    MenuText(2)="GIVE WEAPON SOUTH"
-    MenuText(3)="GIVE WEAPON All"
-    MenuText(4)="Clear Weapons From Self"
-    MenuText(5)="Clear Weapons From North Team"
-    MenuText(6)="Clear Weapons From South Team"
-    MenuText(7)="Clear Weapons From All"
+    MenuText(0)="Give Weapon SELF"
+    MenuText(1)="Give Weapon NORTH"
+    MenuText(2)="Give Weapon SOUTH"
+    MenuText(3)="Give Weapon All"
+    MenuText(4)="Clear Weapons SELF"
+    MenuText(5)="Clear Weapons NORTH"
+    MenuText(6)="Clear Weapons SOUTH"
+    MenuText(7)="Clear Weapons All"
     
     MenuCommand(0)="GIVEWEAPON"
     MenuCommand(1)="GIVEWEAPONNORTH"

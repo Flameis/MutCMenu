@@ -41,6 +41,8 @@ defaultproperties
 		StaticMesh=StaticMesh'ENV_VN_Sandbags.Mesh.S_ENV_Sandbags_112uu'
 		Translation=(X=-96,Y=128,Z=-0.1)
 		Rotation=(Pitch=0,Yaw=0,Roll=0)
+		AbsoluteTranslation=true
+		AbsoluteRotation=true
 		LightEnvironment=MyLightEnvironment
 	End Object
 
@@ -48,6 +50,8 @@ defaultproperties
 		StaticMesh=StaticMesh'ENV_VN_Sandbags.Mesh.S_ENV_Sandbags_112uu_90deg_left'
 		Translation=(X=16,Y=128,Z=-0.1)
 		Rotation=(Pitch=0,Yaw=0,Roll=0)
+		AbsoluteTranslation=true
+		AbsoluteRotation=true
 		LightEnvironment=MyLightEnvironment
 	End Object
 
@@ -55,6 +59,8 @@ defaultproperties
 		StaticMesh=StaticMesh'ENV_VN_Sandbags.Mesh.S_ENV_Sandbags_112uu'
 		Translation=(X=96,Y=64,Z=-16.1)
 		Rotation=(Pitch=0,Yaw=-16384,Roll=0)
+		AbsoluteTranslation=true
+		AbsoluteRotation=true
 		LightEnvironment=MyLightEnvironment
 	End Object
 
@@ -62,6 +68,8 @@ defaultproperties
 		StaticMesh=StaticMesh'ENV_VN_Sandbags.Mesh.S_ENV_Sandbags_112uu_90deg_left'
 		Translation=(X=96,Y=-48,Z=-0.1)
 		Rotation=(Pitch=0,Yaw=-16384,Roll=0)
+		AbsoluteTranslation=true
+		AbsoluteRotation=true
 		LightEnvironment=MyLightEnvironment
 	End Object
 
@@ -69,6 +77,8 @@ defaultproperties
 		StaticMesh=StaticMesh'ENV_VN_Sandbags.Mesh.S_ENV_Sandbags_112uu'
 		Translation=(X=32,Y=-128,Z=-0.1)
 		Rotation=(Pitch=0,Yaw=-32768,Roll=0)
+		AbsoluteTranslation=true
+		AbsoluteRotation=true
 		LightEnvironment=MyLightEnvironment
 	End Object
 
