@@ -67,7 +67,7 @@ function DoPlace()
 {
 	if (InStr(LastCmd, "_",, true) != -1)
 	{
-		MyDA.ServerSpawnActor(class'CMSM',,'StaticMesh', PlaceLoc, PlaceRot,, true, LastCmd, ModifyScale);
+		MyDA.ServerSpawnActor(class'CMSM',,'StaticMesh', PlaceLoc, PlaceRot,, true, LastCmd, ModifyScale.x);
 	}
 }
 

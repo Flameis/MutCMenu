@@ -10,7 +10,7 @@ var bool                        	bShowPreviewMesh, bPreviewIsSkeletal;
 
 var Vector  				    	PlaceLoc, ModifyLoc;
 var	rotator					    	PlaceRot, ModifyRot;
-var float							ModifyScale;
+var Vector							ModifyScale;
 var int 							ModifyTime;	
 var Actor							TracedActor;
 
@@ -35,7 +35,7 @@ simulated state ReadyToPlace extends MenuVisible
 
 		// ModifyLoc = vect(0,0,0);
         ModifyRot = rot(0,0,0);
-		ModifyScale = 1;
+		ModifyScale = vect(1,1,1);
 		ModifyTime = 0;
 
 		if (ReferenceSkeletalMesh[0] != none)
@@ -112,14 +112,14 @@ simulated state ReadyToPlace extends MenuVisible
 					return true;
 
 				case 'MouseScrollUp':
-            	    ModifyScale += 0.1;
+            	    ModifyScale += vect(0.1,0.1,0.1);
 					MessageSelf("Scale: " $ string(ModifyScale));
 					return true;
 
 				case 'MouseScrollDown':
-				 	if (ModifyScale > 0.15)
+				 	if (ModifyScale.x > 0.15)
 					{
-            	    	ModifyScale -= 0.1;
+            	    	ModifyScale -= vect(0.1,0.1,0.1);;
 						MessageSelf("Scale: "$string(ModifyScale));
 					}
 					return true;
@@ -216,13 +216,13 @@ simulated function UpdatePreviewMesh() // Update the postion of the Preview Mesh
 	{
 		PreviewSkeletalMesh[0].SetTranslation(PlaceLoc);
 		PreviewSkeletalMesh[0].SetRotation(PlaceRot);
-		PreviewSkeletalMesh[0].SetScale(ModifyScale);
+		PreviewSkeletalMesh[0].SetScale3D(ModifyScale);
 	}
 	else 
 	{
 		PreviewStaticMesh[0].SetTranslation(PlaceLoc);
 		PreviewStaticMesh[0].SetRotation(PlaceRot);
-		PreviewStaticMesh[0].SetScale(ModifyScale);
+		PreviewStaticMesh[0].SetScale3D(ModifyScale);
 	}
 }
 

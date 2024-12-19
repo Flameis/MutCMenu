@@ -80,7 +80,7 @@ function DoPlace()
 			if (Mesh != "None")
 			{
 				// Remove or adjust collision checks here
-				MyDA.ServerSpawnActor(class'CMSM',,'StaticMesh', PreviewStaticMesh[i].GetPosition(), PreviewStaticMesh[i].GetRotation(),, true, Mesh, ModifyScale);
+				MyDA.ServerSpawnActor(class'CMSM',,'StaticMesh', PreviewStaticMesh[i].GetPosition(), PreviewStaticMesh[i].GetRotation(),, true, Mesh, ModifyScale.x);
 
 				`log("NewMesh: " $ Mesh);
 				`log("Translation: " $ VecArray[i]);
@@ -158,7 +158,7 @@ simulated function UpdatePreviewMesh() // Update the position of the Preview Mes
 
             PreviewStaticMesh[i].SetTranslation(TranslatedVec + PlaceLoc);
             PreviewStaticMesh[i].SetRotation(TranslatedRot);
-            PreviewStaticMesh[i].SetScale(ModifyScale);
+            PreviewStaticMesh[i].SetScale3D(ModifyScale);
 
             // VecArray[i] = OriginalVecArray[i] + DiffVector;
             // RotArray[i].Yaw = OriginalRotArray[i].Yaw + PlaceRot.yaw;
@@ -175,7 +175,7 @@ function array<StaticMeshActor> CopyStructureSimple()
     {
         NearbyActors.AddItem(StaticMeshActor(TracedActor));
 
-        foreach TracedActor.CollidingActors(class'StaticMeshActor', Actor, 250,, True)
+        foreach TracedActor.CollidingActors(class'StaticMeshActor', Actor, 400,, True)
         {
             if (Actor != none && Actor.StaticMeshComponent.StaticMesh != none)
             {
@@ -191,7 +191,7 @@ function CopyStructure()
     local array<StaticMeshActor> NearbyActors;
     local string StructureData;
     local vector Origin, RelativeLocation;
-    local rotator OriginRot, RelativeRotation;
+    local rotator OriginRot;
     local int i;
 
     // NearbyActors = RecursiveCopyMesh(StaticMeshActor(TracedActor));
@@ -210,12 +210,10 @@ function CopyStructure()
         {
             // Adjust the translation and rotation based on the origin's rotation
             RelativeLocation = NearbyActors[i].Location - Origin;
-            RelativeRotation = NearbyActors[i].Rotation - OriginRot;
+            RelativeLocation = RelativeLocation >> OriginRot;
+            
 
-            // RelativeLocation = RelativeLocation >> OriginRot;
-            // RelativeRotation = RelativeRotation >> OriginRot;
-
-            StructureData $= "StaticMesh=" $ PathName(NearbyActors[i].StaticMeshComponent.StaticMesh) $ "&Translation=" $ RelativeLocation $ "&Rotation=" $ RelativeRotation $ ";";
+            StructureData $= "StaticMesh=" $ PathName(NearbyActors[i].StaticMeshComponent.StaticMesh) $ "&Translation=" $ RelativeLocation $ "&Rotation=" $ NearbyActors[i].Rotation $ "&Scale=" $ NearbyActors[i].StaticMeshComponent.Scale3D $ ";";
         }
     }
     
@@ -230,10 +228,9 @@ function PasteStructure(optional string StructureData)
     local string Line;
     local int i;
     local string Mesh;
-    local vector Vec;
+    local vector Vec, Scale;
     local rotator Rota;
-    local array<string> VecData;
-    local array<string> RotData;
+    local array<string> VecData, RotData, ScaleData;
     local StaticMeshComponent PreviewComponent;
 
     if (StructureData != "") {
@@ -292,6 +289,21 @@ function PasteStructure(optional string StructureData)
             continue;
         }
 
+        // Parse Scale
+        MeshLine2 = SplitString(MeshLine[3], "=");
+        ScaleData = SplitString(MeshLine2[1], ",");
+        if (ScaleData.Length == 3)
+        {
+            Scale.X = float(ScaleData[0]);
+            Scale.Y = float(ScaleData[1]);
+            Scale.Z = float(ScaleData[2]);
+        }
+        else
+        {
+            `log("ParseScale Failed - Incorrect ScaleData Length: " $ ScaleData.Length);
+            continue;
+        }
+
         // Adjust PlaceLoc based on original mesh's relative position
         VecArray.AddItem(Vec);
         RotArray.AddItem(Rota);
@@ -299,7 +311,7 @@ function PasteStructure(optional string StructureData)
         // Create and show preview
         PreviewComponent = new class'StaticMeshComponent';
         PreviewComponent.SetStaticMesh(StaticMesh(DynamicLoadObject(Mesh, class'StaticMesh')));
-		PreviewComponent.SetScale(ModifyScale > 0.0 ? ModifyScale : 1.0);
+		PreviewComponent.SetScale3D(Scale);
         PreviewComponent.SetActorCollision(false, false);
    		PreviewComponent.SetNotifyRigidBodyCollision(false);
     	PreviewComponent.SetTraceBlocking(false, false);
@@ -397,7 +409,7 @@ function CopySelectedMeshesToClipboard()
     {
         if (SelectedActors[i] != none)
         {
-            StructureData $= "StaticMesh=" $ PathName(SelectedActors[i].StaticMeshComponent.StaticMesh) $ "&Translation=" $ (SelectedActors[i].Location - Origin) $ "&Rotation=" $ (SelectedActors[i].Rotation) $ ";";
+            StructureData $= "StaticMesh=" $ PathName(SelectedActors[i].StaticMeshComponent.StaticMesh) $ "&Translation=" $ (SelectedActors[i].Location - Origin) $ "&Rotation=" $ (SelectedActors[i].Rotation) $ "&Scale=" $ (SelectedActors[i].StaticMeshComponent.Scale3D) $ ";";
         }
     }
 
@@ -413,18 +425,18 @@ defaultproperties
 	MenuText.add("Copy Structure")
     MenuText.add("Paste Structure")
     MenuText.add("Clear All")
-    MenuText.add("Sandbag Crescent")
     MenuText.add("Select Mesh")
     MenuText.add("Stop Selecting")
     MenuText.add("Remove Last Selected")
     MenuText.add("Clear Selected")
+    // MenuText.add("Sandbag Crescent")
 
 	MenuCommand.add("COPYSTRUCT")
     MenuCommand.add("PASTESTRUCT")
     MenuCommand.add("CLEARCMSM")
-    MenuCommand.add("PFSANDBAGCR")
     MenuCommand.add("SELECTMESH")
     MenuCommand.add("STOPSELECT")
     MenuCommand.add("REMOVESELECTED")
     MenuCommand.add("CLEARSELECTED")
+    // MenuCommand.add("PFSANDBAGCR")
 }
