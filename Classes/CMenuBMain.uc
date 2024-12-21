@@ -12,7 +12,7 @@ defaultproperties
     
     MenuCommand(0)="CMENU CMENUBACTORS"
     MenuCommand(1)="CMENU CMENUBMESHES"
-    MenuCommand(2)="CMENU CMENUBPREFABS"
+    MenuCommand(2)="CMENU CMenuBStructures"
     MenuCommand(3)="CMENU CMENUBVEHICLES"
     MenuCommand(4)="CMENU CMENUBWEAPONS"
 }

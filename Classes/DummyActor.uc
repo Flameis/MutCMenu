@@ -33,7 +33,7 @@ reliable client function CMenuSetup()
     pc.Interactions.additem(new(pc) class'CMenuBMain');
     pc.Interactions.additem(new(pc) class'CMenuBActors');
     pc.Interactions.additem(new(pc) class'CMenuBMeshes');
-    pc.Interactions.additem(new(pc) class'CMenuBPrefabs');
+    pc.Interactions.additem(new(pc) class'CMenuBStructures');
     pc.Interactions.additem(new(pc) class'CMenuBVehicles');
     pc.Interactions.additem(new(pc) class'CMenuBWeapons');
 

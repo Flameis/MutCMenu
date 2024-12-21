@@ -199,8 +199,6 @@ simulated event Tick(float DeltaTime)
 			UpdatePreviewMesh();
 		else
 			ShowPreviewMesh();
-		//DrawDebugBox(Location2, DestructibleClass.default.Bounds, 255, 20, 147);
-		//DrawDebugSphere(PlaceLoc2 , DestructibleClass.default.DrawSphereRadius, 10, 255, 20, 147);
 	}
 	else
 	{

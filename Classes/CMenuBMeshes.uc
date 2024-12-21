@@ -40,13 +40,13 @@ function bool CheckExceptions(string Command)
 	switch (Command)
     {
         case "CUSTOMSM":
-            LocalPlayer(PC.Player).ViewportClient.ViewportConsole.TypedStr="mutate CMENU CMenuBSM to ";
+            LocalPlayer(PC.Player).ViewportClient.ViewportConsole.TypedStr="mutate CMENU CMenuBMeshes to ";
             LocalPlayer(PC.Player).ViewportClient.ViewportConsole.TypedStrPos=Len(LocalPlayer(PC.Player).ViewportClient.ViewportConsole.TypedStr); // set the value high in case name is quite long
             LocalPlayer(PC.Player).ViewportClient.ViewportConsole.GoToState('Typing');
             LocalPlayer(PC.Player).ViewportClient.ClearProgressMessages();
             LocalPlayer(PC.Player).ViewportClient.SetProgressTime(6);
             MessageSelf("Please Type Your Desired Static Mesh (Example: ENV_VN_Sandbags.Mesh.S_ENV_Sandbags_112uu)");
-            GoToState('ReadyToPlace',, true);
+            // GoToState('ReadyToPlace',, true);
             return true;
 
         case "COPY":
@@ -58,6 +58,19 @@ function bool CheckExceptions(string Command)
                 MessageSelf("Copied Mesh Name To Clipboard:"@LastCmd);
             }
             else MessageSelf("No Mesh Found");
+            break;
+
+        case "PASTE":
+            Command = PC.PasteFromClipboard();
+            LastCmd = Command;
+            if (bPreviewIsSkeletal)
+                ReferenceSKeletalMesh[0] = SkeletalMesh(DynamicLoadObject(LastCmd, class'SkeletalMesh'));
+            else
+                ReferenceStaticMesh[0] = StaticMesh(DynamicLoadObject(LastCmd, class'StaticMesh'));
+            if (ReferenceStaticMesh[0] != None || ReferenceSKeletalMesh[0] != None)
+                GoToState('ReadyToPlace',, true);
+            else
+                MessageSelf("No Mesh Name In Clipboard");
             break;
 
         case "DELETE":
@@ -107,14 +120,14 @@ defaultproperties
 {
     MenuName="STATIC MESHES"
 
-    MenuText.add("Custom")
     MenuText.add("Copy Mesh")
+    MenuText.add("Paste Mesh")
     MenuText.add("Delete Mesh")
     MenuText.add("Sandbags Straight")
     MenuText.add("F4 Phantom")
 
-    MenuCommand.add("CUSTOMSM")
     MenuCommand.add("COPY")
+    MenuCommand.add("PASTE")
     MenuCommand.add("DELETE")
     MenuCommand.add("ENV_VN_Sandbags.Mesh.S_ENV_Sandbags_112uu")
     MenuCommand.add("VH_VN_US_F4Phantom.Mesh.F4_Phantom_SM")

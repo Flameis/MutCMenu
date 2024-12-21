@@ -235,6 +235,12 @@ function SetStaticMesh(StaticMesh NewMesh, optional vector NewTranslation, optio
 	ForceNetRelevant();
 }
 
+event Tick(float DeltaTime)
+{
+	LightEnvironment.ForceUpdate(false);
+	Super.Tick(DeltaTime);
+}
+
 defaultproperties
 {
     health=100
@@ -261,6 +267,7 @@ defaultproperties
 	bWorldGeometry=true
 
 	bStatic=false
+	bMovable = false
 	bNoDelete=false
 	bHidden=false
 	bCanBeDamaged=true
