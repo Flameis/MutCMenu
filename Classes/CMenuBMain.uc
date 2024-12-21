@@ -6,7 +6,7 @@ defaultproperties
 
     MenuText(0)="ACTORS"
     MenuText(1)="STATIC MESHES"
-    MenuText(2)="PREFABS"
+    MenuText(2)="STRUCTURES"
     MenuText(3)="VEHICLES"
     MenuText(4)="WEAPONS"
     

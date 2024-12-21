@@ -1,5 +1,22 @@
 class CMenuBMeshes extends CMenuB;
 
+function Initialize()
+{
+    if (bIsAuthorized)
+    {
+        MenuText.additem("Clear All Meshes");
+        MenuCommand.additem("CMENU CLEARALLMESHES");
+
+        MenuText.additem("WARNING Toggle Collision");
+        MenuCommand.additem("CMENU TOGGLECOLLISION");
+
+        MenuText.additem("WARNING Delete Any Object");
+        MenuCommand.additem("CMENU ADMINDELETE");
+    }
+
+	super.Initialize();
+}
+
 simulated state MenuVisible
 {
 	function BeginState(name PreviousStateName)
@@ -44,11 +61,15 @@ function bool CheckExceptions(string Command)
             break;
 
         case "DELETE":
-            MyDA.DeleteActor(TraceActors());
+            MyDA.DeleteActor(CMSM(TraceActors()));
             break;
 
         case "COLLISION":
             MyDA.SetActorCollision(TraceActors());
+            break;
+
+        case "ADMINDELETE":
+            MyDA.DeleteActor(TraceActors());
             break;
     }
     if (InStr(Command, "_",,true) != -1)
@@ -88,17 +109,13 @@ defaultproperties
 
     MenuText.add("Custom")
     MenuText.add("Copy Mesh")
-    MenuText.add("Delete Actor")
-    MenuText.add("Toggle Collision")
-    MenuText.add("Clear All")
+    MenuText.add("Delete Mesh")
     MenuText.add("Sandbags Straight")
     MenuText.add("F4 Phantom")
 
     MenuCommand.add("CUSTOMSM")
     MenuCommand.add("COPY")
     MenuCommand.add("DELETE")
-    MenuCommand.add("COLLISION")
-    MenuCommand.add("CLEARALLMESHES")
     MenuCommand.add("ENV_VN_Sandbags.Mesh.S_ENV_Sandbags_112uu")
     MenuCommand.add("VH_VN_US_F4Phantom.Mesh.F4_Phantom_SM")
 }
