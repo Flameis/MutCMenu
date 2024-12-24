@@ -5,6 +5,17 @@ var array<Rotator> RotArray;
 var array<StaticMeshActor> SelectedActors;
 var array<MaterialInterface> OriginalMaterials;
 
+simulated state ReadyToPlace
+{
+    // Overwritten
+	function BeginState(name PreviousStateName)
+	{
+        ModifyRot = rot(0,0,0);
+		ModifyScale = vect(1,1,1);
+		ModifyTime = 0;
+	}
+}
+
 function bool CheckExceptions(string Command)
 {
 	local int i;
@@ -29,17 +40,21 @@ function bool CheckExceptions(string Command)
 			return true;
 
 		case "COPYSTRUCT":
+            ClearSelectedMeshes();
             GarbageCollection();
             GoToState('ReadyToPlace',, true);
             return true;
 
         case "PASTESTRUCT":
-            // Enter the desired radius
+            GarbageCollection();
+            ClearSelectedMeshes();
             PasteStructure();
             GoToState('ReadyToPlace',, true);
             return true;
 
-        case "CLEARCMSM":
+        case "CLEARCMSM": 
+            GarbageCollection();
+            ClearSelectedMeshes();
             ClearAllCMSM();
             return true;
 
@@ -57,6 +72,7 @@ function bool CheckExceptions(string Command)
 
         case "CLEARSELECTED":
             ClearSelectedMeshes();
+            GarbageCollection();
             return true;
 	}
     return false;
@@ -68,6 +84,7 @@ function DoPlace()
 	local int i;
 
     `log("DoPlace called. PreviewStaticMesh length: " $ PreviewStaticMesh.Length);
+
 	if (LastCmd == "PFSANDBAGCR")
 	{
 		MyDA.ServerSpawnActor(class'CMSMPrefab',,'StaticMesh', PlaceLoc, PlaceRot,,, LastCmd);
@@ -109,7 +126,6 @@ function GarbageCollection()
 {
     local StaticMeshComponent PSM;
 
-    `log("GarbageCollection called. Clearing PreviewStaticMesh.");
     foreach PreviewStaticMesh(PSM)
     {
         PSM.SetHidden(true);
@@ -118,25 +134,18 @@ function GarbageCollection()
     PreviewStaticMesh.Remove(0, PreviewStaticMesh.Length);
     VecArray.Remove(0, VecArray.Length);
     RotArray.Remove(0, RotArray.Length);
-    // OriginalVecArray.Remove(0, OriginalVecArray.Length);
-    // OriginalRotArray.Remove(0, OriginalRotArray.Length);
-
-    SelectedActors.Remove(0, SelectedActors.Length);
-    OriginalMaterials.Remove(0, OriginalMaterials.Length);
     `log("GarbageCollection completed. PreviewStaticMesh length: " $ PreviewStaticMesh.Length);
 }
 
 function ClearAllCMSM()
 {
-    local CMSM ActorToClear;
-
-    GarbageCollection();
+    local CMSM ActorToClear;\
 
     foreach MyDA.AllActors(class'CMSM', ActorToClear)
     {
         ActorToClear.Destroy();
     }
-    `log("All CMSM actors have been cleared.");
+    MessageSelf("All spawned meshes have been cleared.");
 }
 
 simulated function UpdatePreviewMesh() // Update the position of the Preview Mesh
@@ -167,27 +176,13 @@ simulated function UpdatePreviewMesh() // Update the position of the Preview Mes
 
         for ( i = 0; i < PreviewStaticMesh.Length; i++ )
         {
-            if (i == 0)
-            {
-                TranslatedRot = OriginRot + ModifyRot;
-
-                PreviewStaticMesh[i].SetTranslation(PlaceLoc);
-                PreviewStaticMesh[i].SetRotation(TranslatedRot);
-                PreviewStaticMesh[i].SetScale3D(ModifyScale);
-            }
-            else 
-            {
-                // Translate and rotate each mesh based on the first mesh's position and rotation
-                TranslatedVec = VecArray[i] >> ModifyRot;
-                TranslatedRot = OriginRot + RotArray[i] + ModifyRot;
-
-                PreviewStaticMesh[i].SetTranslation(TranslatedVec + PlaceLoc);
-                PreviewStaticMesh[i].SetRotation(TranslatedRot);
-                PreviewStaticMesh[i].SetScale3D(ModifyScale);
-
-                // VecArray[i] = OriginalVecArray[i] + DiffVector;
-                // RotArray[i].Yaw = OriginalRotArray[i].Yaw + PlaceRot.yaw;
-            }
+            // Translate and rotate each mesh based on the first mesh's position and rotation
+            TranslatedVec = VecArray[i] >> ModifyRot;
+            TranslatedRot = OriginRot + RotArray[i] + ModifyRot;
+            
+            PreviewStaticMesh[i].SetTranslation(TranslatedVec + PlaceLoc);
+            PreviewStaticMesh[i].SetRotation(TranslatedRot);
+            PreviewStaticMesh[i].SetScale3D(ModifyScale);
         }
     }
 }
@@ -202,7 +197,9 @@ function CopyStructure()
     local vector RelativeScale;
     local int i;
 
-    foreach MyDA.VisibleActors(class'StaticMeshActor', Actor, ModifyScale.x*250, PlaceLoc, /* True */)
+    ClearSelectedMeshes();
+
+    foreach MyDA.VisibleActors(class'StaticMeshActor', Actor, ModifyScale.x*250, PlaceLoc)
     {
         if (Actor != none && Actor.StaticMeshComponent.StaticMesh != none)
         {
@@ -255,15 +252,13 @@ function PasteStructure(optional string StructureData)
     }
     MeshData = SplitString(ClipboardData, ";", True);
 
-	GarbageCollection();
-
     for (i = 0; i < MeshData.Length; i++)
     {
-        `log("MeshData: " $ MeshData[i]);
+        // `log("MeshData: " $ MeshData[i]);
 
         MeshLine = SplitString(MeshData[i], "&");
         foreach MeshLine(Line) {
-            `log("MeshLine: " $ Line);
+            // `log("MeshLine: " $ Line);
         }
 
         // Parse StaticMesh
@@ -327,29 +322,21 @@ function PasteStructure(optional string StructureData)
         // Create and show preview
         PreviewComponent = new class'StaticMeshComponent';
         PreviewComponent.SetStaticMesh(StaticMesh(DynamicLoadObject(Mesh, class'StaticMesh')));
+
         // Calculate what the scale should be based on the bounds of the preview vs the bounds of the original
         Scale.X = Scale.X / PreviewComponent.Bounds.BoxExtent.X;
         Scale.Y = Scale.Y / PreviewComponent.Bounds.BoxExtent.Y;
         Scale.Z = Scale.Z / PreviewComponent.Bounds.BoxExtent.Z;
+
+        // 
         PreviewComponent.SetScale3D(Scale);
         PreviewComponent.SetActorCollision(false, false);
    		PreviewComponent.SetNotifyRigidBodyCollision(false);
     	PreviewComponent.SetTraceBlocking(false, false);
         PreviewComponent.SetAbsolute(true, true, true);
         PreviewComponent.CastShadow = false;
-        // PreviewComponent.SetMaterial(0, PreviewMeshMIC);
-        // PreviewComponent.SetMaterial(1, PreviewMeshMIC);
-        // PreviewComponent.SetMaterial(2, PreviewMeshMIC);
-        // PreviewComponent.SetMaterial(3, PreviewMeshMIC);
-        // PreviewComponent.SetMaterial(4, PreviewMeshMIC);
-        // PreviewComponent.SetMaterial(5, PreviewMeshMIC);
-		PC.Pawn.AttachComponent(PreviewComponent);
-        PreviewComponent.SetHidden(false);
 
         PreviewStaticMesh.AddItem(PreviewComponent);
-        
-        `log("PreviewComponent: " $ PreviewComponent);
-        `log("PreviewComponent.StaticMesh: " $ PreviewStaticMesh[i].StaticMesh);
     }
 }
 
@@ -371,26 +358,12 @@ function SelectMesh()
             }
         }
 
-        if (SelectedActors.Length == 0)
-        {
-            SelectedActors[0] = SelectedActor;
-            OriginalMaterials[0] = SelectedActor.StaticMeshComponent.GetMaterial(0);
-        }
-        else
-        {
-            SelectedActors.AddItem(SelectedActor);
-            OriginalMaterials.AddItem(SelectedActor.StaticMeshComponent.GetMaterial(0));
-        }
+        SelectedActors.AddItem(SelectedActor);
+        OriginalMaterials.AddItem(SelectedActor.StaticMeshComponent.GetMaterial(0));
+        `log(OriginalMaterials[OriginalMaterials.Length]);
 
         SelectedActor.StaticMeshComponent.SetMaterial(0, Material'NodeBuddies.Materials.NodeBuddy_White1');
 
-        /* for (i = 0; i < SelectedActor.StaticMeshComponent.Materials.Length; i++)
-        {
-            `log("SelectedActor.StaticMeshComponent.GetMaterial(i): " $ SelectedActor.StaticMeshComponent.GetMaterial(i));
-            OriginalMaterials.AddItem(SelectedActor.StaticMeshComponent.GetMaterial(i));
-            SelectedActor.StaticMeshComponent.SetMaterial(i, Material'NodeBuddies.Materials.NodeBuddy_White1');
-        } */
-        // SelectedActor.StaticMeshComponent.ForceUpdate(false);
         MessageSelf("Selected Mesh: " $ PathName(SelectedActors[SelectedActors.Length - 1].StaticMeshComponent.StaticMesh));
     }
     else
@@ -431,6 +404,7 @@ function CopySelectedMeshesToClipboard()
 
     PC.CopyToClipboard(StructureData);
     MessageSelf("Copied Selected Meshes To Clipboard");
+
     ClearSelectedMeshes();
 }
 
@@ -444,15 +418,12 @@ function ClearSelectedMeshes()
         SelectedActor = SelectedActors[i];
         SelectedActor.StaticMeshComponent.SetMaterial(0, OriginalMaterials[i]);
         OriginalMaterials.RemoveItem(SelectedActor.StaticMeshComponent.GetMaterial(0));
-        /* for (j = 0; j < SelectedActor.StaticMeshComponent.Materials.Length; j++)
-        {
-            SelectedActor.StaticMeshComponent.SetMaterial(j, OriginalMaterials[i * SelectedActor.StaticMeshComponent.Materials.Length + j]);
-        } */
-        SelectedActor.StaticMeshComponent.ForceUpdate(false);
     }
-    MessageSelf("Cleared Selected Meshes");
 
-    GarbageCollection();
+    SelectedActors.Remove(0, SelectedActors.Length);
+    OriginalMaterials.Remove(0, OriginalMaterials.Length);
+
+    MessageSelf("Cleared Selected Meshes");
 }
 
 function RemoveLastSelectedMesh()
@@ -464,13 +435,10 @@ function RemoveLastSelectedMesh()
     {
         SelectedActor = SelectedActors[SelectedActors.Length - 1];
         SelectedActor.StaticMeshComponent.SetMaterial(0, OriginalMaterials[SelectedActors.Length - 1]);
-        /* for (i = 0; i < SelectedActor.StaticMeshComponent.Materials.Length; i++)
-        {
-            SelectedActor.StaticMeshComponent.SetMaterial(i, OriginalMaterials[(SelectedActors.Length - 1) * SelectedActor.StaticMeshComponent.Materials.Length + i]);
-        } */
-        SelectedActor.StaticMeshComponent.ForceUpdate(false);
+
         SelectedActors.Remove(SelectedActors.Length - 1, 1);
-        OriginalMaterials.Remove(OriginalMaterials.Length - SelectedActor.StaticMeshComponent.Materials.Length, SelectedActor.StaticMeshComponent.Materials.Length);
+        OriginalMaterials.Remove(SelectedActors.Length - 1, 1)
+        
         MessageSelf("Removed Last Selected Mesh");
     }
     else
@@ -500,4 +468,6 @@ defaultproperties
 	MenuCommand.add("COPYSTRUCT")
     MenuCommand.add("CLEARCMSM")
     // MenuCommand.add("PFSANDBAGCR")
+
+    PreviewStaticMesh.Remove(PreviewStaticMeshComponent)
 }

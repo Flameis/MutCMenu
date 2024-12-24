@@ -280,7 +280,7 @@ defaultproperties
 {
     GoodPlacementColour=(R=0.3,G=0.3,B=0.3,A=1.0)
 
-    Begin Object Class=StaticMeshComponent Name=PreviewStaticMeshComponent
+	Begin Object Class=StaticMeshComponent Name=PreviewStaticMeshComponent
 		Materials(0)=MaterialInstanceConstant'FX_VN_Materials.Materials.M_PlaceableItem'
 		Materials(1)=MaterialInstanceConstant'FX_VN_Materials.Materials.M_PlaceableItem'
 		Materials(2)=MaterialInstanceConstant'FX_VN_Materials.Materials.M_PlaceableItem'
