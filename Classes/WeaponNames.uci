@@ -1,0 +1,800 @@
+// At the end here so I can read error messages easier
+function string DoGiveWeapon(PlayerController PC, ROInventoryManager InvManager, string WeaponName)
+{
+    local string ActualName;
+    
+    switch (WeaponName)
+    {   
+            case "BHP":
+            ActualName = "ROGameContent.ROWeap_BHP_Pistol_Content";
+            break;
+
+            case "DSHK":
+            ActualName = "ROGameContent.ROItem_PlaceableHMG_Content";
+            break;
+
+            case "AKM":
+            ActualName = "ROGameContent.ROWeap_AK47_AssaultRifle_AKM";
+            break;
+
+            case "C4":
+            ActualName = "ROGameContent.ROWeap_C4_Explosive_Content";
+            break;
+
+            case "F1":
+            ActualName = "ROGameContent.ROWeap_F1_SMG_Content";
+            break;
+
+            case "FOUGASSE":
+            ActualName = "ROGameContent.ROWeap_Fougasse_Mine_Content";
+            break;
+
+            case "IZH43":
+            ActualName = "ROGameContent.ROWeap_IZH43_Shotgun_Content";
+            break;
+
+            case "COACH":
+            ActualName = "ROGameContent.ROWeap_IZH43_Shotgun_Level2";
+            break;
+
+            case "SAWNOFF":
+            ActualName = "ROGameContent.ROWeap_IZH43_Shotgun_Level3";
+            break;
+
+            case "K50M":
+            ActualName = "ROGameContent.ROWeap_K50M_SMG_Content";
+            break;
+
+            case "L1A1":
+            ActualName = "ROGameContent.ROWeap_L1A1_Rifle_Content";
+            break;
+
+            case "L2A1":
+            ActualName = "ROGameContent.ROWeap_L2A1_LMG_Content";
+            break;
+
+            case "M1CARBINE":
+            ActualName = "ROGameContent.ROWeap_M1_Carbine_30rd";
+            break;
+
+            case "M14":
+            ActualName = "ROGameContent.ROWeap_M14_Rifle_Content";
+            break;
+
+            case "M1630RND":
+            ActualName = "ROGameContent.ROWeap_M16A1_AssaultRifle_30rd";
+            break;
+
+            case "TYPE56":
+            ActualName = "ROGameContent.ROWeap_AK47_AssaultRifle_Type56";
+            break;
+
+            case "M16":
+            ActualName = "ROGameContent.ROWeap_M16A1_AssaultRifle_Content";
+            break;
+
+            case "CLAYMORE":
+            ActualName = "ROGameContent.ROWeap_M18_Claymore_Content";
+            break;
+
+            case "M18SMOKE":
+            ActualName = "ROGameContent.ROWeap_M18_SignalSmoke_Purple";
+            break;
+
+            case "M1911":
+            ActualName = "ROGameContent.ROWeap_M1911_Pistol_Content";
+            break;
+
+            case "REVOLVER":
+            ActualName = "ROGameContent.ROWeap_M1917_Pistol_Content";
+            break;
+
+            case "BAR":
+            ActualName = "ROGameContent.ROWeap_M1918_BAR_Content";
+            break;
+
+            case "M1919":
+            ActualName = "ROGameContent.ROWeap_M1919A6_LMG_Content";
+            break;
+
+            case "TYPE56-1":
+            ActualName = "ROGameContent.ROWeap_AK47_AssaultRifle_Type56_1";
+            break;
+
+            case "THOMPSON":
+            ActualName = "ROGameContent.ROWeap_M1A1_SMG_Content";
+            break;
+
+            case "M1DGARAND":
+            ActualName = "ROGameContent.ROWeap_M1DGarand_SniperRifle_Content";
+            break;
+
+            case "M1GARAND":
+            ActualName = "ROGameContent.ROWeap_M1Garand_Rifle_Content";
+            break;
+
+            case "M2CARBINE":
+            ActualName = "ROGameContent.ROWeap_M2_Carbine_Content";
+            break;
+
+            case "WP":
+            ActualName = "ROGameContent.ROWeap_M34_WP_Content";
+            break;
+
+            case "DUCKBILL":
+            ActualName = "ROGameContent.ROWeap_M37_Shotgun_Duckbill";
+            break;
+
+            case "STAKEOUT":
+            ActualName = "ROGameContent.ROWeap_M37_Shotgun_Stakeout";
+            break;
+
+            case "TRENCH":
+            ActualName = "ROGameContent.ROWeap_M37_Shotgun_Trench";
+            break;
+
+            case "M40":
+            ActualName = "ROGameContent.ROWeap_M40Scoped_Rifle_Content";
+            break;
+
+            case "M60":
+            ActualName = "ROGameContent.ROWeap_M60_GPMG_Level2";
+            break;
+
+            case "M61":
+            ActualName = "ROGameContent.ROWeap_M61_Grenade_Content";
+            break;
+
+            case "M61QUAD":
+            ActualName = "ROGameContent.ROWeap_M61_Grenade_ContentQuad";
+            break;
+
+            case "M79":
+            ActualName = "ROGameContent.ROWeap_M79_GrenadeLauncher_Content";
+            break;
+
+            case "M79BUCKSHOT":
+            ActualName = "ROGameContent.ROWeap_M79_GrenadeLauncher_Level2";
+            break;
+
+            case "M79SMOKE":
+            ActualName = "ROGameContent.ROWeap_M79_GrenadeLauncher_Level3";
+            break;
+
+            case "M8SMOKE":
+            ActualName = "ROGameContent.ROWeap_M8_Smoke_Content";
+            break;
+
+            case "FLAMETHROWER":
+            ActualName = "ROGameContent.ROWeap_M9_Flamethrower_Content";
+            break;
+
+            case "MAS49":
+            ActualName = "ROGameContent.ROWeap_MAS49_Rifle_Content";
+            break;
+
+            case "MAS49GRENADE":
+            ActualName = "ROGameContent.ROWeap_MAS49_Rifle_Grenade_Content";
+            break;
+
+            case "MAS49SNIPER":
+            ActualName = "ROGameContent.ROWeap_MAS49Scoped_Rifle_Content";
+            break;
+
+            case "MAT49":
+            ActualName = "ROGameContent.ROWeap_MAT49_SMG_Content";
+            break;
+
+            case "MD82":
+            ActualName = "ROGameContent.ROWeap_MD82_Mine_Content";
+            break;
+
+            case "MOSIN":
+            ActualName = "ROGameContent.ROWeap_MN9130_Rifle_Content";
+            break;
+
+            case "MOSINSNIPER":
+            ActualName = "ROGameContent.ROWeap_MN9130Scoped_Rifle_Content";
+            break;
+
+            case "MOLOTOV":
+            ActualName = "ROGameContent.ROWeap_Molotov_Content";
+            break;
+
+            case "MP40":
+            ActualName = "ROGameContent.ROWeap_MP40_SMG_Content";
+            break;
+
+            case "OWEN":
+            ActualName = "ROGameContent.ROWeap_Owen_SMG_Content";
+            break;
+
+            case "MAKAROV":
+            ActualName = "ROGameContent.ROWeap_PM_Pistol_Content";
+            break;
+
+            case "PPSH":
+            ActualName = "ROGameContent.ROWeap_PPSH41_SMG_Content";
+            break;
+
+            case "PPSHDRUM":
+            ActualName = "ROGameContent.ROWeap_PPSH41_SMG_Drum";
+            break;
+
+            case "RDG1SMOKE":
+            ActualName = "ROGameContent.ROWeap_RDG1_Smoke_Content";
+            break;
+
+            case "RP46":
+            ActualName = "ROGameContent.ROWeap_RP46_LMG_Content";
+            break;
+
+            case "RPD":
+            ActualName = "ROGameContent.ROWeap_RPD_LMG_200rd";
+            break;
+
+            case "VANILLARPG7":
+            ActualName = "ROGameContent.ROWeap_RPG7_RocketLauncher_Content";
+            break;
+
+            case "PUNJI":
+            ActualName = "ROGameContent.ROWeap_PunjiTrap_Content";
+            break;
+    
+            case "SKS":
+            ActualName = "ROGameContent.ROWeap_SKS_Rifle_Content";
+            break;
+        
+            case "SVD":
+            ActualName = "ROGameContent.ROWeap_SVDScoped_Rifle_Content";
+            break;
+
+            case "TRIPWIRE":
+            ActualName = "ROGameContent.ROWeap_TripwireTrap_Content";
+            break;
+
+            case "TT33":
+            ActualName = "ROGameContent.ROWeap_TT33_Pistol_Content";
+            break;
+
+            case "TYPE67":
+            ActualName = "ROGameContent.ROWeap_Type67_Grenade_Content";
+            break;
+
+            case "XM17730RND":
+            ActualName = "ROGameContent.ROWeap_XM177E1_Carbine_30rd";
+            break;
+
+            case "XM177":
+            ActualName = "ROGameContent.ROWeap_XM177E1_Carbine_Content";
+            break;
+
+            case "XM21SNIPER":
+            ActualName = "ROGameContent.ROWeap_XM21Scoped_Rifle_Level2";
+            break;
+
+            case "MATTOCK":
+            ActualName = "ROGameContent.ROItem_TunnelTool_Content";
+            break;
+
+            case "BINOSNORTH":
+            ActualName = "ROGameContent.ROItem_Binoculars_Content";
+            break;
+
+            case "BINOSSOUTH":
+            ActualName = "ROGameContent.ROItem_BinocularsUS_Content";
+            break;
+
+            case "GREASEGUN":
+            ActualName = "ROGameContent.ROWeap_M3A1_SMG_Content";
+            break;
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////// MutExtrasTB
+
+            case "USAMMO":
+            ActualName = "MutExtrasTB.ACItem_USAmmoCrate_Content";            
+            break;
+
+            case "VCAMMO":
+            ActualName = "MutExtrasTB.ACItem_VCAmmoCrate_Content";
+            break;
+
+            /* case "M79WP":
+            ActualName = "MutExtrasTB.ACWeap_M79_GrenadeLauncher_Level3";
+            break; */
+
+            case "MEME":
+            ActualName = "MutExtrasTB.ACWeap_M79_MemeLauncher_Content";
+            break;
+            
+            case "SATCHEL":
+            ActualName = "MutExtrasTB.ACWeap_VietSatchel_Content";
+            break;
+
+            case "XM21SILENCED":
+            ActualName = "MutExtrasTB.ACWeap_XM21Scoped_Rifle_Suppressed";
+            break;
+
+            /* case "MKB42":
+            ActualName = "MutExtrasTB.ACWeap_MKb42_AssaultRifle_Content";
+            break;
+            
+            case "MG34":
+            ActualName = "MutExtrasTB.ACWeap_MG34_LMG_Content";
+            break; */
+
+            case "CIWS":
+            ActualName = "MutExtrasTB.ACWeap_CIWS_Content";
+            break;
+
+            case "RPPG":
+            ActualName = "MutExtrasTB.ACWeap_RPPG_Content";
+            break;
+
+            case "TRIPWIREQUAD":         
+            ActualName = "MutExtrasTB.ACWeap_Tripwire_Quad_Content";
+            break;
+
+            case "MOLOTOVTRIAD":
+            ActualName = "MutExtrasTB.ACWeap_Molotov_Triad_Content";
+            break;
+
+            case "CLAYMOREQUAD":
+            ActualName = "MutExtrasTB.ACWeap_M18_Claymore_Quad_Content";
+            break;
+
+            case "FOUGQUAD":
+            ActualName = "MutExtrasTB.ACWeap_FougQuadContent";
+            break;
+
+            case "RPG7":
+            ActualName = "MutExtrasTB.ACWeap_RPG7_RocketLauncher_Content";
+            break;
+
+            case "HOLSTER":
+            ActualName = "MutExtrasTB.ACHolster";
+            break;
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////// Winter War
+
+            case "WWATMINE":
+            ActualName = "WinterWar.WWWeapon_AntiTankMine_ActualContent";
+
+            break;
+
+            case "WWAVS36":
+            ActualName = "WinterWar.WWWeapon_AVS36_ActualContent";
+
+            break;
+
+            case "WWF1GRENADE":
+            ActualName = "WinterWar.WWWeapon_F1Grenade_ActualContent";
+
+            break;
+
+            case "WWKASAPANOS":
+            ActualName = "WinterWar.WWWeapon_Kasapanos_FactoryIssue_ActualContent";
+
+            break;
+
+            case "WWKASAPANOSI":
+            ActualName = "WinterWar.WWWeapon_Kasapanos_Improvised_ActualContent";
+
+            break;
+
+            case "WWKP31":
+            ActualName = "WinterWar.WWWeapon_KP31_ActualContent";
+
+            break;
+
+            case "WWL35":
+            ActualName = "WinterWar.WWWeapon_L35_ActualContent";
+
+            break;
+
+            case "WWLAHTI":
+            ActualName = "WinterWar.WWWeapon_LahtiSaloranta_ActualContent";
+
+            break;
+
+            case "WWLUGER":
+            ActualName = "WinterWar.WWWeapon_Luger_ActualContent";
+
+            break;
+
+            case "WWM20":
+            ActualName = "WinterWar.WWWeapon_M20_ActualContent";
+
+            break;
+
+            case "WWM32":
+            ActualName = "WinterWar.WWWeapon_M32Grenade_ActualContent";
+
+            break;
+
+            case "WWMN27":
+            ActualName = "WinterWar.WWWeapon_MN27_ActualContent";
+
+            break;
+
+            case "WWMN38":
+            ActualName = "WinterWar.WWWeapon_MN38_ActualContent";
+
+            break;
+
+            case "WWMN91":
+            ActualName = "WinterWar.WWWeapon_MN91_ActualContent";
+
+            break;
+
+            case "WWMN9130":
+            ActualName = "WinterWar.WWWeapon_MN9130_ActualContent";
+
+            break;
+
+            case "WWMN9130D":
+            ActualName = "WinterWar.WWWeapon_MN9130_Dyakonov_ActualContent";
+
+            break;
+
+            case "WWMN9130SCOPED":
+            ActualName = "WinterWar.WWWeapon_MN9130_Scoped_ActualContent";
+
+            break;
+
+            case "WWMOLOTOV":
+            ActualName = "WinterWar.WWWeapon_Molotov_ActualContent";
+
+            break;
+
+            case "WWNAGANT":
+            ActualName = "WinterWar.WWWeapon_NagantRevolver_ActualContent";
+
+            break;
+
+            case "WWPPD34":
+            ActualName = "WinterWar.WWWeapon_PPD34_ActualContent";
+
+            break;
+
+            case "WWRDG1":
+            ActualName = "WinterWar.WWWeapon_RDG1_ActualContent";
+
+            break;
+
+            case "WWRGD33":
+            ActualName = "WinterWar.WWWeapon_RGD33_ActualContent";
+
+            break;
+
+            case "WWSATCHEL":
+            ActualName = "WinterWar.WWWeapon_Satchel_ActualContent";
+
+            break;
+
+            case "WWSKIS":
+            ActualName = "WinterWar.WWWeapon_Skis_ActualContent";
+
+            break;
+
+            case "WWSVT38":
+            ActualName = "WinterWar.WWWeapon_SVT38_ActualContent";
+
+            break;
+
+            case "WWTT33":
+            ActualName = "WinterWar.WWWeapon_TT33_ActualContent";
+
+            break;
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////// GOM 4
+
+            case "38BODYGUARD":
+            ActualName = "GOM4.GOMWeapon_38Bodyguard_ActualContent";
+            break;
+
+            case "BARSHOTGUN":
+            ActualName = "GOM4.GOMWeapon_BarShotgun_ActualContent";
+            break;
+
+            case "M4BAYO":
+            ActualName = "GOM4.GOMWeapon_Bayonet_M4_ActualContent";
+            break;
+
+            case "M5BAYO":
+            ActualName = "GOM4.GOMWeapon_Bayonet_M5_ActualContent";
+            break;
+
+            case "M7BAYO":
+            ActualName = "GOM4.GOMWeapon_Bayonet_M7_ActualContent";
+            break;
+
+            case "BOWIE":
+            ActualName = "GOM4.GOMWeapon_BowieKnife_ActualContent";
+            break;
+
+            case "CROSSBOW":
+            ActualName = "GOM4.GOMWeapon_Crossbow_ActualContent";
+            break;
+
+            case "DP27":
+            ActualName = "GOM4.GOMWeapon_DP27";
+            break;
+
+            case "DPM":
+            ActualName = "GOM4.GOMWeapon_DPM";
+            break;
+
+            case "F1GRENADE":
+            ActualName = "GOM4.GOMWeapon_F1_Grenade_ActualContent";
+            break;
+
+            case "FUSILROBUST":
+            ActualName = "GOM4.GOMWeapon_FusilRobust_ActualContent";
+            break;
+
+            case "GOMK50M":
+            ActualName = "GOM4.GOMWeapon_K50M_ActualContent";
+            break;
+
+            case "KABAR":
+            ActualName = "GOM4.GOMWeapon_Kabar_ActualContent";
+            break;
+
+            case "KAR98SNIPER":
+            ActualName = "GOM4.GOMWeapon_Kar98Scoped_ActualContent";
+            break;
+
+            case "KAR98":
+            ActualName = "GOM4.GOMWeapon_Kar98k_ActualContent";
+            break;
+
+            case "GOML1A1":
+            ActualName = "GOM4.GOMWeapon_L1A1_AUS";
+            break;
+
+            case "LPO50":
+            ActualName = "GOM4.GOMWeapon_LPO50_ActualContent";
+            break;
+
+            case "GOMTRENCH":
+            ActualName = "GOM4.GOMWeapon_M12_ActualContent";
+            break;
+
+            case "GOMM14":
+            ActualName = "GOM4.GOMWeapon_M14_ActualContent";
+            break;
+
+            case "M16SCOPED":
+            ActualName = "GOM4.GOMWeapon_M16A1_Scoped_ActualContent";
+            break;
+
+            case "XM148":
+            ActualName = "GOM4.GOMWeapon_M16A1_XM148_ActualContent";
+            break;
+
+            case "M1897":
+            ActualName = "GOM4.GOMWeapon_M1897_ActualContent";
+            break;
+
+            case "M18RR":
+            ActualName = "GOM4.GOMWeapon_M18_Recoilless_ActualContent";
+            break;
+
+            case "GOM1911":
+            ActualName = "GOM4.GOMWeapon_M1911A1_ActualContent";
+            break;
+
+            case "STOCKLESSM1A1":
+            ActualName = "GOM4.GOMWeapon_M1A1_Stockless";
+            break;
+
+            case "GARANDNADE":
+            ActualName = "GOM4.GOMWeapon_M7RifleGrenade_ActualContent";
+            break;
+
+            case "ITHACA":
+            ActualName = "GOM4.GOMWeapon_M37_ActualContent";
+            break;
+
+            case "ITHACARIOT":
+            ActualName = "GOM4.GOMWeapon_M37_Riot";
+            break;
+
+            case "M44CARBINE":
+            ActualName = "GOM4.GOMWeapon_M44_Carbine_ActualContent";
+            break;
+
+            case "GOMM60":
+            ActualName = "GOM4.GOMWeapon_M60_200";
+            break;
+
+            case "LAW":
+            ActualName = "GOM4.GOMWeapon_M72_ActualContent";
+            break;
+
+            case "MAC10":
+            ActualName = "GOM4.GOMWeapon_MAC10_ActualContent";
+            break;
+
+            case "MAC10SILENCED":
+            ActualName = "GOM4.GOMWeapon_MAC10_Silenced";
+            break;
+
+            case "GOMMG34":
+            ActualName = "GOM4.GOMWeapon_MG34_Drum";
+            break;
+
+            case "MG42":
+            ActualName = "GOM4.GOMWeapon_MG42_Drum";
+            break;
+
+            case "P38":
+            ActualName = "GOM4.GOMWeapon_P38_ActualContent";
+            break;
+
+            case "PPS":
+            ActualName = "GOM4.GOMWeapon_PPS_ActualContent";
+            break;
+
+            case "RDG33":
+            ActualName = "GOM4.GOMWeapon_RGD33_ActualContent";
+            break;
+
+            case "RPDSAWNOFF":
+            ActualName = "GOM4.GOMWeapon_RPD_SawnOff_ActualContent";
+            break;
+
+            case "RPG2":
+            ActualName = "GOM4.GOMWeapon_RPG2_ActualContent";
+            break;
+
+            case "GOMSKS":
+            ActualName = "GOM4.GOMWeapon_SKS_ActualContent";
+            break;
+
+            case "GOMSVD":
+            ActualName = "GOM4.GOMWeapon_SVD_ActualContent";
+            break;
+
+            case "GOMSATCHEL":
+            ActualName = "GOM4.GOMWeapon_Satchel_ActualContent";
+            break;
+
+            case "SODAGRENADE":
+            ActualName = "GOM4.GOMWeapon_SodaGrenade_ActualContent";
+            break;
+
+            case "SODAMINE":
+            ActualName = "GOM4.GOMWeapon_SodaMine_ActualContent";
+            break;
+
+            case "STEL":
+            ActualName = "GOM4.GOMWeapon_Stel_ActualContent";
+            break;
+
+            case "STEN":
+            ActualName = "GOM4.GOMWeapon_Sten_ActualContent";
+            break;
+
+            case "STEVENS":
+            ActualName = "GOM4.GOMWeapon_Stevens_ActualContent";
+            break;
+
+            case "STONER63":
+            ActualName = "GOM4.GOMWeapon_Stoner63A_ActualContent";
+            break;
+
+            case "TUL":
+            ActualName = "GOM4.GOMWeapon_TUL_ActualContent";
+            break;
+
+            case "TYPE63":
+            ActualName = "GOM4.GOMWeapon_Type63_ActualContent";
+            break;
+
+            case "UZI":
+            ActualName = "GOM4.GOMWeapon_UZI_ActualContent";
+            break;
+
+            case "VCGRENADE":
+            ActualName = "GOM4.GOMWeapon_VCGrenade_ActualContent";
+            break;
+
+            case "VCKNIFE":
+            ActualName = "GOM4.GOMWeapon_VCKnife_ActualContent";
+            break;
+
+            case "VZ23":
+            ActualName = "GOM4.GOMWeapon_VZ23";
+            break;
+
+            case "VZ25":
+            ActualName = "GOM4.GOMWeapon_VZ25";
+            break;
+
+            case "VZ58":
+            ActualName = "GOM4.GOMWeapon_VZ58_ActualContent";
+            break;
+
+            case "VZ61":
+            ActualName = "GOM4.GOMWeapon_VZ61_ActualContent";
+            break;
+
+            case "XM177E2":
+            ActualName = "GOM4.GOMWeapon_XM177E2_ActualContent";
+            break;
+
+            case "XM177E230RND":
+            ActualName = "GOM4.GOMWeapon_XM177E2_30";
+            break;
+
+            case "GOMXM21":
+            ActualName = "GOM4.GOMWeapon_XM21_Content";
+            break;
+
+            case "GOMXM21SUP":
+            ActualName = "GOM4.GOMWeapon_XM21_Suppressed";
+            break;
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////// GOM 3
+
+            /*case "RPG2":
+            ActualName = "GOM3.GOMWeapon_RPG2_ActualContent";
+
+            break;
+
+            case "RPDSAWNOFF":
+            ActualName = "GOM3.GOMWeapon_RPD_SawnOff_ActualContent";
+
+            break;
+
+            case "PPS43":
+            ActualName = "GOM3.GOMWeapon_PPS_ActualContent";
+
+            break;
+
+            case "M38CARBINE":
+            ActualName = "GOM3.GOMWeapon_M38_Carbine_ActualContent";
+
+            break;
+
+            case "M7RIFLENADE":
+            ActualName = "GOM3.GOMWeapon_M7RifleGrenade_ActualContent";
+
+            break;
+
+            case "KAR98K":
+            ActualName = "GOM3.GOMWeapon_Kar98k_ActualContent";
+
+            break;
+
+            case "BOWIE":
+            ActualName = "GOM3.GOMWeapon_BowieKnife_ActualContent";
+
+            break;
+
+            case "GOMCARBINE":
+            ActualName = "GOM3.GOMWeapon_M1_Carbine_ActualContent";
+
+            break;*/
+            
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////// Testing            
+
+            default:
+            Return "false";
+    }
+
+    if (InStr(ActualName, "WinterWar") != -1 && !bLoadWW)
+    {
+        return ActualName;
+    }
+    else if (InStr(ActualName, "GOM4") != -1 && !bLoadGOM4)
+    {
+        return ActualName;
+    }
+    else if (InStr(ActualName, "GOM3") != -1 && !bLoadGOM3)
+    {
+        return ActualName;
+    }
+
+    InvManager.LoadAndCreateInventory(ActualName, false, true);
+    return "true";
+}

@@ -101,7 +101,7 @@ simulated state ReadyToPlace extends MenuVisible
 					MessageSelf("Z: " $ string(ModifyLoc.z));
 					return true;
 
-				/* case 'Left':
+				case 'Left':
 				    ModifyLoc = ModifyLoc - (Vector(PC.Pawn.GetViewRotation()) >> rot(0, 16384, 0)) * LOC_MODIFIER;
 					MessageSelf("Left: " $ string(ModifyLoc));
 					return true;
@@ -109,7 +109,7 @@ simulated state ReadyToPlace extends MenuVisible
 				case 'Right':
 				    ModifyLoc = ModifyLoc + (Vector(PC.Pawn.GetViewRotation()) >> rot(0, 16384, 0)) * LOC_MODIFIER;
 					MessageSelf("Right: " $ string(ModifyLoc));
-					return true; */
+					return true;
 
 				case 'MouseScrollUp':
             	    ModifyScale += vect(0.1,0.1,0.1);

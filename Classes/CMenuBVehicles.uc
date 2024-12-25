@@ -23,24 +23,33 @@ function bool CheckExceptions(string Command)
 {
     local class<ROVehicle>          VehicleClass;
 
-    if (Command == "CUSTOM")
+    switch (Command)
     {
-        LocalPlayer(PC.Player).ViewportClient.ViewportConsole.TypedStr="mutate CMENU CMenuBVehicles to ";
-        LocalPlayer(PC.Player).ViewportClient.ViewportConsole.TypedStrPos=Len(LocalPlayer(PC.Player).ViewportClient.ViewportConsole.TypedStr); // set the value high in case name is quite long
-        LocalPlayer(PC.Player).ViewportClient.ViewportConsole.GoToState('Typing');
-        LocalPlayer(PC.Player).ViewportClient.ClearProgressMessages();
-        LocalPlayer(PC.Player).ViewportClient.SetProgressTime(6);
-        MessageSelf("Please Type Your Desired Vehicle (Example: ROGameContent.ROHeli_AH1G_Content)");
+        case "CUSTOM":
+            LocalPlayer(PC.Player).ViewportClient.ViewportConsole.TypedStr="mutate CMENU CMenuBVehicles to ";
+            LocalPlayer(PC.Player).ViewportClient.ViewportConsole.TypedStrPos=Len(LocalPlayer(PC.Player).ViewportClient.ViewportConsole.TypedStr); // set the value high in case name is quite long
+            LocalPlayer(PC.Player).ViewportClient.ViewportConsole.GoToState('Typing');
+            LocalPlayer(PC.Player).ViewportClient.ClearProgressMessages();
+            LocalPlayer(PC.Player).ViewportClient.SetProgressTime(6);
+            MessageSelf("Please Type Your Desired Vehicle (Example: ROGameContent.ROHeli_AH1G_Content)");
+            GoToState('ReadyToPlace',, true);
+            break;
+
+        case "CLEARALLVEHICLES":
+            ClearAllVehicles();
+            return true;
+    }
+    if (InStr(Command, "Heli",,true) != -1 || InStr(Command, "Vehicle",,true) != -1)
+    {
+        LastCmd = Command;
+        VehicleClass = class<ROVehicle>(DynamicLoadObject(Command, class'Class'));
+        ReferenceSkeletalMesh[0] = VehicleClass.default.Mesh.SkeletalMesh;
+        ModifyLoc.z = 140;
+
         GoToState('ReadyToPlace',, true);
         return true;
     }
-
-    VehicleClass = class<ROVehicle>(DynamicLoadObject(Command, class'Class'));
-    ReferenceSkeletalMesh[0] = VehicleClass.default.Mesh.SkeletalMesh;
-    ModifyLoc.z = 140;
-
-    GoToState('ReadyToPlace',, true);
-    return true;
+    return false;
 }
 
 function DoPlace()
@@ -77,20 +86,20 @@ defaultproperties
     MenuText.add("BlueHuey")
     MenuText.add("GreenHuey")
     MenuText.add("GreenBushranger")
-    MenuText.add("M113 ACAV")
-    MenuText.add("MUTT")
-    MenuText.add("T34")
+    MenuText.add("GOM3 M113 ACAV")
+    MenuText.add("GOM4 MUTT")
+    MenuText.add("GOM4 T34")
 
-    MenuText.add("M113 ARVN")
-    MenuText.add("T54")
-    MenuText.add("T20")
-    MenuText.add("T26")
-    MenuText.add("T28")
-    MenuText.add("HT130")
-    MenuText.add("ATGun")
-    MenuText.add("Vickers")
+    MenuText.add("GOM4 M113 ARVN")
+    MenuText.add("WW T54")
+    MenuText.add("WW T20")
+    MenuText.add("WW T26")
+    MenuText.add("WW T28")
+    MenuText.add("WW HT130")
+    MenuText.add("WW ATGun")
+    MenuText.add("WW Vickers")
     
-    MenuText.add("Skis")
+    MenuText.add("WW Skis")
 
     MenuCommand.add("CUSTOM")
     MenuCommand.add("CLEARALLVEHICLES")

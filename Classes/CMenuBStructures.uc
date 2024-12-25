@@ -18,27 +18,12 @@ simulated state ReadyToPlace
 
 function bool CheckExceptions(string Command)
 {
-	local int i;
-
     LastCmd = Command;
 
 	PreviewMeshMIC = new class'MaterialInstanceConstant';
 	PreviewMeshMIC.SetParent(MaterialInstanceConstant(PreviewStaticMesh[0].GetMaterial(0)));
 	switch (Command)
 	{
-		case "PFSANDBAGCR":
-            GarbageCollection();
-			for ( i = 1; i < class'CMSMPrefab'.default.PFStaticMeshComponent.Length; i++ )
-			{
-				PreviewStaticMesh[i] = class'CMSMPrefab'.default.PFStaticMeshComponent[I];
-
-				PreviewStaticMesh[i].SetStaticMesh(class'CMSMPrefab'.default.PFStaticMeshComponent[I].StaticMesh);
-				PC.Pawn.AttachComponent(PreviewStaticMesh[i]);
-				PreviewStaticMesh[i].SetHidden(false);
-			}
-    		GoToState('ReadyToPlace',, true);
-			return true;
-
 		case "COPYSTRUCT":
             ClearSelectedMeshes();
             GarbageCollection();
@@ -59,6 +44,8 @@ function bool CheckExceptions(string Command)
             return true;
 
         case "SELECTMESH":
+            if (IsInState('ReadyToPlace') == true)
+                GoToState('MenuVisible',, true);
             SelectMesh();
             return true;
 
@@ -73,6 +60,7 @@ function bool CheckExceptions(string Command)
         case "CLEARSELECTED":
             ClearSelectedMeshes();
             GarbageCollection();
+            MessageSelf("Cleared Selected Meshes");
             return true;
 	}
     return false;
@@ -85,11 +73,7 @@ function DoPlace()
 
     `log("DoPlace called. PreviewStaticMesh length: " $ PreviewStaticMesh.Length);
 
-	if (LastCmd == "PFSANDBAGCR")
-	{
-		MyDA.ServerSpawnActor(class'CMSMPrefab',,'StaticMesh', PlaceLoc, PlaceRot,,, LastCmd);
-	}
-	else if (LastCmd == "COPYSTRUCT")
+    if (LastCmd == "COPYSTRUCT")
     {
         CopyStructure();
     }
@@ -139,7 +123,7 @@ function GarbageCollection()
 
 function ClearAllCMSM()
 {
-    local CMSM ActorToClear;\
+    local CMSM ActorToClear;
 
     foreach MyDA.AllActors(class'CMSM', ActorToClear)
     {
@@ -150,20 +134,11 @@ function ClearAllCMSM()
 
 simulated function UpdatePreviewMesh() // Update the position of the Preview Mesh
 {
-    local StaticMeshComponent PSM;
     local Vector TranslatedVec;
     local Rotator TranslatedRot, OriginRot;
     local int i;
 
-    if (LastCmd == "PFSANDBAGCR")
-    {
-        foreach PreviewStaticMesh(PSM)
-        {
-            PSM.SetTranslation(PlaceLoc + PSM.Default.Translation);
-            PSM.SetRotation(PlaceRot + PSM.Default.Rotation);
-        }
-    }
-    else if (LastCmd == "COPYSTRUCT")
+    if (LastCmd == "COPYSTRUCT")
     {
         MyDA.DrawDebugSphere(PlaceLoc, ModifyScale.X * 250, 50, 0, 0, 255, false);
     }
@@ -201,6 +176,7 @@ function CopyStructure()
 
     foreach MyDA.VisibleActors(class'StaticMeshActor', Actor, ModifyScale.x*250, PlaceLoc)
     {
+        `log("Actor: " $ Actor);
         if (Actor != none && Actor.StaticMeshComponent.StaticMesh != none)
         {
             NearbyActors.AddItem(Actor);
@@ -404,8 +380,6 @@ function CopySelectedMeshesToClipboard()
 
     PC.CopyToClipboard(StructureData);
     MessageSelf("Copied Selected Meshes To Clipboard");
-
-    ClearSelectedMeshes();
 }
 
 function ClearSelectedMeshes()
@@ -422,8 +396,6 @@ function ClearSelectedMeshes()
 
     SelectedActors.Remove(0, SelectedActors.Length);
     OriginalMaterials.Remove(0, OriginalMaterials.Length);
-
-    MessageSelf("Cleared Selected Meshes");
 }
 
 function RemoveLastSelectedMesh()
@@ -437,7 +409,7 @@ function RemoveLastSelectedMesh()
         SelectedActor.StaticMeshComponent.SetMaterial(0, OriginalMaterials[SelectedActors.Length - 1]);
 
         SelectedActors.Remove(SelectedActors.Length - 1, 1);
-        OriginalMaterials.Remove(SelectedActors.Length - 1, 1)
+        OriginalMaterials.Remove(SelectedActors.Length - 1, 1);
         
         MessageSelf("Removed Last Selected Mesh");
     }
@@ -457,8 +429,7 @@ defaultproperties
     MenuText.add("Clear Selected")
     MenuText.add("Paste Selection")
 	MenuText.add("Copy Structure")
-    MenuText.add("Clear All")
-    // MenuText.add("Sandbag Crescent")
+    MenuText.add("Clear All Meshes")
 
     MenuCommand.add("SELECTMESH")
     MenuCommand.add("STOPSELECT")
@@ -467,7 +438,6 @@ defaultproperties
     MenuCommand.add("PASTESTRUCT")
 	MenuCommand.add("COPYSTRUCT")
     MenuCommand.add("CLEARCMSM")
-    // MenuCommand.add("PFSANDBAGCR")
 
     PreviewStaticMesh.Remove(PreviewStaticMeshComponent)
 }

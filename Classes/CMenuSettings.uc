@@ -31,19 +31,17 @@ function bool CheckExceptions(string Command)
 
 defaultproperties
 {
-    
-
     MenuName="SETTINGS"
 
-    MenuText(0)="Set CMenu Text Color"
-    MenuText(1)="Set CMenu Background Color"
-    MenuText(2)="Set CMenu Border Color"
-    MenuText(3)="Toggle CMenu Background"
-    MenuText(4)="Toggle CMenu Stay"
+    MenuText.add("Set CMenu Text Color")
+    MenuText.add("Set CMenu Background Color")
+    MenuText.add("Set CMenu Border Color")
+    MenuText.add("Toggle CMenu Background")
+    MenuText.add("Toggle CMenu Stay")
     
-    MenuCommand(0)="SETCMENUTEXTCOLOR"
-    MenuCommand(1)="SETCMENUBGCOLOR"
-    MenuCommand(2)="SETCMENUBORDERCOLOR"
-    MenuCommand(3)="TOGGLECMENUBACKGROUND"
-    MenuCommand(4)="TOGGLECMENUSTAY"
+    MenuCommand.add("SETCMENUTEXTCOLOR")
+    MenuCommand.add("SETCMENUBGCOLOR")
+    MenuCommand.add("SETCMENUBORDERCOLOR")
+    MenuCommand.add("TOGGLECMENUBACKGROUND")
+    MenuCommand.add("TOGGLECMENUSTAY")
 }

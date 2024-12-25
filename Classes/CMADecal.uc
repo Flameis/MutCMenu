@@ -18,7 +18,7 @@ simulated event ReplicatedEvent(name VarName)
 	if (VarName == 'DecalMaterial')
 	{
 		Initialize(DecalMaterial, DecalLocation, DecalOrientation, DecalLength);
-		`log(VarName);
+		// `log(VarName);
 	}
 	else
 		super.ReplicatedEvent(VarName);
@@ -46,10 +46,10 @@ simulated function Initialize(MaterialInterface DecalMat, vector Loc, Rotator ro
 	AttachComponent(MyDecal);
 	// WorldInfo.MyDecalManager.AttachComponent(MyDecal);
 
-	`log(MyDecal.GetDecalMaterial());
-	`log(MyDecal.Location);
-	`log(MyDecal.Orientation);
-	`log(MyDecal.Height);
+	// `log(MyDecal.GetDecalMaterial());
+	// `log(MyDecal.Location);
+	// `log(MyDecal.Orientation);
+	// `log(MyDecal.Height);
 }
 
 DefaultProperties

@@ -1,5 +1,22 @@
 class CMenuPCManager extends CMenu;
 
+simulated state MenuVisible
+{
+	function BeginState(name PreviousStateName)
+	{
+        if (bIsAuthorized == false)
+        {
+            MessageSelf("You are not authorized to use this menu.");
+            GoToState('');
+            return;
+        }
+		else
+        {
+            super.BeginState(PreviousStateName);
+        }
+	}
+}
+
 function Initialize()
 {
     local int i;
@@ -57,32 +74,31 @@ function bool CheckExceptions(string Command)
 
 defaultproperties
 {
-    MenuText(0)="Respawn"
-    MenuText(1)="Kill"
-    MenuText(2)="Drop At Objective"
-    MenuText(3)="Drop At Grid"
-    MenuText(4)="Teleport To Me"
-    MenuText(5)="Change Name"
-    MenuText(6)="Find Original Name"
-    MenuText(7)="Switch Team"
+    MenuText.add("Respawn")
+    MenuText.add("Kill")
+    MenuText.add("Drop At Objective")
+    MenuText.add("Drop At Grid")
+    MenuText.add("Teleport To Me")
+    MenuText.add("Change Name")
+    MenuText.add("Find Original Name")
+    MenuText.add("Switch Team")
 
-    MenuText(8)="Safety On"
-    MenuText(9)="Safety Off"
-    MenuText(10)="Give Temporary Scrimmage Admin Powers"
-    MenuText(11)="Revoke Temporary Scrimmage Admin Powers"
+    MenuText.add("Safety On")
+    MenuText.add("Safety Off")
+    MenuText.add("Give Temporary Scrimmage Admin Powers")
+    MenuText.add("Revoke Temporary Scrimmage Admin Powers")
 
-    
-    MenuCommand(0)="FORCERESPAWN"
-    MenuCommand(1)="KILLPLAYER"
-    MenuCommand(2)="FDAO"
-    MenuCommand(3)="FDAG"
-    MenuCommand(4)="TELEPORTTOME"
-    MenuCommand(5)="FORCECHANGENAME"
-    MenuCommand(6)="WHOIS"
-    MenuCommand(7)="FORCESWITCHTEAM"
+    MenuCommand.add("FORCERESPAWN")
+    MenuCommand.add("KILLPLAYER")
+    MenuCommand.add("FDAO")
+    MenuCommand.add("FDAG")
+    MenuCommand.add("TELEPORTTOME")
+    MenuCommand.add("FORCECHANGENAME")
+    MenuCommand.add("WHOIS")
+    MenuCommand.add("FORCESWITCHTEAM")
 
-    MenuCommand(8)="FORCESAFETYON"
-    MenuCommand(9)="FORCESAFETYOFF"
-    MenuCommand(10)="TEMPADMINLOGIN"
-    MenuCommand(11)="TEMPADMINLOGOUT"
+    MenuCommand.add("FORCESAFETYON")
+    MenuCommand.add("FORCESAFETYOFF")
+    MenuCommand.add("TEMPADMINLOGIN")
+    MenuCommand.add("TEMPADMINLOGOUT")
 }

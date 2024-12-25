@@ -4,15 +4,15 @@ defaultproperties
 {
     MenuName="BUILDER"
 
-    MenuText(0)="ACTORS"
-    MenuText(1)="STATIC MESHES"
-    MenuText(2)="STRUCTURES"
-    MenuText(3)="VEHICLES"
-    MenuText(4)="WEAPONS"
+    MenuText.add("STATIC MESHES")
+    MenuText.add("STRUCTURES")
+    MenuText.add("VEHICLES")
+    MenuText.add("PICKUPS")
+    MenuText.add("ACTORS")
     
-    MenuCommand(0)="CMENU CMENUBACTORS"
-    MenuCommand(1)="CMENU CMENUBMESHES"
-    MenuCommand(2)="CMENU CMenuBStructures"
-    MenuCommand(3)="CMENU CMENUBVEHICLES"
-    MenuCommand(4)="CMENU CMENUBWEAPONS"
+    MenuCommand.add("CMENU CMENUBMESHES")
+    MenuCommand.add("CMENU CMenuBStructures")
+    MenuCommand.add("CMENU CMENUBVEHICLES")
+    MenuCommand.add("CMENU CMenuBPickups")
+    MenuCommand.add("CMENU CMENUBACTORS")
 }

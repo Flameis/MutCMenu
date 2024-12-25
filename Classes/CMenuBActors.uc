@@ -36,10 +36,10 @@ function DoPlace()
 	{
 		MyDA.ServerPlaceSpawn(class'CMASpawn',,, PlaceLoc, PlaceRot,,, SpawnTeamIndex);
 	}
-	else if (LastCmd == "SPAWNOBJ")
+	/* else if (LastCmd == "SPAWNOBJ")
 	{
     	MyDA.ServerSpawnOBJ(class'CMAObjective',,, PlaceLoc);
-	}
+	} */
 	else if (LastCmd == "REDDECAL")
 	{
     	MyDA.ServerSpawnDecal(DecalMaterial'Effects_Mats.FX_Gore.BloodPool_001_DM', PlaceLoc, PlaceRot);
@@ -72,10 +72,10 @@ defaultproperties
     MenuText.Add("Set South Spawn")
     MenuText.Add("Delete North Spawns")
     MenuText.Add("Delete South Spawns")
-    MenuText.Add("Mark Corner")
-    MenuText.Add("Spawn Obj")
-	MenuText.Add("Clear Corners")
-    MenuText.Add("Clear Objs")
+    // MenuText.Add("Mark Corner")
+    // MenuText.Add("Spawn Obj")
+	// MenuText.Add("Clear Corners")
+    // MenuText.Add("Clear Objs")
     MenuText.Add("Clear All")
 
     // MenuText.Add("Red Decal")
@@ -85,10 +85,10 @@ defaultproperties
     MenuCommand.Add("SOUTHSPAWN")
     MenuCommand.Add("DELNORTHSPAWNS")
     MenuCommand.Add("DELSOUTHSPAWNS")
-    MenuCommand.Add("SETCORNER")
-    MenuCommand.Add("SPAWNOBJ")
-	MenuCommand.Add("CLEARCORNERS")
-    MenuCommand.Add("CLEAROBJS")
+    // MenuCommand.Add("SETCORNER")
+    // MenuCommand.Add("SPAWNOBJ")
+	// MenuCommand.Add("CLEARCORNERS")
+    // MenuCommand.Add("CLEAROBJS")
     MenuCommand.Add("CLEARALLACTORS")
 
     // MenuCommand.Add("REDDECAL")

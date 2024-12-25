@@ -38,12 +38,12 @@ simulated function InitializePickup()
     EnablePickup();
 	SetPickupVisible();
 
-    `log(WeaponPickupClass);
-    `log(InventoryType);
-    `log(PreviewMesh);
-    `log(bIsEnabled);
-    `log(bPickupHidden);
-    `log(bIsSleeping);
+    // `log(WeaponPickupClass);
+    // `log(InventoryType);
+    // `log(PreviewMesh);
+    // `log(bIsEnabled);
+    // `log(bPickupHidden);
+    // `log(bIsSleeping);
 }
 
 // Enable/Disable areas is whether this pickup has been enabled by Kismet (which it must to work!)

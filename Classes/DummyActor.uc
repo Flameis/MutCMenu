@@ -35,7 +35,7 @@ reliable client function CMenuSetup()
     pc.Interactions.additem(new(pc) class'CMenuBMeshes');
     pc.Interactions.additem(new(pc) class'CMenuBStructures');
     pc.Interactions.additem(new(pc) class'CMenuBVehicles');
-    pc.Interactions.additem(new(pc) class'CMenuBWeapons');
+    pc.Interactions.additem(new(pc) class'CMenuBPickups');
 
     pc.Interactions.additem(new(pc) class'CMenuWeapons');
 
@@ -89,7 +89,7 @@ simulated function CMConsoleCommand(string Command)
     PC = PlayerController(Owner);
 
     PC.ConsoleCommand(Command);
-    `log (Command);
+    // `log (Command);
 }
 
 reliable client function ClientCMConsoleCommand(string Command)
@@ -195,7 +195,7 @@ reliable server function ServerSetCorners(Vector PlaceLoc, rotator PlaceRot)
     ServerSpawnActor(class'CMSM',,'StaticMesh', PlaceLoc, PlaceRot,,, "ENV_VN_Flags.Meshes.S_VN_Flagpole");
 }
 
-reliable server function ServerSpawnOBJ(
+/* reliable server function ServerSpawnOBJ(
     class<actor>      SpawnClass,
 	optional actor	  SpawnOwner,
 	optional name     SpawnTag,
@@ -219,7 +219,7 @@ reliable server function ServerSpawnOBJ(
     {
         DA.ClientSetupObj(CMPO);
     }
-}
+} */
 
 reliable server function ClientSetupObj(CMAObjective CMPO)
 {
@@ -336,55 +336,12 @@ reliable server function SpawnVehicle(string VehicleName, vector PlaceLoc, rotat
 
     ROP = ROPawn(PlayerController(Owner).Pawn);
 
-	switch (VehicleName)
-    {
-        case "GOM3.GOMVehicle_M113_ACAV_ActualContent":
-        bLandVic = true;
-        break;
-
-        case "GOM4.GOMVehicle_M113_ACAV_ActualContent":
-        bLandVic = true;
-        break;
-
-        case "GOM4.GOMVehicle_M113_APC_ARVN":
-        bLandVic = true;
-        break;
-
-        case "GOM4.GOMVehicle_M151_MUTT_US":
-        bLandVic = true;
-        break;
-
-        case "GOM4.GOMVehicle_T34_ActualContent":
-        bLandVic = true;
-        break;
-
-        case "WinterWar.WWVehicle_T20_ActualContent":
-        bLandVic = true;
-        break;
-
-        case "WinterWar.WWVehicle_T26_EarlyWar_ActualContent":
-        bLandVic = true;
-        break;
-
-        case "WinterWar.WWVehicle_T28_ActualContent":
-        bLandVic = true;
-        break;
-
-        case "WinterWar.WWVehicle_HT130_ActualContent":
-        bLandVic = true;
-        break;
-
-        case "WinterWar.WWVehicle_Vickers_ActualContent":
-        bLandVic = true;
-        break;
-
-        case "WinterWar.WWVehicle_Skis_ActualContent":
-        bLandVic = true;
-        break;
-    }
-
     VehicleClass = class<ROVehicle>(DynamicLoadObject(VehicleName, class'Class'));
-
+    
+    if (ClassIsChildOf(VehicleClass, class'ROVehicleTreaded') || ClassIsChildOf(VehicleClass, class'ROVehicleWheeled'))
+    {
+        bLandVic = true;
+    }
     if (VehicleClass != none)
     {
         ROV = Spawn(VehicleClass, , , PlaceLoc, PlaceRot);

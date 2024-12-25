@@ -5,13 +5,13 @@ function Initialize()
     if (bIsAuthorized)
     {
         MenuText.additem("Clear All Meshes");
-        MenuCommand.additem("CMENU CLEARALLMESHES");
+        MenuCommand.additem("CLEARALLMESHES");
 
         MenuText.additem("WARNING Toggle Collision");
-        MenuCommand.additem("CMENU TOGGLECOLLISION");
+        MenuCommand.additem("TOGGLECOLLISION");
 
         MenuText.additem("WARNING Delete Any Object");
-        MenuCommand.additem("CMENU ADMINDELETE");
+        MenuCommand.additem("ADMINDELETE");
     }
 
 	super.Initialize();
@@ -77,7 +77,11 @@ function bool CheckExceptions(string Command)
             MyDA.DeleteActor(CMSM(TraceActors()));
             break;
 
-        case "COLLISION":
+        case "CLEARALLMESHES":
+            ClearAllMeshes();
+            break;
+
+        case "TOGGLECOLLISION":
             MyDA.SetActorCollision(TraceActors());
             break;
 

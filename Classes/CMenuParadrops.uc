@@ -35,21 +35,19 @@ function bool CheckExceptions(string Command)
 
 defaultproperties
 {
-    
-
     MenuName="PARADROPS"
 
-    MenuText(0)="Drop All At Obj"
-    MenuText(1)="Drop North At Obj"
-    MenuText(2)="Drop South At Obj"
-    MenuText(3)="Drop All At Grid"
-    MenuText(4)="Drop North At Grid"
-    MenuText(5)="Drop South At Grid"
+    MenuText.add("Drop All At Obj")
+    MenuText.add("Drop North At Obj")
+    MenuText.add("Drop South At Obj")
+    MenuText.add("Drop All At Grid")
+    MenuText.add("Drop North At Grid")
+    MenuText.add("Drop South At Grid")
     
-    MenuCommand(0)="DROPALLATOBJ"
-    MenuCommand(1)="DROPNORTHATOBJ"
-    MenuCommand(2)="DROPSOUTHATOBJ"
-    MenuCommand(3)="DROPALLATGRID"
-    MenuCommand(4)="DROPNORTHATGRID"
-    MenuCommand(5)="DROPSOUTHATGRID"
+    MenuCommand.add("DROPALLATOBJ")
+    MenuCommand.add("DROPNORTHATOBJ")
+    MenuCommand.add("DROPSOUTHATOBJ")
+    MenuCommand.add("DROPALLATGRID")
+    MenuCommand.add("DROPNORTHATGRID")
+    MenuCommand.add("DROPSOUTHATGRID")
 }

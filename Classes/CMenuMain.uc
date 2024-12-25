@@ -33,10 +33,10 @@ defaultproperties
 {
     MenuName="MAIN MENU"
 
-    MenuText(0)="General Commands"
-    MenuText(1)="Builder Menu"
-    MenuText(2)="Weapon Menu"
-    MenuCommand(0)="CMENU CMENUGENERAL"
-    MenuCommand(1)="CMENU CMENUBMAIN"
-    MenuCommand(2)="CMENU CMENUWEAPONS"
+    MenuText.add("General Commands")
+    MenuText.add("Builder Menu")
+    MenuText.add("Weapon Menu")
+    MenuCommand.add("CMENU CMENUGENERAL")
+    MenuCommand.add("CMENU CMENUBMAIN")
+    MenuCommand.add("CMENU CMENUWEAPONS")
 }

@@ -21,7 +21,22 @@ var config array<string>        MutatorAdmins; // A list of all mutator admins a
 
 function PreBeginPlay()
 {
+    local Mutator mut;
     super.PreBeginPlay();
+
+    for (mut = ROGameInfo(WorldInfo.Game).BaseMutator; mut != none; mut = mut.NextMutator)
+    {
+        if (mut == ROGameInfo(WorldInfo.Game).BaseMutator && InStr(string(mut.name), "MutCMenu",,true) != -1 && mut != self)
+        {
+            ROGameInfo(WorldInfo.Game).BaseMutator = mut.NextMutator;
+            mut.Destroy();
+        }
+        else if (InStr(string(mut.NextMutator.name), "MutCMenu",,true) != -1 && mut.NextMutator != self) 
+        {
+            mut.NextMutator = mut.NextMutator.NextMutator;
+            mut.NextMutator.Destroy();
+        }
+    }
 
     ROGameInfo(WorldInfo.Game).GameReplicationInfoClass = class'CMGameReplicationInfo';
 }
@@ -30,6 +45,20 @@ auto state StartUp
 {
     Begin:
     SetTimer(1, false, 'LoadObjects');
+}
+
+function bool IsMutThere(string Mutator)
+{
+	local Mutator mut;
+
+    for (mut = ROGameInfo(WorldInfo.Game).BaseMutator; mut != none; mut = mut.NextMutator)
+    {
+        if(InStr(string(mut.name), Mutator,,true) != -1) 
+        {
+            return true;
+        }
+    }
+    return false;
 }
 
 simulated function NotifyLogin(Controller NewPlayer)
@@ -112,7 +141,7 @@ simulated function Mutate(string mutateString, PlayerController sender)
     local string        secondaryparam, tertiaryparam;
     local int           i;
 
-    `log("mutateString = "$mutateString);
+    // `log("mutateString = "$mutateString);
 
     params = SplitString(mutateString, " to ", false);
     tertiaryparam = params[1];
@@ -508,4 +537,11 @@ function LoadObjects()
         ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject("WinterWar.WWWeapon_SVT38_ActualContent", class'Class')));
         ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject("WinterWar.WWWeapon_TT33_ActualContent", class'Class')));
     }
+}
+
+`include(MutCMenuTB\Classes\WeaponNames.uci)
+
+defaultproperties
+{
+    
 }

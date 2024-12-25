@@ -2,6 +2,8 @@ class CMenuWeapons extends CMenu;
 
 function bool CheckExceptions(string Command)
 {
+    local string WeaponPackage;
+
     switch (Caps(Command))
     {
         case "GIVEWEAPON":
@@ -17,30 +19,59 @@ function bool CheckExceptions(string Command)
             MessageSelf("Please Specify a Weapon (Example: L1A1)");
             return true;
 
-        default:
-            return false;
+        case "COPY":
+            if (InStr(string(PC.Pawn.Weapon), "RO",,true) != -1)
+            {
+                WeaponPackage = "ROGameContent.";
+            }
+            else if (InStr(string(PC.Pawn.Weapon), "GOM",,true) != -1)
+            {
+                WeaponPackage = "GOM4.";
+            }
+            else if (InStr(string(PC.Pawn.Weapon), "WW",,true) != -1)
+            {
+                WeaponPackage = "WinterWar.";
+            }
+            else if (InStr(string(PC.Pawn.Weapon), "AC",,true) != -1)
+            {
+                WeaponPackage = "MutExtrasTB.";
+            }
+            else if (InStr(string(PC.Pawn.Weapon), "GM",,true) != -1)
+            {
+                WeaponPackage = "GreenMenMod.";
+            }
+            else if (InStr(string(PC.Pawn.Weapon), "BO",,true) != -1)
+            {
+                WeaponPackage = "BlackOrchestra.";
+            }
+
+            PC.CopyToClipboard(WeaponPackage $ Repl(string(PC.Pawn.Weapon), Right(string(PC.Pawn.Weapon), 2), "", false));
+            return true;
     }
+    return false;
 }
 
 defaultproperties
 {
     MenuName="WEAPONS"
 
-    MenuText(0)="Give Weapon SELF"
-    MenuText(1)="Give Weapon NORTH"
-    MenuText(2)="Give Weapon SOUTH"
-    MenuText(3)="Give Weapon All"
-    MenuText(4)="Clear Weapons SELF"
-    MenuText(5)="Clear Weapons NORTH"
-    MenuText(6)="Clear Weapons SOUTH"
-    MenuText(7)="Clear Weapons All"
+    MenuText.add("Copy Held Weapon To Clipboard")
+    MenuText.add("Give Weapon SELF")
+    MenuText.add("Give Weapon NORTH")
+    MenuText.add("Give Weapon SOUTH")
+    MenuText.add("Give Weapon All")
+    MenuText.add("Clear Weapons SELF")
+    MenuText.add("Clear Weapons NORTH")
+    MenuText.add("Clear Weapons SOUTH")
+    MenuText.add("Clear Weapons All")
     
-    MenuCommand(0)="GIVEWEAPON"
-    MenuCommand(1)="GIVEWEAPONNORTH"
-    MenuCommand(2)="GIVEWEAPONSOUTH"
-    MenuCommand(3)="GIVEWEAPONALL"
-    MenuCommand(4)="CLEARWEAPONS"
-    MenuCommand(5)="CLEARWEAPONSNORTH"
-    MenuCommand(6)="CLEARWEAPONSSOUTH"
-    MenuCommand(7)="CLEARWEAPONSALL"
+    MenuCommand.add("COPY")
+    MenuCommand.add("GIVEWEAPON")
+    MenuCommand.add("GIVEWEAPONNORTH")
+    MenuCommand.add("GIVEWEAPONSOUTH")
+    MenuCommand.add("GIVEWEAPONALL")
+    MenuCommand.add("CLEARWEAPONS")
+    MenuCommand.add("CLEARWEAPONSNORTH")
+    MenuCommand.add("CLEARWEAPONSSOUTH")
+    MenuCommand.add("CLEARWEAPONSALL")
 }
