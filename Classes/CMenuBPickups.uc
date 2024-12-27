@@ -21,7 +21,7 @@ simulated state MenuVisible
 
 function bool CheckExceptions(string Command)
 {
-    local string WeaponPackage;
+    local string WeaponPackage, FullWepPath;
 
     switch (Caps(Command))
     {
@@ -61,7 +61,9 @@ function bool CheckExceptions(string Command)
                 WeaponPackage = "BlackOrchestra.";
             }
 
-            WeaponClass = class<ROWeapon>(DynamicLoadObject(WeaponPackage $ Repl(string(PC.Pawn.Weapon), Right(string(PC.Pawn.Weapon), 2), "", false), class'Class'));
+            FullWepPath = WeaponPackage $ Repl(string(PC.Pawn.Weapon), Right(string(PC.Pawn.Weapon), 2), "", false);
+            PC.CopyToClipboard(FullWepPath);
+            WeaponClass = class<ROWeapon>(DynamicLoadObject(FullWepPath, class'Class'));
             
             ReferenceSkeletalMesh[0] = SkeletalMeshComponent(WeaponClass.default.Mesh).SkeletalMesh;
             ModifyLoc.z = 5;
@@ -77,7 +79,8 @@ function bool CheckExceptions(string Command)
 
 function DoPlace()
 {
-	MyDA.ServerSpawnPickup(WeaponClass, PlaceLoc, PlaceRot, ModifyTime);
+	MyDA.SpawnPickup(WeaponClass, PlaceLoc, PlaceRot, ModifyTime);
+    // MyDA.ServerSpawnPickup(WeaponClass, PlaceLoc, PlaceRot, ModifyTime);
 }
 
 function ClearAllPickups()

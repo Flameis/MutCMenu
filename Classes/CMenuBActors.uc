@@ -8,7 +8,7 @@ function bool CheckExceptions(string Command)
 		case "SOUTHSPAWN":
 			ReferenceStaticMesh[0] = class'CMASpawn'.default.StaticMeshComponent.StaticMesh;
 	
-			if (Command == "NorthSpawn")
+			if (Command ~= "NorthSpawn")
 				SpawnTeamIndex = 0;
 			else 
 			 	SpawnTeamIndex = 1;
@@ -22,6 +22,10 @@ function bool CheckExceptions(string Command)
 			ReferenceStaticMesh[0] = StaticMesh'ENV_VN_Flags.Meshes.S_VN_Flagpole';
             GoToState('ReadyToPlace',, true);
 			return true;
+
+        case "CLEARALLACTORS":
+            ClearAllActors();
+            return true;
     }
     return false;
 }
@@ -30,11 +34,11 @@ function DoPlace()
 {
 	if (LastCmd == "SETCORNER")
 	{
-        MyDA.ServerSetCorners(PlaceLoc, PlaceRot);
+        MyDA.SetCorners(PlaceLoc, PlaceRot);
 	}
 	else if (LastCmd == "NORTHSPAWN" || LastCmd == "SOUTHSPAWN")
 	{
-		MyDA.ServerPlaceSpawn(class'CMASpawn',,, PlaceLoc, PlaceRot,,, SpawnTeamIndex);
+		MyDA.PlaceSpawn(class'CMASpawn',,, PlaceLoc, PlaceRot,,, SpawnTeamIndex);
 	}
 	/* else if (LastCmd == "SPAWNOBJ")
 	{
@@ -42,11 +46,11 @@ function DoPlace()
 	} */
 	else if (LastCmd == "REDDECAL")
 	{
-    	MyDA.ServerSpawnDecal(DecalMaterial'Effects_Mats.FX_Gore.BloodPool_001_DM', PlaceLoc, PlaceRot);
+    	MyDA.SpawnDecal(DecalMaterial'Effects_Mats.FX_Gore.BloodPool_001_DM', PlaceLoc, PlaceRot);
 	}
 	else if (LastCmd == "YELLOWDECAL")
 	{
-    	MyDA.ServerSpawnDecal(DecalMaterial'FX_VN_Materials.Materials.D_CommanderMark', PlaceLoc, PlaceRot);
+    	MyDA.SpawnDecal(DecalMaterial'FX_VN_Materials.Materials.D_CommanderMark', PlaceLoc, PlaceRot);
 	}
 }
 

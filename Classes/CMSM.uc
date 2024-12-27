@@ -3,7 +3,7 @@ class CMSM extends Actor;
 var StaticMeshComponent	StaticMeshComponent;
 var DynamicLightEnvironmentComponent LightEnvironment;
 /** Used to replicate mesh to clients */
-var repnotify transient StaticMesh ReplicatedMesh;
+var repnotify StaticMesh ReplicatedMesh;
 /** used to replicate the material in index 0 */
 var repnotify MaterialInterface ReplicatedMaterial;
 /** used to replicate StaticMeshComponent.bForceStaticDecals */
@@ -34,13 +34,15 @@ var repnotify ECrateMeshDisplayStatus 		CrateDisplayStatus;
 
 replication
 {
-	if (bNetDirty)
+	if (bNetDirty && (Role == ROLE_Authority))
 		CrateDisplayStatus, ReplicatedMesh, ReplicatedMaterial, ReplicatedMeshTranslation, ReplicatedMeshRotation, ReplicatedMeshScale3D, bForceStaticDecals;
 }
 
 event PostBeginPlay()
 {
 	Super.PostBeginPlay();
+
+	`log("CMSM PostBeginPlay");
 
 	if( StaticMeshComponent != none )
 	{
@@ -59,8 +61,8 @@ simulated event ReplicatedEvent( name VarName )
 	else if (VarName == 'ReplicatedMesh')
 	{
 		// Enable the light environment if it is not already
-		LightEnvironment.bCastShadows = false;
-		LightEnvironment.SetEnabled(TRUE);
+		// LightEnvironment.bCastShadows = false;
+		// LightEnvironment.SetEnabled(TRUE);
 
 		StaticMeshComponent.SetStaticMesh(ReplicatedMesh);
 	}
@@ -104,8 +106,8 @@ event TakeDamage(int DamageAmount, Controller EventInstigator, vector HitLocatio
 	//`log(NewKActor);
 	`log(StaticMeshComponent.bSelfShadowOnly);
 	`log(StaticMeshComponent.StaticMesh.bCanBecomeDynamic); */
-	`log(DamageAmount);
-	`log(DamageType);
+	// `log(DamageAmount);
+	// `log(DamageType);
 
 	if (ClassIsChildOf(DamageType, class'RODamageType_CannonShell') || ClassIsChildOf(DamageType, class'RODmgType_Satchel'))
 	{
@@ -202,7 +204,7 @@ simulated function PlayDestructionEffects()
 	//local vector HitLoc, HitNorm, StartLoc, EndLoc;
 	if ( WorldInfo.NetMode != NM_DedicatedServer )
 	{
-		StaticMeshComponent.SetStaticMesh(DestroyedMesh);
+		SetStaticMesh(DestroyedMesh);
 		
 		//StartLoc = self.Location + StaticMeshComponent.Translation;
 		//EndLoc = StartLoc;
@@ -219,55 +221,101 @@ simulated function PlayDestructionEffects()
 	}
 }
 
-function SetStaticMesh(StaticMesh NewMesh, optional vector NewTranslation, optional rotator NewRotation, optional vector NewScale3D)
+reliable server function ServerSetStaticMesh(StaticMesh NewMesh)
 {
 	StaticMeshComponent.SetStaticMesh(NewMesh);
-	StaticMeshComponent.SetTranslation(NewTranslation);
-	StaticMeshComponent.SetRotation(NewRotation);
-	if (!IsZero(NewScale3D))
-	{
-		StaticMeshComponent.SetScale3D(NewScale3D);
-		ReplicatedMeshScale3D = NewScale3D;
-	}
 	ReplicatedMesh = NewMesh;
-	ReplicatedMeshTranslation = NewTranslation;
-	ReplicatedMeshRotation = NewRotation;
+
 	ForceNetRelevant();
 }
 
-event Tick(float DeltaTime)
+reliable server function ServerSetMaterial(MaterialInterface NewMaterial)
+{
+	StaticMeshComponent.SetMaterial(0, NewMaterial);
+	ReplicatedMaterial = NewMaterial;
+
+	ForceNetRelevant();
+}
+
+reliable server function ServerSetTranslation(vector NewTranslation)
+{
+	StaticMeshComponent.SetTranslation(NewTranslation);
+	ReplicatedMeshTranslation = NewTranslation;
+
+	ForceNetRelevant();
+}
+
+reliable server function ServerSetMeshRotation(rotator NewRotation)
+{
+	StaticMeshComponent.SetRotation(NewRotation);
+	ReplicatedMeshRotation = NewRotation;
+
+	ForceNetRelevant();
+}
+
+reliable server function ServerSetScale3D(vector NewScale3D)
+{
+	StaticMeshComponent.SetScale3D(NewScale3D);
+	ReplicatedMeshScale3D = NewScale3D;
+
+	ForceNetRelevant();
+}
+
+simulated function SetStaticMesh(StaticMesh NewMesh)
+{
+	StaticMeshComponent.SetStaticMesh(NewMesh);
+}
+
+simulated function SetMaterial(MaterialInterface NewMaterial)
+{
+	StaticMeshComponent.SetMaterial(0, NewMaterial);
+}
+
+simulated function SetTranslation(vector NewTranslation)
+{
+	StaticMeshComponent.SetTranslation(NewTranslation);
+}
+
+simulated function SetMeshRotation(rotator NewRotation)
+{
+	StaticMeshComponent.SetRotation(NewRotation);
+}
+
+simulated function SetScale3D(vector NewScale3D)
+{
+	StaticMeshComponent.SetScale3D(NewScale3D);
+}
+
+
+/* event Tick(float DeltaTime)
 {
 	LightEnvironment.ForceUpdate(false);
 	Super.Tick(DeltaTime);
-}
+} */
 
 defaultproperties
 {
     health=100
-	AcceptedDamageTypes(0)=Class'ROGame.RODmgType_RPG7Rocket'
-    AcceptedDamageTypes(1)=Class'ROGame.RODmgType_RPG7RocketGeneral'
-    AcceptedDamageTypes(2)=Class'ROGame.RODmgType_RPG7RocketImpact'
-	AcceptedDamageTypes(3)=Class'ROGame.RODmgType_AC47Gunship'
-	AcceptedDamageTypes(4)=Class'ROGame.RODmgType_C4_Explosive'
-	AcceptedDamageTypes(5)=Class'ROGame.RODmgType_AntiVehicleGeneral'
-	AcceptedDamageTypes(6)=Class'ROGame.RODmgType_Satchel'
-	AcceptedDamageTypes(7)=Class'ROGame.RODmgTypeArtillery'
+	AcceptedDamageTypes.add(Class'ROGame.RODmgType_RPG7Rocket')
+    AcceptedDamageTypes.add(Class'ROGame.RODmgType_RPG7RocketGeneral')
+    AcceptedDamageTypes.add(Class'ROGame.RODmgType_RPG7RocketImpact')
+	AcceptedDamageTypes.add(Class'ROGame.RODmgType_AC47Gunship')
+	AcceptedDamageTypes.add(Class'ROGame.RODmgType_C4_Explosive')
+	AcceptedDamageTypes.add(Class'ROGame.RODmgType_AntiVehicleGeneral')
+	AcceptedDamageTypes.add(Class'ROGame.RODmgType_Satchel')
+	AcceptedDamageTypes.add(Class'ROGame.RODmgTypeArtillery')
 
-    RemoteRole=ROLE_SimulatedProxy 
-	NetPriority = 3
+	RemoteRole=ROLE_SimulatedProxy
+	NetPriority = 2.7
 	bAlwaysRelevant = true
 
-	//CustomTimeDilation=0.00001;
-	CollisionType=COLLIDE_RO_CanBecomeDynamic
-	Physics=PHYS_NONE
-
+	CollisionType=COLLIDE_BlockAll
     bCollideActors=true
 	bCollideWorld=true
 	bBlockActors=true
 	bWorldGeometry=true
 
 	bStatic=false
-	bMovable = false
 	bNoDelete=false
 	bHidden=false
 	bCanBeDamaged=true

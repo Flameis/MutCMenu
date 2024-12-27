@@ -10,6 +10,7 @@ var bool                        	bShowPreviewMesh, bPreviewIsSkeletal;
 
 var Vector  				    	PlaceLoc, ModifyLoc;
 var	rotator					    	PlaceRot, ModifyRot;
+var bool 							SwitchRotDir;
 var Vector							ModifyScale;
 var int 							ModifyTime;	
 var Actor							TracedActor;
@@ -66,7 +67,7 @@ simulated state ReadyToPlace extends MenuVisible
 		}
 	}
 
-	function bool InputKey( int ControllerId, name Key, EInputEvent EventType, float AmountDepressed = 1.f, bool bGamepad = FALSE )
+	function bool InputKey(int ControllerId, name Key, EInputEvent EventType, float AmountDepressed = 1.f, bool bGamepad = FALSE)
 	{
         if (EventType == IE_Pressed)
         {
@@ -75,19 +76,35 @@ simulated state ReadyToPlace extends MenuVisible
 	        	case 'LeftMouseButton':
 	        	    DoPlace();
             	    return true;
-				
+
+				// If tab reverse the direction of the rotation
+				case 'Tab':
+					SwitchRotDir = !SwitchRotDir;
+					MessageSelf("Rotation Direction Reversed: " $ string(SwitchRotDir));
+					return true;
+
 				case 'Z':
-            	    ModifyRot.roll = ModifyRot.roll - ROT_MODIFIER;
+					if (SwitchRotDir)
+				    	ModifyRot.roll = ModifyRot.roll + ROT_MODIFIER;
+					else
+            	    	ModifyRot.roll = ModifyRot.roll - ROT_MODIFIER;
+					
 					MessageSelf("Roll: " $ string(-ModifyRot.roll * UnrRotToDeg)); 
 					return true;
 
             	case 'X':
-            	    ModifyRot.pitch = ModifyRot.pitch - ROT_MODIFIER;
+					if (SwitchRotDir)
+				    	ModifyRot.pitch = ModifyRot.pitch + ROT_MODIFIER;
+					else
+            	    	ModifyRot.pitch = ModifyRot.pitch - ROT_MODIFIER;
 					MessageSelf("Pitch: " $ string(-ModifyRot.pitch * UnrRotToDeg));
 					return true;
 
             	case 'C':
-            	    ModifyRot.Yaw = ModifyRot.Yaw - ROT_MODIFIER;
+					if (SwitchRotDir)
+						ModifyRot.Yaw = ModifyRot.Yaw + ROT_MODIFIER;
+					else
+            	    	ModifyRot.Yaw = ModifyRot.Yaw - ROT_MODIFIER;
 					MessageSelf("Yaw: " $ string(-ModifyRot.Yaw * UnrRotToDeg));
 					return true;
 

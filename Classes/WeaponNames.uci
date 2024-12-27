@@ -779,7 +779,18 @@ function string DoGiveWeapon(PlayerController PC, ROInventoryManager InvManager,
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////// Testing            
 
             default:
-            Return "false";
+            ActualName = WeaponName;
+            break;
+    }
+
+    if (ActualName == WeaponName && (InStr(WeaponName, "Weap") != -1 || InStr(WeaponName, "Item") != -1))
+    {
+        InvManager.LoadAndCreateInventory(WeaponName, false, true);
+        return "true";
+    }
+    else if (ActualName == WeaponName)
+    {
+        return "false";
     }
 
     if (InStr(ActualName, "WinterWar") != -1 && !bLoadWW)

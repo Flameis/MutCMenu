@@ -2,7 +2,7 @@ class CMenuWeapons extends CMenu;
 
 function bool CheckExceptions(string Command)
 {
-    local string WeaponPackage;
+    local string WeaponPackage, FullWepPath;
 
     switch (Caps(Command))
     {
@@ -45,7 +45,10 @@ function bool CheckExceptions(string Command)
                 WeaponPackage = "BlackOrchestra.";
             }
 
-            PC.CopyToClipboard(WeaponPackage $ Repl(string(PC.Pawn.Weapon), Right(string(PC.Pawn.Weapon), 2), "", false));
+            FullWepPath = WeaponPackage $ Repl(string(PC.Pawn.Weapon), Right(string(PC.Pawn.Weapon), 2), "", false);
+
+            MessageSelf("Weapon Copied to ClipboardL: " $ FullWepPath);
+            PC.CopyToClipboard(FullWepPath);
             return true;
     }
     return false;

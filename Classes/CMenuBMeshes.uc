@@ -39,16 +39,6 @@ function bool CheckExceptions(string Command)
 {
 	switch (Command)
     {
-        case "CUSTOMSM":
-            LocalPlayer(PC.Player).ViewportClient.ViewportConsole.TypedStr="mutate CMENU CMenuBMeshes to ";
-            LocalPlayer(PC.Player).ViewportClient.ViewportConsole.TypedStrPos=Len(LocalPlayer(PC.Player).ViewportClient.ViewportConsole.TypedStr); // set the value high in case name is quite long
-            LocalPlayer(PC.Player).ViewportClient.ViewportConsole.GoToState('Typing');
-            LocalPlayer(PC.Player).ViewportClient.ClearProgressMessages();
-            LocalPlayer(PC.Player).ViewportClient.SetProgressTime(6);
-            MessageSelf("Please Type Your Desired Static Mesh (Example: ENV_VN_Sandbags.Mesh.S_ENV_Sandbags_112uu)");
-            // GoToState('ReadyToPlace',, true);
-            return true;
-
         case "COPY":
             Command = PathName(StaticMeshActor(TracedActor).StaticMeshComponent.StaticMesh);
             LastCmd = Command;
@@ -78,6 +68,7 @@ function bool CheckExceptions(string Command)
             break;
 
         case "CLEARALLMESHES":
+            GoToState('MenuVisible',, true);
             ClearAllMeshes();
             break;
 
@@ -105,11 +96,11 @@ function DoPlace()
 {
 	if (InStr(LastCmd, "_",, true) != -1)
 	{
-		MyDA.ServerSpawnActor(class'CMSM',,'StaticMesh', PlaceLoc, PlaceRot,, true, LastCmd, ModifyScale.x);
+        MyDA.SpawnActor(class'CMSM',,'StaticMesh', PlaceLoc, PlaceRot,, true, LastCmd, ModifyScale.x);
 	}
 }
 
-function ClearAllMeshes()
+reliable server function ClearAllMeshes()
 {
     local CMSM MeshToClear;
 

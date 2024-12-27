@@ -5,6 +5,26 @@ var array<Rotator> RotArray;
 var array<StaticMeshActor> SelectedActors;
 var array<MaterialInterface> OriginalMaterials;
 
+simulated state menuVisible
+{
+    function EndState(name PreviousStateName)
+    {
+        MenuText.Remove(default.MenuCommand.Length, MenuText.Length-default.MenuCommand.Length);
+        MenuCommand.Remove(default.MenuCommand.Length, MenuCommand.Length-default.MenuCommand.Length);
+    }
+}
+
+function Initialize()
+{
+    if (bIsAuthorized)
+    {
+        MenuText.additem("Clear All Meshes");
+        MenuCommand.additem("CLEARCMSM");
+    }
+
+	super.Initialize();
+}
+
 simulated state ReadyToPlace
 {
     // Overwritten
@@ -31,6 +51,7 @@ function bool CheckExceptions(string Command)
             return true;
 
         case "PASTESTRUCT":
+            GoToState('MenuVisible',, true);
             GarbageCollection();
             ClearSelectedMeshes();
             PasteStructure();
@@ -76,6 +97,7 @@ function DoPlace()
     if (LastCmd == "COPYSTRUCT")
     {
         CopyStructure();
+        GoToState('MenuVisible',, true);
     }
     else
 	{
@@ -92,7 +114,9 @@ function DoPlace()
                     Mesh = PathName(PreviewStaticMesh[i].StaticMesh);
                 }
 				// Remove or adjust collision checks here
-				MyDA.ServerSpawnActor(class'CMSM',,'StaticMesh', PreviewStaticMesh[i].GetPosition(), PreviewStaticMesh[i].GetRotation(),, true, Mesh, ModifyScale.x);
+				// MyDA.SpawnActor(class'CMSM',,'StaticMesh', PreviewStaticMesh[i].GetPosition(), PreviewStaticMesh[i].GetRotation(),, true, Mesh, ModifyScale.x);
+                MyDA.SpawnActor(class'CMSM',,'StaticMesh', PreviewStaticMesh[i].GetPosition(), PreviewStaticMesh[i].GetRotation(),, true, Mesh, ModifyScale.x);
+
 
 				`log("NewMesh: " $ Mesh);
 				`log("Translation: " $ VecArray[i]);
@@ -174,7 +198,19 @@ function CopyStructure()
 
     ClearSelectedMeshes();
 
-    foreach MyDA.VisibleActors(class'StaticMeshActor', Actor, ModifyScale.x*250, PlaceLoc)
+    /* if (StaticMeshActor(TracedActor) != none)
+    {
+        NearbyActors.AddItem(StaticMeshActor(TracedActor));
+
+        foreach TracedActor.CollidingActors(class'StaticMeshActor', Actor, ModifyScale.x*250,, True)
+        {
+            if (Actor != none && Actor.StaticMeshComponent.StaticMesh != none)
+            {
+                NearbyActors.AddItem(Actor);
+            }
+        }
+    } */
+    foreach MyDA.OverlappingActors(class'StaticMeshActor', Actor, ModifyScale.x*250, PlaceLoc)
     {
         `log("Actor: " $ Actor);
         if (Actor != none && Actor.StaticMeshComponent.StaticMesh != none)
@@ -429,7 +465,6 @@ defaultproperties
     MenuText.add("Clear Selected")
     MenuText.add("Paste Selection")
 	MenuText.add("Copy Structure")
-    MenuText.add("Clear All Meshes")
 
     MenuCommand.add("SELECTMESH")
     MenuCommand.add("STOPSELECT")
@@ -437,7 +472,6 @@ defaultproperties
     MenuCommand.add("CLEARSELECTED")
     MenuCommand.add("PASTESTRUCT")
 	MenuCommand.add("COPYSTRUCT")
-    MenuCommand.add("CLEARCMSM")
 
     PreviewStaticMesh.Remove(PreviewStaticMeshComponent)
 }

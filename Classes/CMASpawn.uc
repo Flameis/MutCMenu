@@ -2,7 +2,13 @@ class CMASpawn extends CMSM;
 
 var array<NavigationPoint> MySpawns;
 var CMAPlaceableSpawn PSP;
-var int TeamIndex;
+var repnotify int TeamIndex;
+
+replication
+{
+	if (bNetDirty && (Role == ROLE_Authority))
+		TeamIndex;
+}
 
 function PostBeginPlay()
 {

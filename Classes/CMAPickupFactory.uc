@@ -1,7 +1,7 @@
 class CMAPickupFactory extends ROPickupFactory;
 
 var repnotify class<ROWeapon> WPClass;
-var float Time;
+var repnotify float Time;
 
 replication
 {

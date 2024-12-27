@@ -57,7 +57,7 @@ reliable client function ToggleCMenuVisiblity(string CMenu, bool bAuthorized, st
     local PlayerController PC;
     local int i;
 
-    `log(TName);
+    // `log(TName);
 
     PC = PlayerController(Owner);
 
@@ -156,7 +156,7 @@ reliable client function ClientFactionSetup(ENorthernForces MyNorthForce, ESouth
     FactionSetup(MyNorthForce, MySouthForce);
 }
 
-reliable server function DeleteActor(actor ActorToDelete)
+function DeleteActor(actor ActorToDelete)
 {
     `log("Deleting:"@ActorToDelete);
     //TraceGeometryWorldActors
@@ -171,7 +171,7 @@ reliable server function DeleteActor(actor ActorToDelete)
     ActorToDelete.Destroy();
 }
 
-reliable server function SetActorCollision(actor ActorToDo)
+function SetActorCollision(actor ActorToDo)
 {
     `log("Ghosting:"@ActorToDo);
     
@@ -184,7 +184,7 @@ reliable server function SetActorCollision(actor ActorToDo)
     ActorToDo.SetCollision(false, false);
 }
 
-reliable server function ServerSetCorners(Vector PlaceLoc, rotator PlaceRot)
+function SetCorners(Vector PlaceLoc, rotator PlaceRot)
 {
     local vector2d Point2d;
 
@@ -192,7 +192,7 @@ reliable server function ServerSetCorners(Vector PlaceLoc, rotator PlaceRot)
     Point2d.y = PlaceLoc.y;
     Corners.AddItem(Point2d);
 
-    ServerSpawnActor(class'CMSM',,'StaticMesh', PlaceLoc, PlaceRot,,, "ENV_VN_Flags.Meshes.S_VN_Flagpole");
+    SpawnActor(class'CMSM',,'StaticMesh', PlaceLoc, PlaceRot,,, "ENV_VN_Flags.Meshes.S_VN_Flagpole");
 }
 
 /* reliable server function ServerSpawnOBJ(
@@ -221,7 +221,7 @@ reliable server function ServerSetCorners(Vector PlaceLoc, rotator PlaceRot)
     }
 } */
 
-reliable server function ClientSetupObj(CMAObjective CMPO)
+function ClientSetupObj(CMAObjective CMPO)
 {
     local ROGameReplicationInfo ROGRI;
     local int i;
@@ -235,7 +235,7 @@ reliable server function ClientSetupObj(CMAObjective CMPO)
     }
 }
 
-reliable server function ServerPlaceSpawn(
+reliable server function PlaceSpawn(
     class<actor>        SpawnClass,
 	optional actor	    SpawnOwner,
 	optional name       SpawnTag,
@@ -251,7 +251,7 @@ reliable server function ServerPlaceSpawn(
 	SMS.TeamIndex = TeamIdx;
 }
 
-reliable server function ServerSpawnActor(
+reliable server function SpawnActor(
     class<actor>        SpawnClass,
 	optional actor	    SpawnOwner,
 	optional name       SpawnTag,
@@ -267,13 +267,35 @@ reliable server function ServerSpawnActor(
     if (SpawnTag == 'StaticMesh')
     {
         CMSM =  CMSM(Spawn(SpawnClass, SpawnOwner, SpawnTag, SpawnLocation, SpawnRotation, ActorTemplate, bNoCollisionFail));
-        CMSM.SetStaticMesh(StaticMesh(DynamicLoadObject(SMesh, class'StaticMesh')),,, CMSM.StaticMeshComponent.Scale3D*Scale);
+        CMSM.ServerSetStaticMesh(StaticMesh(DynamicLoadObject(SMesh, class'StaticMesh')));
+        CMSM.ServerSetScale3D(CMSM.StaticMeshComponent.Scale3D*Scale);
     }
-    /* else 
-        CMSM.SetSkeletalMesh(SkeletalMesh(DynamicLoadObject(SMesh, class'SkeletalMesh'))); */
 }
 
-reliable server function ServerSpawnPickup(
+/* function SpawnActor (
+    class<actor>        SpawnClass,
+	optional actor	    SpawnOwner,
+	optional name       SpawnTag,
+	optional vector     SpawnLocation,
+	optional rotator    SpawnRotation,
+	optional Actor      ActorTemplate,
+	optional bool	    bNoCollisionFail,
+    optional string     SMesh,
+    optional float      Scale)
+{
+    local CMSM CMSM;
+
+    if (WorldInfo.NetMode != NM_Client)
+    {
+        if (SpawnTag == 'StaticMesh')
+        {
+            CMSM =  CMSM(Spawn(SpawnClass, SpawnOwner, SpawnTag, SpawnLocation, SpawnRotation, ActorTemplate, bNoCollisionFail));
+            CMSM.SetStaticMesh(StaticMesh(DynamicLoadObject(SMesh, class'StaticMesh')),,, CMSM.StaticMeshComponent.Scale3D*Scale);
+        }
+    }
+} */
+
+reliable server function SpawnPickup(
     class<ROWeapon>    WeaponClass,
 	optional vector     SpawnLocation,
 	optional rotator    SpawnRotation,
@@ -284,10 +306,11 @@ reliable server function ServerSpawnPickup(
     CMAPF = Spawn(class'CMAPickupFactory',,, SpawnLocation, SpawnRotation);
     CMAPF.Time = RespawnTime;
     CMAPF.WPClass = WeaponClass;
-    CMAPF.InitializePickup();
+    if (WorldInfo.NetMode == NM_Client)
+        CMAPF.InitializePickup();
 }
 
-reliable server function ServerSpawnDecal(
+reliable server function SpawnDecal(
     MaterialInterface DecalMaterial,
 	vector DecalLocation,
 	rotator DecalOrientation)
@@ -335,6 +358,23 @@ reliable server function SpawnVehicle(string VehicleName, vector PlaceLoc, rotat
     local bool                      bLandVic;
 
     ROP = ROPawn(PlayerController(Owner).Pawn);
+
+    If (InStr(VehicleName, "WW",,true) != -1 && !bLoadWW)
+    {
+        return;
+    }
+    else if (InStr(VehicleName, "GOM3",,true) != -1 && !bLoadGOM3)
+    {
+        return;
+    }
+    else if (InStr(VehicleName, "GOM4",,true) != -1 && !bLoadGOM4)
+    {
+        return;
+    }
+    else if (InStr(VehicleName, "MutExtrasTB",,true) != -1 && !bLoadExtras)
+    {
+        return;
+    }
 
     VehicleClass = class<ROVehicle>(DynamicLoadObject(VehicleName, class'Class'));
     

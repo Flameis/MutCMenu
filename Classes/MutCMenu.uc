@@ -174,6 +174,41 @@ simulated function Mutate(string mutateString, PlayerController sender)
     
     switch (command) // Commands that do not need admin
     {
+        case "GIVEWEAPON":
+            GiveWeapon(sender, params[1], false, 100);
+            break;
+
+        case "GIVEWEAPONALL":
+            GiveWeapon(sender, params[1], true, 100);
+            break;
+
+        case "GIVEWEAPONNORTH":
+            GiveWeapon(sender, params[1], false, `AXIS_TEAM_INDEX);
+            break;
+
+        case "GIVEWEAPONSOUTH":
+            GiveWeapon(sender, params[1], false, `ALLIES_TEAM_INDEX);
+            break;
+
+        case "CLEARWEAPONS":
+            ClearWeapons(sender, false, 100);
+            break;
+    
+        case "CLEARWEAPONSALL":
+            ClearWeapons(sender, true);
+            WorldInfo.Game.Broadcast(self, "[CMenu] "$sender.PlayerReplicationInfo.PlayerName$" cleared all weapons");
+            break;
+    
+        case "CLEARWEAPONSNORTH":
+            ClearWeapons(sender, false, `AXIS_TEAM_INDEX);
+            Worldinfo.game.broadcast(self, "[CMenu] "$sender.PlayerReplicationInfo.PlayerName$" cleared north weapons");
+            break;
+    
+        case "CLEARWEAPONSSOUTH":
+            ClearWeapons(sender, false, `ALLIES_TEAM_INDEX);
+            WorldInfo.Game.Broadcast(self, "[CMenu] "$sender.PlayerReplicationInfo.PlayerName$" cleared south weapons");
+            break;
+
         case "SETCMENUTEXTCOLOR":
             DASender.SetCMenuColor(secondaryparam, "Text");
             break;
@@ -412,6 +447,139 @@ function ROPlayerController FindPlayer(string PlayerName)
 function PrivateMessage(PlayerController receiver, coerce string msg)
 {
     receiver.TeamMessage(None, msg, '');
+}
+
+function GiveWeapon(PlayerController PC, string WeaponName, optional bool bGiveAll, optional int TeamIndex)
+{
+	local ROInventoryManager        InvManager;
+    local ROPawn                    ROP;
+    local string                    ActualName;
+
+    if (PC != none)
+    {
+        if (bGiveAll)
+        { 
+            foreach worldinfo.allpawns(class'ROPawn', ROP)
+            {
+                InvManager = ROInventoryManager(ROP.InvManager);
+
+                ActualName = DoGiveWeapon(PC, InvManager, WeaponName);
+                if (ActualName != "true")
+                    break;
+            }
+            if (ActualName == "true")
+                WorldInfo.Game.Broadcast(self, "[CMenu] "$PC.PlayerReplicationInfo.PlayerName$" gave a "$WeaponName$" to everyone");
+        }   
+        else if (TeamIndex == `AXIS_TEAM_INDEX)
+        {
+            foreach worldinfo.allpawns(class'ROPawn', ROP)
+            {
+                if (ROP.GetTeamNum() == `AXIS_TEAM_INDEX)
+                {
+                    InvManager = ROInventoryManager(ROP.InvManager);
+
+                    ActualName = DoGiveWeapon(PC, InvManager, WeaponName);
+                    if (ActualName != "true")
+                        break;
+                }
+            }
+            if (ActualName == "true")
+                WorldInfo.Game.Broadcast(self, "[CMenu] "$PC.PlayerReplicationInfo.PlayerName$" gave a "$WeaponName$" to the north");
+        }
+        else if (TeamIndex == `ALLIES_TEAM_INDEX)
+        {
+            foreach worldinfo.allpawns(class'ROPawn', ROP)
+            {
+                if (ROP.GetTeamNum() == `ALLIES_TEAM_INDEX)
+                {
+                    InvManager = ROInventoryManager(ROP.InvManager);
+
+                    ActualName = DoGiveWeapon(PC, InvManager, WeaponName);
+                    if (ActualName != "true")
+                        break;
+                }
+            }
+            if (ActualName == "true")
+                WorldInfo.Game.Broadcast(self, "[CMenu] "$PC.PlayerReplicationInfo.PlayerName$" gave a "$WeaponName$" to the south");
+        }
+        else if (TeamIndex == 100)
+        {
+            InvManager = ROInventoryManager(PC.Pawn.InvManager);
+
+            ActualName = DoGiveWeapon(PC, InvManager, WeaponName);
+            if (ActualName == "true")
+                WorldInfo.Game.Broadcast(self, "[CMenu] "$PC.PlayerReplicationInfo.PlayerName$" spawned a "$WeaponName);
+        }
+    }
+    else
+    {
+        // `log ("[MutExtras Debug] Error: GW PlayerController is none!");
+    }
+
+    if (ActualName == "false")
+    {
+        PrivateMessage(PC, "Not a valid weapon name.");
+    }
+    else if (InStr(ActualName, "WinterWar") != -1 && !bLoadWW)
+    {
+        PrivateMessage(PC, "bLoadWinterWar must be enabled in the WebAdmin mutators settings for you to spawn this weapon!");
+    }
+    else if (InStr(ActualName, "GOM4") != -1 && !bLoadGOM4)
+    {
+        PrivateMessage(PC, "bLoadGOM4 must be enabled in the WebAdmin mutators settings for you to spawn this weapon!");
+    }
+    else if (InStr(ActualName, "GOM3") != -1 && !bLoadGOM3)
+    {
+        PrivateMessage(PC, "bLoadGOM3 must be enabled in the WebAdmin mutators settings for you to spawn this weapon!");
+    }
+}
+
+function ClearWeapons(PlayerController PC, bool ClearAll, optional int TeamIndex)
+{
+    local array<ROWeapon>       WeaponsToRemove;
+    local ROWeapon              Weapon;
+    local ROInventoryManager    ROIM;
+    local ROPawn                ROP;
+
+    if (ClearAll)
+    { 
+        foreach worldinfo.allpawns(class'ROPawn', ROP)
+        {
+            ROIM = ROInventoryManager(ROP.InvManager);
+            ROIM.GetWeaponList(WeaponsToRemove);
+
+            foreach WeaponsToRemove(Weapon)
+            {
+                ROIM.RemoveFromInventory(Weapon);
+            }
+        }
+    }   
+    else if (TeamIndex != 100)
+    {
+        foreach worldinfo.allpawns(class'ROPawn', ROP)
+        {
+            if (ROP.GetTeamNum() == TeamIndex)
+            {
+                ROIM = ROInventoryManager(ROP.InvManager);
+                ROIM.GetWeaponList(WeaponsToRemove);
+
+                foreach WeaponsToRemove(Weapon)
+                {
+                    ROIM.RemoveFromInventory(Weapon);
+                }
+            }
+        }
+    }
+    else if (TeamIndex == 100)
+    {
+        ROIM = ROInventoryManager(PC.Pawn.InvManager);
+        ROIM.GetWeaponList(WeaponsToRemove);
+
+        foreach WeaponsToRemove(Weapon)
+        {
+            ROIM.RemoveFromInventory(Weapon);
+        }
+    }
 }
 
 function LoadObjects()
