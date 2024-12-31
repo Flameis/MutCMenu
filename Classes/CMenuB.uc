@@ -145,16 +145,16 @@ simulated state ReadyToPlace extends MenuVisible
 					if (ModifyTime == -1)
             	    	ModifyTime = 0;
 					else
-						ModifyTime += 5;
-					MessageSelf("Time: "$string(ModifyTime));
+						ModifyTime += 10;
+					MessageSelf("Time: "$string(ModifyTime)$" Health: "$string(ModifyTime*10));
 					return true;
 
 				case 'Subtract':
 				 	if (ModifyTime > 0)
-            	    	ModifyTime -= 5;
+            	    	ModifyTime -= 10;
 					else
 						ModifyTime = -1;
-					MessageSelf("Time: "$string(ModifyTime));
+					MessageSelf("Time: "$string(ModifyTime)$" Health: "$string(ModifyTime*10));
 					return true;
 
 				default:
@@ -295,6 +295,8 @@ simulated function HidePreviewMesh()
 
 defaultproperties
 {
+	ModifyTime=10
+	ModifyScale=(X=1.000000,Y=1.000000,Z=1.000000)
     GoodPlacementColour=(R=0.3,G=0.3,B=0.3,A=1.0)
 
 	Begin Object Class=StaticMeshComponent Name=PreviewStaticMeshComponent

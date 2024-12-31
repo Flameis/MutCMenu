@@ -24,7 +24,8 @@ function bool CheckExceptions(string Command)
 			return true;
 
         case "CLEARALLACTORS":
-            ClearAllActors();
+            MyDA.ClearAllActors();
+			MessageSelf("All actors have been cleared.");
             return true;
     }
     return false;
@@ -34,7 +35,7 @@ function DoPlace()
 {
 	if (LastCmd == "SETCORNER")
 	{
-        MyDA.SetCorners(PlaceLoc, PlaceRot);
+        MyDA.SetCorner(PlaceLoc, PlaceRot);
 	}
 	else if (LastCmd == "NORTHSPAWN" || LastCmd == "SOUTHSPAWN")
 	{
@@ -52,20 +53,6 @@ function DoPlace()
 	{
     	MyDA.SpawnDecal(DecalMaterial'FX_VN_Materials.Materials.D_CommanderMark', PlaceLoc, PlaceRot);
 	}
-}
-
-function ClearAllActors()
-{
-    local Actor ActorToClear;
-
-    foreach MyDA.AllActors(class'Actor', ActorToClear)
-    {
-        if (ActorToClear.IsA('CMASpawn') || ActorToClear.IsA('CMAObjective') || ActorToClear.IsA('DecalActor'))
-        {
-            ActorToClear.Destroy();
-        }
-    }
-    `log("All actors have been cleared.");
 }
 
 defaultproperties

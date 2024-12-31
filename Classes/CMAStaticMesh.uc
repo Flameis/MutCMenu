@@ -1,4 +1,4 @@
-class CMSM extends Actor;
+class CMAStaticMesh extends Actor;
 
 var StaticMeshComponent	StaticMeshComponent;
 var DynamicLightEnvironmentComponent LightEnvironment;
@@ -6,20 +6,18 @@ var DynamicLightEnvironmentComponent LightEnvironment;
 var repnotify StaticMesh ReplicatedMesh;
 /** used to replicate the material in index 0 */
 var repnotify MaterialInterface ReplicatedMaterial;
-/** used to replicate StaticMeshComponent.bForceStaticDecals */
-var repnotify bool bForceStaticDecals;
 
 /** Extra component properties to replicate */
-var repnotify vector ReplicatedMeshTranslation;
-var repnotify rotator ReplicatedMeshRotation;
-var repnotify vector ReplicatedMeshScale3D;
+var repnotify vector 	ReplicatedMeshTranslation;
+var repnotify rotator 	ReplicatedMeshRotation;
+var repnotify vector 	ReplicatedMeshScale3D;
 
 var 	AkBaseSoundObject					DestructionSound;
 var 	StaticMesh 							DestroyedMesh;
 var 	ParticleSystemComponent 			DestroyedPFX;
 
 var()	array<class<DamageType> >			AcceptedDamageTypes;	// Types of Damage that harm this Destructible
-var		int									Health;					// Current Health of this Destructible
+var 	int									Health;
 
 var 	vector								ConfigLoc, Bounds;
 var 	rotator								ConfigRot;
@@ -35,21 +33,7 @@ var repnotify ECrateMeshDisplayStatus 		CrateDisplayStatus;
 replication
 {
 	if (bNetDirty && (Role == ROLE_Authority))
-		CrateDisplayStatus, ReplicatedMesh, ReplicatedMaterial, ReplicatedMeshTranslation, ReplicatedMeshRotation, ReplicatedMeshScale3D, bForceStaticDecals;
-}
-
-event PostBeginPlay()
-{
-	Super.PostBeginPlay();
-
-	`log("CMSM PostBeginPlay");
-
-	if( StaticMeshComponent != none )
-	{
-		ReplicatedMesh = StaticMeshComponent.StaticMesh;
-		bForceStaticDecals = StaticMeshComponent.bForceStaticDecals;
-	}
-	ForceNetRelevant();
+		CrateDisplayStatus, ReplicatedMesh, ReplicatedMaterial, ReplicatedMeshTranslation, ReplicatedMeshRotation, ReplicatedMeshScale3D, Health;
 }
 
 simulated event ReplicatedEvent( name VarName )
@@ -60,31 +44,23 @@ simulated event ReplicatedEvent( name VarName )
 	}
 	else if (VarName == 'ReplicatedMesh')
 	{
-		// Enable the light environment if it is not already
-		// LightEnvironment.bCastShadows = false;
-		// LightEnvironment.SetEnabled(TRUE);
-
-		StaticMeshComponent.SetStaticMesh(ReplicatedMesh);
+		SetStaticMesh(ReplicatedMesh);
 	}
 	else if (VarName == 'ReplicatedMaterial')
 	{
-		StaticMeshComponent.SetMaterial(0, ReplicatedMaterial);
+		SetMaterial(ReplicatedMaterial);
 	}
 	else if (VarName == 'ReplicatedMeshTranslation')
 	{
-		StaticMeshComponent.SetTranslation(ReplicatedMeshTranslation);
+		SetTranslation(ReplicatedMeshTranslation);
 	}
 	else if (VarName == 'ReplicatedMeshRotation')
 	{
-		StaticMeshComponent.SetRotation(ReplicatedMeshRotation);
+		SetRotation(ReplicatedMeshRotation);
 	}
 	else if (VarName == 'ReplicatedMeshScale3D')
 	{
-		StaticmeshComponent.SetScale3D(ReplicatedMeshScale3D);
-	}
-	else if (VarName == nameof(bForceStaticDecals))
-	{
-		StaticMeshComponent.SetForceStaticDecals(bForceStaticDecals);
+		SetScale3D(ReplicatedMeshScale3D);
 	}
 	else
 	{
@@ -285,7 +261,6 @@ simulated function SetScale3D(vector NewScale3D)
 {
 	StaticMeshComponent.SetScale3D(NewScale3D);
 }
-
 
 /* event Tick(float DeltaTime)
 {

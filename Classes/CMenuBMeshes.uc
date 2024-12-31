@@ -5,7 +5,7 @@ function Initialize()
     if (bIsAuthorized)
     {
         MenuText.additem("Clear All Meshes");
-        MenuCommand.additem("CLEARALLMESHES");
+        MenuCommand.additem("CLEARCMAStaticMesh");
 
         MenuText.additem("WARNING Toggle Collision");
         MenuCommand.additem("TOGGLECOLLISION");
@@ -32,6 +32,12 @@ simulated state MenuVisible
                 ReferenceStaticMesh[0] = StaticMesh(DynamicLoadObject(TargetName, class'StaticMesh'));
             GoToState('ReadyToPlace',, true);
 		}
+	}
+
+    function EndState(name PreviousStateName)
+	{
+        MenuText.Remove(default.MenuCommand.Length, MenuText.Length-default.MenuCommand.Length);
+        MenuCommand.Remove(default.MenuCommand.Length, MenuCommand.Length-default.MenuCommand.Length);
 	}
 }
 
@@ -64,12 +70,13 @@ function bool CheckExceptions(string Command)
             break;
 
         case "DELETE":
-            MyDA.DeleteActor(CMSM(TraceActors()));
+            MyDA.DeleteActor(CMAStaticMesh(TraceActors()));
             break;
 
-        case "CLEARALLMESHES":
+        case "CLEARCMAStaticMesh":
             GoToState('MenuVisible',, true);
-            ClearAllMeshes();
+            MyDA.ClearAllMeshes();
+            MessageSelf("All meshes have been cleared.");
             break;
 
         case "TOGGLECOLLISION":
@@ -96,19 +103,8 @@ function DoPlace()
 {
 	if (InStr(LastCmd, "_",, true) != -1)
 	{
-        MyDA.SpawnActor(class'CMSM',,'StaticMesh', PlaceLoc, PlaceRot,, true, LastCmd, ModifyScale.x);
+        MyDA.SpawnActor(class'CMAStaticMesh',,'StaticMesh', PlaceLoc, PlaceRot,, true, LastCmd, ModifyScale.x, ModifyTime);
 	}
-}
-
-reliable server function ClearAllMeshes()
-{
-    local CMSM MeshToClear;
-
-    foreach MyDA.AllActors(class'CMSM', MeshToClear)
-    {
-        MeshToClear.Destroy();
-    }
-    `log("All static meshes have been cleared.");
 }
 
 defaultproperties

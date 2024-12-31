@@ -9,7 +9,7 @@ var repnotify MaterialInterface 	DecalMaterial;
 
 replication
 {
-	if (bNetDirty)
+	if (bNetDirty && Role == ROLE_Authority)
 		DecalLocation, DecalOrientation, DecalLength, DecalMaterial;
 }
 
@@ -58,4 +58,6 @@ DefaultProperties
 		bIgnoreOwnerHidden=TRUE
 	End Object
 	MyDecal=Decal
+
+	RemoteRole=ROLE_SimulatedProxy
 }

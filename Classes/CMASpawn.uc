@@ -1,4 +1,4 @@
-class CMASpawn extends CMSM;
+class CMASpawn extends CMAStaticMesh;
 
 var array<NavigationPoint> MySpawns;
 var CMAPlaceableSpawn PSP;

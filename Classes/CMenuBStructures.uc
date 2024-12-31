@@ -19,7 +19,7 @@ function Initialize()
     if (bIsAuthorized)
     {
         MenuText.additem("Clear All Meshes");
-        MenuCommand.additem("CLEARCMSM");
+        MenuCommand.additem("CLEARCMAStaticMesh");
     }
 
 	super.Initialize();
@@ -58,10 +58,11 @@ function bool CheckExceptions(string Command)
             GoToState('ReadyToPlace',, true);
             return true;
 
-        case "CLEARCMSM": 
+        case "CLEARCMAStaticMesh": 
             GarbageCollection();
             ClearSelectedMeshes();
-            ClearAllCMSM();
+            MyDA.ClearAllMeshes();
+	        MessageSelf("All meshes have been cleared.");
             return true;
 
         case "SELECTMESH":
@@ -114,9 +115,8 @@ function DoPlace()
                     Mesh = PathName(PreviewStaticMesh[i].StaticMesh);
                 }
 				// Remove or adjust collision checks here
-				// MyDA.SpawnActor(class'CMSM',,'StaticMesh', PreviewStaticMesh[i].GetPosition(), PreviewStaticMesh[i].GetRotation(),, true, Mesh, ModifyScale.x);
-                MyDA.SpawnActor(class'CMSM',,'StaticMesh', PreviewStaticMesh[i].GetPosition(), PreviewStaticMesh[i].GetRotation(),, true, Mesh, ModifyScale.x);
-
+				// MyDA.SpawnActor(class'CMAStaticMesh',,'StaticMesh', PreviewStaticMesh[i].GetPosition(), PreviewStaticMesh[i].GetRotation(),, true, Mesh, ModifyScale.x);
+                MyDA.SpawnActor(class'CMAStaticMesh',,'StaticMesh', PreviewStaticMesh[i].GetPosition(), PreviewStaticMesh[i].GetRotation(),, true, Mesh, ModifyScale.x, ModifyTime*10);
 
 				`log("NewMesh: " $ Mesh);
 				`log("Translation: " $ VecArray[i]);
@@ -143,17 +143,6 @@ function GarbageCollection()
     VecArray.Remove(0, VecArray.Length);
     RotArray.Remove(0, RotArray.Length);
     `log("GarbageCollection completed. PreviewStaticMesh length: " $ PreviewStaticMesh.Length);
-}
-
-function ClearAllCMSM()
-{
-    local CMSM ActorToClear;
-
-    foreach MyDA.AllActors(class'CMSM', ActorToClear)
-    {
-        ActorToClear.Destroy();
-    }
-    MessageSelf("All spawned meshes have been cleared.");
 }
 
 simulated function UpdatePreviewMesh() // Update the position of the Preview Mesh

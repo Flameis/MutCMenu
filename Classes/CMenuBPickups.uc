@@ -10,6 +10,8 @@ simulated state MenuVisible
 
 		if (InStr(TargetName, "Weap",,true) != -1)
 		{
+            if (CheckMutsLoaded(TargetName) == false)
+                return;
             LastCmd = TargetName;
             WeaponClass = class<ROWeapon>(DynamicLoadObject(LastCmd, class'Class'));
             ReferenceSkeletalMesh[0] = SkeletalMeshComponent(WeaponClass.default.Mesh).SkeletalMesh;
@@ -71,7 +73,7 @@ function bool CheckExceptions(string Command)
             return true;
 
         case "CLEARALLPICKUPS":
-            ClearAllPickups();
+            MyDA.ClearAllPickups();
             return true;
     }
     return false;
@@ -79,19 +81,7 @@ function bool CheckExceptions(string Command)
 
 function DoPlace()
 {
-	MyDA.SpawnPickup(WeaponClass, PlaceLoc, PlaceRot, ModifyTime);
-    // MyDA.ServerSpawnPickup(WeaponClass, PlaceLoc, PlaceRot, ModifyTime);
-}
-
-function ClearAllPickups()
-{
-    local ROPickupFactory WeaponToClear;
-
-    foreach MyDA.AllActors(class'ROPickupFactory', WeaponToClear)
-    {
-        WeaponToClear.Destroy();
-    }
-    `log("All weapon pickups have been cleared.");
+	MyDA.SpawnPickup(WeaponClass, ModifyTime, PlaceLoc, PlaceRot);
 }
 
 defaultproperties

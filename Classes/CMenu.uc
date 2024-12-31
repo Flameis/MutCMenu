@@ -239,6 +239,31 @@ function MessageSelf(string Message)
 	}
 }
 
+function bool CheckMutsLoaded(string StrToCheck)
+{
+	if (InStr(StrToCheck, "WW",,true) != -1 && !MyDA.bLoadWW)
+	{
+		MessageSelf("Winter War is not loaded");
+		return false;
+	}
+	else if (InStr(StrToCheck, "GOM3",,true) != -1 && !MyDA.bLoadGOM3)
+	{
+		MessageSelf("GOM3 is not loaded");
+		return false;
+	}
+	else if (InStr(StrToCheck, "GOM4",,true) != -1 && !MyDA.bLoadGOM4)
+	{
+		MessageSelf("GOM4 is not loaded");
+		return false;
+	}
+	else if (InStr(StrToCheck, "MutExtrasTB",,true) != -1 && !MyDA.bLoadExtras)
+	{
+		MessageSelf("MutExtrasTB is not loaded");
+		return false;
+	}
+	return true;
+}
+
 function ToggleCMenuBackground()
 {
 	local int i;

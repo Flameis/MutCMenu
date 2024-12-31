@@ -8,9 +8,11 @@ simulated state MenuVisible
 
         super.BeginState(PreviousStateName);
 
+        LastCmd = TargetName;
 		if (InStr(TargetName, "Heli",,true) != -1 || InStr(TargetName, "Vehicle",,true) != -1)
 		{
-            LastCmd = TargetName;
+            if (CheckMutsLoaded(TargetName) == false)
+                return;
             VehicleClass = class<ROVehicle>(DynamicLoadObject(LastCmd, class'Class'));
             ReferenceSkeletalMesh[0] = VehicleClass.default.Mesh.SkeletalMesh;
             ModifyLoc.z = 140;
@@ -35,12 +37,15 @@ function bool CheckExceptions(string Command)
             GoToState('ReadyToPlace',, true);
             break;
 
-        case "CLEARALLVEHICLES":
-            ClearAllVehicles();
+        case "CLEARALLVICS":
+            MyDa.ClearAllVehicles();
+            MessageSelf("All vehicles have been cleared.");
             return true;
     }
     if (InStr(Command, "Heli",,true) != -1 || InStr(Command, "Vehicle",,true) != -1)
     {
+        if (CheckMutsLoaded(TargetName) == false)
+            return false;
         LastCmd = Command;
         VehicleClass = class<ROVehicle>(DynamicLoadObject(Command, class'Class'));
         ReferenceSkeletalMesh[0] = VehicleClass.default.Mesh.SkeletalMesh;
@@ -54,18 +59,9 @@ function bool CheckExceptions(string Command)
 
 function DoPlace()
 {
-	MyDA.SpawnVehicle(LastCmd, PlaceLoc, PlaceRot);
-}
-
-function ClearAllVehicles()
-{
-    local ROVehicle VehicleToClear;
-
-    foreach MyDA.AllActors(class'ROVehicle', VehicleToClear)
-    {
-        VehicleToClear.Destroy();
-    }
-    `log("All vehicles have been cleared.");
+    if (CheckMutsLoaded(LastCmd) == false)
+        return;
+	MyDA.SpawnVehicle(LastCmd, ModifyLoc, ModifyRot);
 }
 
 defaultproperties
@@ -102,7 +98,7 @@ defaultproperties
     MenuText.add("WW Skis")
 
     MenuCommand.add("CUSTOM")
-    MenuCommand.add("CLEARALLVEHICLES")
+    MenuCommand.add("CLEARALLVICS")
     MenuCommand.add("ROGameContent.ROHeli_AH1G_Content")
     MenuCommand.add("ROGameContent.ROHeli_OH6_Content")
     MenuCommand.add("ROGameContent.ROHeli_UH1H_Content")

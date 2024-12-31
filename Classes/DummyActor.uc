@@ -156,7 +156,30 @@ reliable client function ClientFactionSetup(ENorthernForces MyNorthForce, ESouth
     FactionSetup(MyNorthForce, MySouthForce);
 }
 
-function DeleteActor(actor ActorToDelete)
+unreliable server function SpawnActor(
+    class<actor>        SpawnClass,
+	optional actor	    SpawnOwner,
+	optional name       SpawnTag,
+	optional vector     SpawnLocation,
+	optional rotator    SpawnRotation,
+	optional Actor      ActorTemplate,
+	optional bool	    bNoCollisionFail,
+    optional string     SMesh,
+    optional float      Scale,
+    optional int        ModifyTime)
+{
+    local CMAStaticMesh CMAStaticMesh;
+
+    if (SpawnTag == 'StaticMesh')
+    {
+        CMAStaticMesh =  CMAStaticMesh(Spawn(SpawnClass, SpawnOwner, SpawnTag, SpawnLocation, SpawnRotation, ActorTemplate, bNoCollisionFail));
+        CMAStaticMesh.ServerSetStaticMesh(StaticMesh(DynamicLoadObject(SMesh, class'StaticMesh')));
+        CMAStaticMesh.ServerSetScale3D(CMAStaticMesh.StaticMeshComponent.Scale3D*Scale);
+        CMAStaticMesh.Health = ModifyTime;
+    }
+}
+
+unreliable server function DeleteActor(actor ActorToDelete)
 {
     `log("Deleting:"@ActorToDelete);
     //TraceGeometryWorldActors
@@ -171,7 +194,7 @@ function DeleteActor(actor ActorToDelete)
     ActorToDelete.Destroy();
 }
 
-function SetActorCollision(actor ActorToDo)
+unreliable server function SetActorCollision(actor ActorToDo)
 {
     `log("Ghosting:"@ActorToDo);
     
@@ -184,7 +207,88 @@ function SetActorCollision(actor ActorToDo)
     ActorToDo.SetCollision(false, false);
 }
 
-function SetCorners(Vector PlaceLoc, rotator PlaceRot)
+unreliable server function ClearAllMeshes()
+{
+    local CMAStaticMesh MeshToClear;
+
+    foreach AllActors(class'CMAStaticMesh', MeshToClear)
+    {
+        MeshToClear.Destroy();
+    }
+    `log("All static meshes have been cleared.");
+}
+
+unreliable server function SpawnVehicle(string VehicleName, vector PlaceLoc, rotator PlaceRot)
+{
+    local class<ROVehicle>          VehicleClass;
+	local ROVehicle                 ROV;
+    local ROPawn                    ROP;
+    local bool                      bLandVic;
+
+    ROP = ROPawn(PlayerController(Owner).Pawn);
+
+    VehicleClass = class<ROVehicle>(DynamicLoadObject(VehicleName, class'Class'));
+    
+    if (ClassIsChildOf(VehicleClass, class'ROVehicleTreaded') || ClassIsChildOf(VehicleClass, class'ROVehicleWheeled'))
+    {
+        bLandVic = true;
+    }
+    if (VehicleClass != none)
+    {
+        ROV = Spawn(VehicleClass, , , PlaceLoc, PlaceRot);
+        ROV.Mesh.AddImpulse(vect(0,0,1), ROV.Location);
+        ROV.bTeamLocked = false;
+
+        // ROV.GroundSpeed=520
+	    // ROV.MaxSpeed=940 //67 km/h
+
+        if (bLandVic && bNewTankPhys)
+        {
+            ROV.Mesh.SetRBCollidesWithChannel(RBCC_Default, false);
+            ROV.Mesh.SetRBCollidesWithChannel(RBCC_BlockingVolume, false);
+        }
+
+        if (VehicleName ~= "WinterWar.WWVehicle_Skis_ActualContent")
+        {
+            ROV.TryToDrive(ROP);
+        }
+    }
+}
+
+reliable server function ClearAllVehicles()
+{
+    local ROVehicle VehicleToClear;
+
+    foreach AllActors(class'ROVehicle', VehicleToClear)
+    {
+        VehicleToClear.Destroy();
+    }
+    `log("All vehicles have been cleared.");
+}
+
+reliable server function SpawnPickup(class<ROWeapon> WeaponClass, float ModifyTime, vector PlaceLoc, rotator PlaceRot)
+{
+    local CMAPickupFactory CMAPF;
+
+    CMAPF = Spawn(class'CMAPickupFactory',,, PlaceLoc, PlaceRot);
+    CMAPF.Time = ModifyTime;
+    CMAPF.WPClass = WeaponClass;
+    if (WorldInfo.NetMode == NM_Standalone)
+        CMAPF.InitializePickup();
+}
+
+reliable server function ClearAllPickups()
+{
+    local ROPickupFactory WeaponToClear;
+
+    foreach AllActors(class'CMAPickupFactory', WeaponToClear)
+    {
+        WeaponToClear.Destroy();
+    }
+    `log("All weapon pickups have been cleared.");
+}
+
+function SetCorner(vector PlaceLoc, rotator PlaceRot)
 {
     local vector2d Point2d;
 
@@ -192,50 +296,10 @@ function SetCorners(Vector PlaceLoc, rotator PlaceRot)
     Point2d.y = PlaceLoc.y;
     Corners.AddItem(Point2d);
 
-    SpawnActor(class'CMSM',,'StaticMesh', PlaceLoc, PlaceRot,,, "ENV_VN_Flags.Meshes.S_VN_Flagpole");
+    SpawnActor(class'CMAStaticMesh',,'StaticMesh', PlaceLoc, PlaceRot,,, "ENV_VN_Flags.Meshes.S_VN_Flagpole");
 }
 
-/* reliable server function ServerSpawnOBJ(
-    class<actor>      SpawnClass,
-	optional actor	  SpawnOwner,
-	optional name     SpawnTag,
-	optional vector   SpawnLocation,
-	optional rotator  SpawnRotation,
-	optional Actor    ActorTemplate,
-	optional bool	  bNoCollisionFail)
-{
-    local CMAObjective CMPO, ObjTemplate;
-    local DummyActor DA;
-
-    SpawnLocation.z = SpawnLocation.z + 200;
-	ObjTemplate = CMAObjective(DynamicLoadObject("MutCMenuTBPkg.Objectives.OBJ"$MyMut.NumObjs+1, class'CMAObjective'));
-	MyMut.NumObjs++;
-    `log(ObjTemplate);
-	CMPO = Spawn(class'CMAObjective',, SpawnTag, SpawnLocation, SpawnRotation, ObjTemplate);
-	CMPO.Init(Corners);
-	Corners.Remove(0, Corners.Length);
-
-    foreach AllActors(class'DummyActor', DA)
-    {
-        DA.ClientSetupObj(CMPO);
-    }
-} */
-
-function ClientSetupObj(CMAObjective CMPO)
-{
-    local ROGameReplicationInfo ROGRI;
-    local int i;
-
-    ROGRI = ROGameReplicationInfo(WorldInfo.GRI);
-    ROGRI.AddObjective(CMPO, true);
-
-    for (i=0; I < 16; i++)
-    {
-        `log(ROGameReplicationInfo(WorldInfo.GRI).ObjectiveShortNames[i]);
-    }
-}
-
-reliable server function PlaceSpawn(
+unreliable server function PlaceSpawn(
     class<actor>        SpawnClass,
 	optional actor	    SpawnOwner,
 	optional name       SpawnTag,
@@ -251,66 +315,7 @@ reliable server function PlaceSpawn(
 	SMS.TeamIndex = TeamIdx;
 }
 
-reliable server function SpawnActor(
-    class<actor>        SpawnClass,
-	optional actor	    SpawnOwner,
-	optional name       SpawnTag,
-	optional vector     SpawnLocation,
-	optional rotator    SpawnRotation,
-	optional Actor      ActorTemplate,
-	optional bool	    bNoCollisionFail,
-    optional string     SMesh,
-    optional float      Scale)
-{
-    local CMSM CMSM;
-
-    if (SpawnTag == 'StaticMesh')
-    {
-        CMSM =  CMSM(Spawn(SpawnClass, SpawnOwner, SpawnTag, SpawnLocation, SpawnRotation, ActorTemplate, bNoCollisionFail));
-        CMSM.ServerSetStaticMesh(StaticMesh(DynamicLoadObject(SMesh, class'StaticMesh')));
-        CMSM.ServerSetScale3D(CMSM.StaticMeshComponent.Scale3D*Scale);
-    }
-}
-
-/* function SpawnActor (
-    class<actor>        SpawnClass,
-	optional actor	    SpawnOwner,
-	optional name       SpawnTag,
-	optional vector     SpawnLocation,
-	optional rotator    SpawnRotation,
-	optional Actor      ActorTemplate,
-	optional bool	    bNoCollisionFail,
-    optional string     SMesh,
-    optional float      Scale)
-{
-    local CMSM CMSM;
-
-    if (WorldInfo.NetMode != NM_Client)
-    {
-        if (SpawnTag == 'StaticMesh')
-        {
-            CMSM =  CMSM(Spawn(SpawnClass, SpawnOwner, SpawnTag, SpawnLocation, SpawnRotation, ActorTemplate, bNoCollisionFail));
-            CMSM.SetStaticMesh(StaticMesh(DynamicLoadObject(SMesh, class'StaticMesh')),,, CMSM.StaticMeshComponent.Scale3D*Scale);
-        }
-    }
-} */
-
-reliable server function SpawnPickup(
-    class<ROWeapon>    WeaponClass,
-	optional vector     SpawnLocation,
-	optional rotator    SpawnRotation,
-    optional int        RespawnTime)
-{
-    local CMAPickupFactory CMAPF;
-
-    CMAPF = Spawn(class'CMAPickupFactory',,, SpawnLocation, SpawnRotation);
-    CMAPF.Time = RespawnTime;
-    CMAPF.WPClass = WeaponClass;
-    if (WorldInfo.NetMode == NM_Client)
-        CMAPF.InitializePickup();
-}
-
-reliable server function SpawnDecal(
+unreliable server function SpawnDecal(
     MaterialInterface DecalMaterial,
 	vector DecalLocation,
 	rotator DecalOrientation)
@@ -350,57 +355,57 @@ reliable server function SpawnDecal(
 	`log(Decal.Height); */
 }
 
-reliable server function SpawnVehicle(string VehicleName, vector PlaceLoc, rotator PlaceRot)
+unreliable server function ClearAllActors()
 {
-    local class<ROVehicle>          VehicleClass;
-	local ROVehicle                 ROV;
-    local ROPawn                    ROP;
-    local bool                      bLandVic;
+    local Actor ActorToClear;
 
-    ROP = ROPawn(PlayerController(Owner).Pawn);
-
-    If (InStr(VehicleName, "WW",,true) != -1 && !bLoadWW)
+    foreach AllActors(class'Actor', ActorToClear)
     {
-        return;
-    }
-    else if (InStr(VehicleName, "GOM3",,true) != -1 && !bLoadGOM3)
-    {
-        return;
-    }
-    else if (InStr(VehicleName, "GOM4",,true) != -1 && !bLoadGOM4)
-    {
-        return;
-    }
-    else if (InStr(VehicleName, "MutExtrasTB",,true) != -1 && !bLoadExtras)
-    {
-        return;
-    }
-
-    VehicleClass = class<ROVehicle>(DynamicLoadObject(VehicleName, class'Class'));
-    
-    if (ClassIsChildOf(VehicleClass, class'ROVehicleTreaded') || ClassIsChildOf(VehicleClass, class'ROVehicleWheeled'))
-    {
-        bLandVic = true;
-    }
-    if (VehicleClass != none)
-    {
-        ROV = Spawn(VehicleClass, , , PlaceLoc, PlaceRot);
-        ROV.Mesh.AddImpulse(vect(0,0,1), ROV.Location);
-        ROV.bTeamLocked = false;
-
-        // ROV.GroundSpeed=520
-	    // ROV.MaxSpeed=940 //67 km/h
-
-        if (bLandVic && bNewTankPhys)
+        if (ActorToClear.IsA('CMASpawn') || ActorToClear.IsA('CMAObjective') || ActorToClear.IsA('DecalActor'))
         {
-            ROV.Mesh.SetRBCollidesWithChannel(RBCC_Default, false);
-            ROV.Mesh.SetRBCollidesWithChannel(RBCC_BlockingVolume, false);
+            ActorToClear.Destroy();
         }
+    }
+    `log("All actors have been cleared.");
+}
 
-        if (VehicleName ~= "WinterWar.WWVehicle_Skis_ActualContent")
-        {
-            ROV.TryToDrive(ROP);
-        }
+/* reliable server function ServerSpawnOBJ(
+    class<actor>      SpawnClass,
+	optional actor	  SpawnOwner,
+	optional name     SpawnTag,
+	optional vector   SpawnLocation,
+	optional rotator  SpawnRotation,
+	optional Actor    ActorTemplate,
+	optional bool	  bNoCollisionFail)
+{
+    local CMAObjective CMPO, ObjTemplate;
+    local DummyActor DA;
+
+    SpawnLocation.z = SpawnLocation.z + 200;
+	ObjTemplate = CMAObjective(DynamicLoadObject("MutCMenuTBPkg.Objectives.OBJ"$MyMut.NumObjs+1, class'CMAObjective'));
+	MyMut.NumObjs++;
+    `log(ObjTemplate);
+	CMPO = Spawn(class'CMAObjective',, SpawnTag, SpawnLocation, SpawnRotation, ObjTemplate);
+	CMPO.Init(Corners);
+	Corners.Remove(0, Corners.Length);
+
+    foreach AllActors(class'DummyActor', DA)
+    {
+        DA.ClientSetupObj(CMPO);
+    }
+} */
+
+function ClientSetupObj(CMAObjective CMPO)
+{
+    local ROGameReplicationInfo ROGRI;
+    local int i;
+
+    ROGRI = ROGameReplicationInfo(WorldInfo.GRI);
+    ROGRI.AddObjective(CMPO, true);
+
+    for (i=0; I < 16; i++)
+    {
+        `log(ROGameReplicationInfo(WorldInfo.GRI).ObjectiveShortNames[i]);
     }
 }
 
