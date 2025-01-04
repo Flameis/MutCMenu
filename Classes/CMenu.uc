@@ -16,21 +16,6 @@ var name NumberKeys[20];
 var config Color TextColor, BackgroundColor, BorderColor;
 var config bool bKeepOpen, bDrawBackground, bCMenuDebug;
 
-function Initialize()
-{
-	MenuPage = 0;
-
-	if (TextColor.a == 0)
-	{
-		TextColor.r = 255;
-		TextColor.g = 128;
-		TextColor.b = 0;
-		TextColor.a = 255;
-	}
-
-	FindCMenuLength(); // Do this here and in HandleInput() so we aren't spamming a loop every tick
-}
-
 simulated state MenuVisible
 {
 	function BeginState(name PreviousStateName)
@@ -54,6 +39,33 @@ simulated state MenuVisible
     {
 	    DrawMenu(ROCanvas(HUDCanvas), 0, 240, MenuName, MenuText);
     }
+
+	function EndState(name NextStateName)
+	{
+		if (NextStateName != 'ReadyToPlace')
+		{
+			if (MenuCommand.Length > default.MenuCommand.Length)
+			{
+        		MenuText.Remove(default.MenuCommand.Length, MenuText.Length-default.MenuCommand.Length);
+				MenuCommand.Remove(default.MenuCommand.Length, MenuCommand.Length-default.MenuCommand.Length);
+			}
+		}
+	}
+}
+
+function Initialize()
+{
+	MenuPage = 0;
+
+	if (TextColor.a == 0)
+	{
+		TextColor.r = 255;
+		TextColor.g = 128;
+		TextColor.b = 0;
+		TextColor.a = 255;
+	}
+
+	FindCMenuLength(); // Do this here and in HandleInput() so we aren't spamming a loop every tick
 }
 
 function bool InputKey( int ControllerId, name Key, EInputEvent EventType, float AmountDepressed = 1.f, bool bGamepad = FALSE )
@@ -241,7 +253,7 @@ function MessageSelf(string Message)
 
 function bool CheckMutsLoaded(string StrToCheck)
 {
-	if (InStr(StrToCheck, "WW",,true) != -1 && !MyDA.bLoadWW)
+	if (InStr(StrToCheck, "WinterWar",,true) != -1 && !MyDA.bLoadWW)
 	{
 		MessageSelf("Winter War is not loaded");
 		return false;

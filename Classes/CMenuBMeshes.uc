@@ -14,31 +14,17 @@ function Initialize()
         MenuCommand.additem("ADMINDELETE");
     }
 
+    if (InStr(TargetName, "_",,true) != -1)
+	{
+        LastCmd = TargetName;
+        if (bPreviewIsSkeletal)
+            ReferenceSKeletalMesh[0] = SkeletalMesh(DynamicLoadObject(TargetName, class'SkeletalMesh'));
+        else
+            ReferenceStaticMesh[0] = StaticMesh(DynamicLoadObject(TargetName, class'StaticMesh'));
+        GoToState('ReadyToPlace',, true);
+	}
+
 	super.Initialize();
-}
-
-simulated state MenuVisible
-{
-	function BeginState(name PreviousStateName)
-	{
-        super.BeginState(PreviousStateName);
-
-		if (InStr(TargetName, "_",,true) != -1)
-		{
-            LastCmd = TargetName;
-            if (bPreviewIsSkeletal)
-                ReferenceSKeletalMesh[0] = SkeletalMesh(DynamicLoadObject(TargetName, class'SkeletalMesh'));
-            else
-                ReferenceStaticMesh[0] = StaticMesh(DynamicLoadObject(TargetName, class'StaticMesh'));
-            GoToState('ReadyToPlace',, true);
-		}
-	}
-
-    function EndState(name PreviousStateName)
-	{
-        MenuText.Remove(default.MenuCommand.Length, MenuText.Length-default.MenuCommand.Length);
-        MenuCommand.Remove(default.MenuCommand.Length, MenuCommand.Length-default.MenuCommand.Length);
-	}
 }
 
 function bool CheckExceptions(string Command)
@@ -46,27 +32,11 @@ function bool CheckExceptions(string Command)
 	switch (Command)
     {
         case "COPY":
-            Command = PathName(StaticMeshActor(TracedActor).StaticMeshComponent.StaticMesh);
-            LastCmd = Command;
-            if(LastCmd != "None")
-            {
-                PC.CopyToClipboard(LastCmd);
-                MessageSelf("Copied Mesh Name To Clipboard:"@LastCmd);
-            }
-            else MessageSelf("No Mesh Found");
+            CopyMesh();
             break;
 
         case "PASTE":
-            Command = PC.PasteFromClipboard();
-            LastCmd = Command;
-            if (bPreviewIsSkeletal)
-                ReferenceSKeletalMesh[0] = SkeletalMesh(DynamicLoadObject(LastCmd, class'SkeletalMesh'));
-            else
-                ReferenceStaticMesh[0] = StaticMesh(DynamicLoadObject(LastCmd, class'StaticMesh'));
-            if (ReferenceStaticMesh[0] != None || ReferenceSKeletalMesh[0] != None)
-                GoToState('ReadyToPlace',, true);
-            else
-                MessageSelf("No Mesh Name In Clipboard");
+            PasteMesh();
             break;
 
         case "DELETE":
@@ -99,11 +69,49 @@ function bool CheckExceptions(string Command)
 	return false;  
 }
 
+function CopyMesh()
+{
+    if (StaticMeshActor(TracedActor) != none)
+    {
+        LastCmd = PathName(StaticMeshActor(TracedActor).StaticMeshComponent.StaticMesh);
+        if(LastCmd != "None")
+        {
+            PC.CopyToClipboard(LastCmd);
+            MessageSelf("Copied Mesh Name To Clipboard:"@LastCmd);
+        }
+        else MessageSelf("No Mesh Found");
+    }
+    else if (CMAStaticMesh(TracedActor) != none)
+    {
+        LastCmd = PathName(CMAStaticMesh(TracedActor).StaticMeshComponent.StaticMesh);
+        if(LastCmd != "None")
+        {
+            PC.CopyToClipboard(LastCmd);
+            MessageSelf("Copied Mesh Name To Clipboard:"@LastCmd);
+        }
+        else MessageSelf("No Mesh Found");
+    }
+    else MessageSelf("No Mesh Found");
+}
+
+function PasteMesh()
+{
+    LastCmd = PC.PasteFromClipboard();
+    if (bPreviewIsSkeletal)
+        ReferenceSKeletalMesh[0] = SkeletalMesh(DynamicLoadObject(LastCmd, class'SkeletalMesh'));
+    else
+        ReferenceStaticMesh[0] = StaticMesh(DynamicLoadObject(LastCmd, class'StaticMesh'));
+    if (ReferenceStaticMesh[0] != None || ReferenceSKeletalMesh[0] != None)
+        GoToState('ReadyToPlace',, true);
+    else
+        MessageSelf("No Mesh Name In Clipboard");
+}
+
 function DoPlace()
 {
 	if (InStr(LastCmd, "_",, true) != -1)
 	{
-        MyDA.SpawnActor(class'CMAStaticMesh',,'StaticMesh', PlaceLoc, PlaceRot,, true, LastCmd, ModifyScale.x, ModifyTime);
+        MyDA.SpawnActor(class'CMAStaticMesh',,'StaticMesh', PlaceLoc, PlaceRot,, true, LastCmd, ModifyScale.x, ModifyTime*10);
 	}
 }
 

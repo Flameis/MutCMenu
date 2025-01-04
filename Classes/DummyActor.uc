@@ -28,7 +28,7 @@ reliable client function CMenuSetup()
     pc.Interactions.additem(new(pc) class'CMenuRealismMatch');
     pc.Interactions.additem(new(pc) class'CMenuPlayer');
     pc.Interactions.additem(new(pc) class'CMenuPCManager');
-    // pc.Interactions.additem(new(pc) class'CMenuMap');
+    pc.Interactions.additem(new(pc) class'CMenuFireSupport');
 
     pc.Interactions.additem(new(pc) class'CMenuBMain');
     pc.Interactions.additem(new(pc) class'CMenuBActors');
@@ -279,7 +279,7 @@ reliable server function SpawnPickup(class<ROWeapon> WeaponClass, float ModifyTi
 
 reliable server function ClearAllPickups()
 {
-    local ROPickupFactory WeaponToClear;
+    local CMAPickupFactory WeaponToClear;
 
     foreach AllActors(class'CMAPickupFactory', WeaponToClear)
     {

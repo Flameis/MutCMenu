@@ -101,27 +101,27 @@ defaultproperties
 {
     SettingsGroups(0)=(GroupID="Settings",pMin=600,pMax=700,lMin=0,lMax=0)
 
-	Properties.Add((PropertyId=600,Data=(Type=SDT_Bool,Value1=0)))
+	Properties.Add((PropertyId=600,Data=(Type=SDT_Int32,Value1=0)))
 	PropertyMappings.Add((Id=600,Name="bUseDefaultFactions (Must be enabled for bAITRoles to work)"))
 
 	Properties.Add((PropertyId=601,Data=(Type=SDT_Int32,Value1=0)))
 	PropertyMappings.Add((Id=601,Name="MyNorthForce (PAVN = 0, NLF = 1)"))
 	
-	Properties.Add((PropertyId=600,Data=(Type=SDT_Int32,Value1=0)))
-	PropertyMappings.Add((Id=600,Name="MySouthForce (USA = 0, USMC = 1, AUS = 2, ARVN = 3)"))
-
-	Properties.Add((PropertyId=602, Data=(Type=SDT_Int32, Value1=0)))
-	PropertyMappings.Add((Id=602, Name="bLoadExtras"))
+	Properties.Add((PropertyId=602,Data=(Type=SDT_Int32,Value1=0)))
+	PropertyMappings.Add((Id=602,Name="MySouthForce (USA = 0, USMC = 1, AUS = 2, ARVN = 3)"))
 
 	Properties.Add((PropertyId=603, Data=(Type=SDT_Int32, Value1=0)))
-	PropertyMappings.Add((Id=603, Name="bLoadGOM3"))
+	PropertyMappings.Add((Id=603, Name="bLoadExtras"))
 
 	Properties.Add((PropertyId=604, Data=(Type=SDT_Int32, Value1=0)))
-	PropertyMappings.Add((Id=604, Name="bLoadGOM4"))
+	PropertyMappings.Add((Id=604, Name="bLoadGOM3"))
 
 	Properties.Add((PropertyId=605, Data=(Type=SDT_Int32, Value1=0)))
-	PropertyMappings.Add((Id=605, Name="bLoadWW"))
+	PropertyMappings.Add((Id=605, Name="bLoadGOM4"))
 
 	Properties.Add((PropertyId=606, Data=(Type=SDT_Int32, Value1=0)))
-	PropertyMappings.Add((Id=606, Name="bNewTankPhys"))
+	PropertyMappings.Add((Id=606, Name="bLoadWW"))
+
+	Properties.Add((PropertyId=607, Data=(Type=SDT_Int32, Value1=0)))
+	PropertyMappings.Add((Id=607, Name="bNewTankPhys"))
 }

@@ -2,22 +2,19 @@ class CMenuBPickups extends CMenuB;
 
 var class<ROWeapon>          WeaponClass;
 
-simulated state MenuVisible
+function Initialize()
 {
-	function BeginState(name PreviousStateName)
-	{
-        super.BeginState(PreviousStateName);
+    super.Initialize();
 
-		if (InStr(TargetName, "Weap",,true) != -1)
-		{
-            if (CheckMutsLoaded(TargetName) == false)
-                return;
-            LastCmd = TargetName;
-            WeaponClass = class<ROWeapon>(DynamicLoadObject(LastCmd, class'Class'));
-            ReferenceSkeletalMesh[0] = SkeletalMeshComponent(WeaponClass.default.Mesh).SkeletalMesh;
-            ModifyLoc.z = 5;
-            GoToState('ReadyToPlace',, true);
-		}
+    if (InStr(TargetName, "Weap",,true) != -1)
+	{
+        if (CheckMutsLoaded(TargetName) == false)
+            return;
+        LastCmd = TargetName;
+        WeaponClass = class<ROWeapon>(DynamicLoadObject(LastCmd, class'Class'));
+        ReferenceSkeletalMesh[0] = SkeletalMeshComponent(WeaponClass.default.Mesh).SkeletalMesh;
+        ModifyLoc.z = 5;
+        GoToState('ReadyToPlace',, true);
 	}
 }
 

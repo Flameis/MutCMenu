@@ -1,23 +1,20 @@
 class CMenuBVehicles extends CMenuB;
 
-simulated state MenuVisible
+function Initialize()
 {
-	function BeginState(name PreviousStateName)
+    local class<ROVehicle>          VehicleClass;
+
+    super.Initialize();
+
+    LastCmd = TargetName;
+	if (InStr(TargetName, "Heli",,true) != -1 || InStr(TargetName, "Vehicle",,true) != -1)
 	{
-        local class<ROVehicle>          VehicleClass;
-
-        super.BeginState(PreviousStateName);
-
-        LastCmd = TargetName;
-		if (InStr(TargetName, "Heli",,true) != -1 || InStr(TargetName, "Vehicle",,true) != -1)
-		{
-            if (CheckMutsLoaded(TargetName) == false)
-                return;
-            VehicleClass = class<ROVehicle>(DynamicLoadObject(LastCmd, class'Class'));
-            ReferenceSkeletalMesh[0] = VehicleClass.default.Mesh.SkeletalMesh;
-            ModifyLoc.z = 140;
-            GoToState('ReadyToPlace',, true);
-		}
+        if (CheckMutsLoaded(TargetName) == false)
+            return;
+        VehicleClass = class<ROVehicle>(DynamicLoadObject(LastCmd, class'Class'));
+        ReferenceSkeletalMesh[0] = VehicleClass.default.Mesh.SkeletalMesh;
+        ModifyLoc.z = 140;
+        GoToState('ReadyToPlace',, true);
 	}
 }
 
@@ -35,7 +32,7 @@ function bool CheckExceptions(string Command)
             LocalPlayer(PC.Player).ViewportClient.SetProgressTime(6);
             MessageSelf("Please Type Your Desired Vehicle (Example: ROGameContent.ROHeli_AH1G_Content)");
             GoToState('ReadyToPlace',, true);
-            break;
+            return true;
 
         case "CLEARALLVICS":
             MyDa.ClearAllVehicles();
@@ -44,8 +41,8 @@ function bool CheckExceptions(string Command)
     }
     if (InStr(Command, "Heli",,true) != -1 || InStr(Command, "Vehicle",,true) != -1)
     {
-        if (CheckMutsLoaded(TargetName) == false)
-            return false;
+        if (CheckMutsLoaded(Command) == false)
+            return true;
         LastCmd = Command;
         VehicleClass = class<ROVehicle>(DynamicLoadObject(Command, class'Class'));
         ReferenceSkeletalMesh[0] = VehicleClass.default.Mesh.SkeletalMesh;
@@ -61,7 +58,7 @@ function DoPlace()
 {
     if (CheckMutsLoaded(LastCmd) == false)
         return;
-	MyDA.SpawnVehicle(LastCmd, ModifyLoc, ModifyRot);
+	MyDA.SpawnVehicle(LastCmd, PlaceLoc, PlaceRot);
 }
 
 defaultproperties

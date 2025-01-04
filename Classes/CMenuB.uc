@@ -10,9 +10,9 @@ var bool                        	bShowPreviewMesh, bPreviewIsSkeletal;
 
 var Vector  				    	PlaceLoc, ModifyLoc;
 var	rotator					    	PlaceRot, ModifyRot;
-var bool 							SwitchRotDir;
 var Vector							ModifyScale;
 var int 							ModifyTime;	
+var bool 							SwitchRotDir;
 var Actor							TracedActor;
 
 var array<Vector2D> 				Corners;
@@ -28,43 +28,47 @@ function bool CheckExceptions(string Command)
     return false;
 }
 
+function InitializePreview()
+{
+	local int i;
+
+	if (ReferenceSkeletalMesh[0] != none)
+	{
+		bPreviewIsSkeletal = true;
+
+		PreviewMeshMIC = new class'MaterialInstanceConstant';
+		PreviewMeshMIC.SetParent(MaterialInstanceConstant(PreviewSkeletalMesh[0].GetMaterial(0)));
+		for ( i = 0; i < PreviewStaticMesh[0].Materials.Length; i++ )
+		{
+			PreviewSkeletalMesh[0].SetMaterial(i, PreviewMeshMIC);
+		}
+
+		PreviewSkeletalMesh[0].SetSkeletalMesh(ReferenceSkeletalMesh[0]);
+		PreviewSkeletalMesh[0].SetHidden(false);
+	}
+	else 
+	{
+		PreviewMeshMIC = new class'MaterialInstanceConstant';
+		PreviewMeshMIC.SetParent(MaterialInstanceConstant(PreviewStaticMesh[0].GetMaterial(0)));
+		for ( i = 0; i < PreviewStaticMesh[0].Materials.Length; i++ )
+		{
+			PreviewStaticMesh[0].SetMaterial(i, PreviewMeshMIC);
+		}
+
+		PreviewStaticMesh[0].SetStaticMesh(ReferenceStaticMesh[0]);
+		PreviewStaticMesh[0].SetHidden(false);
+	}
+}
+
 simulated state ReadyToPlace extends MenuVisible
 {
 	function BeginState(name PreviousStateName)
 	{
-		local int i;
-
-		// ModifyLoc = vect(0,0,0);
         ModifyRot = rot(0,0,0);
 		ModifyScale = vect(1,1,1);
 		ModifyTime = 0;
 
-		if (ReferenceSkeletalMesh[0] != none)
-		{
-			bPreviewIsSkeletal = true;
-
-	    	PreviewMeshMIC = new class'MaterialInstanceConstant';
-	    	PreviewMeshMIC.SetParent(MaterialInstanceConstant(PreviewSkeletalMesh[0].GetMaterial(0)));
-	    	for ( i = 0; i < PreviewStaticMesh[0].Materials.Length; i++ )
-	    	{
-	    		PreviewSkeletalMesh[0].SetMaterial(i, PreviewMeshMIC);
-	    	}
-
-			PreviewSkeletalMesh[0].SetSkeletalMesh(ReferenceSkeletalMesh[0]);
-	    	PreviewSkeletalMesh[0].SetHidden(false);
-		}
-		else 
-		{
-	    	PreviewMeshMIC = new class'MaterialInstanceConstant';
-	    	PreviewMeshMIC.SetParent(MaterialInstanceConstant(PreviewStaticMesh[0].GetMaterial(0)));
-	    	for ( i = 0; i < PreviewStaticMesh[0].Materials.Length; i++ )
-	    	{
-	    		PreviewStaticMesh[0].SetMaterial(i, PreviewMeshMIC);
-	    	}
-
-			PreviewStaticMesh[0].SetStaticMesh(ReferenceStaticMesh[0]);
-	    	PreviewStaticMesh[0].SetHidden(false);
-		}
+		InitializePreview();
 	}
 
 	function bool InputKey(int ControllerId, name Key, EInputEvent EventType, float AmountDepressed = 1.f, bool bGamepad = FALSE)
@@ -169,8 +173,7 @@ simulated function CanPhysicallyPlace()
 {
     local rotator PRot;
 	local vector HitLocation, HitNormal, StartTrace, EndTrace, ViewDirection, RightVector;
-	
-    local float     TraceLength;
+    local float TraceLength;
 
 	PC.GetPlayerViewPoint(StartTrace, PRot);
     ViewDirection = Vector(PC.Pawn.GetViewRotation());
@@ -189,8 +192,7 @@ simulated function actor TraceActors()
 {
     local rotator PRot;
 	local vector HitLocation, HitNormal, StartTrace, EndTrace, ViewDirection;
-	
-    local float     TraceLength;
+    local float TraceLength;
 
 	PC.GetPlayerViewPoint(StartTrace, PRot);
     ViewDirection = Vector(PC.Pawn.GetViewRotation());

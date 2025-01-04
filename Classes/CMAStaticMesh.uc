@@ -71,19 +71,9 @@ simulated event ReplicatedEvent( name VarName )
 event TakeDamage(int DamageAmount, Controller EventInstigator, vector HitLocation, vector Momentum, class<DamageType> DamageType, optional TraceHitInfo HitInfo, optional Actor DamageCauser)
 {
 	local int i;
-	//local KActorFromStatic NewKActor;
-
-	/* StaticMeshComponent.StaticMesh.bCanBecomeDynamic=true;
-	NewKActor = class'KActorFromStatic'.Static.MakeDynamic(StaticMeshComponent);
-	NewKActor.TakeDamage(DamageAmount, EventInstigator, HitLocation, Momentum, DamageType, HitInfo, DamageCauser); */
-	/* `log(StaticMeshComponent.StaticMesh.UseSimpleRigidBodyCollision);
-
-	StaticMeshComponent.StaticMesh.UseSimpleRigidBodyCollision=true;
-	//`log(NewKActor);
-	`log(StaticMeshComponent.bSelfShadowOnly);
-	`log(StaticMeshComponent.StaticMesh.bCanBecomeDynamic); */
-	// `log(DamageAmount);
-	// `log(DamageType);
+	
+	`log(DamageAmount);
+	`log(DamageType);
 
 	if (ClassIsChildOf(DamageType, class'RODamageType_CannonShell') || ClassIsChildOf(DamageType, class'RODmgType_Satchel'))
 	{

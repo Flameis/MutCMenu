@@ -2,17 +2,8 @@ class CMenuBStructures extends CMenuB;
 
 var array<Vector> VecArray;
 var array<Rotator> RotArray;
-var array<StaticMeshActor> SelectedActors;
+var array<Actor> SelectedActors;
 var array<MaterialInterface> OriginalMaterials;
-
-simulated state menuVisible
-{
-    function EndState(name PreviousStateName)
-    {
-        MenuText.Remove(default.MenuCommand.Length, MenuText.Length-default.MenuCommand.Length);
-        MenuCommand.Remove(default.MenuCommand.Length, MenuCommand.Length-default.MenuCommand.Length);
-    }
-}
 
 function Initialize()
 {
@@ -25,15 +16,9 @@ function Initialize()
 	super.Initialize();
 }
 
-simulated state ReadyToPlace
+// Overridden to allow for our own logic when pasting
+function InitializePreview()
 {
-    // Overwritten
-	function BeginState(name PreviousStateName)
-	{
-        ModifyRot = rot(0,0,0);
-		ModifyScale = vect(1,1,1);
-		ModifyTime = 0;
-	}
 }
 
 function bool CheckExceptions(string Command)
@@ -71,7 +56,7 @@ function bool CheckExceptions(string Command)
             SelectMesh();
             return true;
 
-        case "STOPSELECT":
+        case "COPYSELECT":
             CopySelectedMeshesToClipboard();
             return true;
 
@@ -178,7 +163,9 @@ simulated function UpdatePreviewMesh() // Update the position of the Preview Mes
 function CopyStructure()
 {
     local array<StaticMeshActor> NearbyActors;
+    local array<CMAStaticMesh> NearbyCMAActors;
     local StaticMeshActor Actor;
+    local CMAStaticMesh CMAActor;
     local string StructureData;
     local vector Origin, RelativeLocation;
     local rotator OriginRot;
@@ -187,18 +174,6 @@ function CopyStructure()
 
     ClearSelectedMeshes();
 
-    /* if (StaticMeshActor(TracedActor) != none)
-    {
-        NearbyActors.AddItem(StaticMeshActor(TracedActor));
-
-        foreach TracedActor.CollidingActors(class'StaticMeshActor', Actor, ModifyScale.x*250,, True)
-        {
-            if (Actor != none && Actor.StaticMeshComponent.StaticMesh != none)
-            {
-                NearbyActors.AddItem(Actor);
-            }
-        }
-    } */
     foreach MyDA.OverlappingActors(class'StaticMeshActor', Actor, ModifyScale.x*250, PlaceLoc)
     {
         `log("Actor: " $ Actor);
@@ -208,11 +183,25 @@ function CopyStructure()
         }
     }
 
+    foreach MyDA.OverlappingActors(class'CMAStaticMesh', CMAActor, ModifyScale.x*250, PlaceLoc)
+    {
+        `log("CMAActor: " $ CMAActor);
+        if (CMAActor != none && CMAActor.StaticMeshComponent.StaticMesh != none)
+        {
+            NearbyCMAActors.AddItem(CMAActor);
+        }
+    }
+
     // Get the origin and rotation of the first actor
     if (NearbyActors.Length > 0)
     {
         Origin = NearbyActors[0].Location;
         OriginRot = NearbyActors[0].Rotation;
+    }
+    else if (NearbyCMAActors.Length > 0)
+    {
+        Origin = NearbyCMAActors[0].Location;
+        OriginRot = NearbyCMAActors[0].Rotation;
     }
 
     for (i = 0; i < NearbyActors.Length; i++)
@@ -229,7 +218,22 @@ function CopyStructure()
             StructureData $= "StaticMesh=" $ PathName(NearbyActors[i].StaticMeshComponent.StaticMesh) $ "&Translation=" $ RelativeLocation $ "&Rotation=" $ NearbyActors[i].Rotation $ "&Scale=" $ RelativeScale $ ";";
         }
     }
-    
+
+    for (i = 0; i < NearbyCMAActors.Length; i++)
+    {
+        if (NearbyCMAActors[i] != none)
+        {
+            // Adjust the translation and rotation based on the origin's rotation
+            RelativeLocation = NearbyCMAActors[i].Location - Origin;
+            RelativeLocation = RelativeLocation >> OriginRot;
+
+            // Calculate the relative scale based on the bounds
+            RelativeScale = NearbyCMAActors[i].StaticMeshComponent.Bounds.BoxExtent;
+
+            StructureData $= "StaticMesh=" $ PathName(NearbyCMAActors[i].StaticMeshComponent.StaticMesh) $ "&Translation=" $ RelativeLocation $ "&Rotation=" $ NearbyCMAActors[i].Rotation $ "&Scale=" $ RelativeScale $ ";";
+        }
+    }
+
     PC.CopyToClipboard(StructureData);
     MessageSelf("Copied Structure To Clipboard");
 }
@@ -343,29 +347,50 @@ function PasteStructure(optional string StructureData)
 
 function SelectMesh()
 {
-    local StaticMeshActor SelectedActor;
+    local Actor SelectedActor;
     local int i;
 
-    SelectedActor = StaticMeshActor(TracedActor);
-    if (SelectedActor != none)
+    if (StaticMeshActor(TracedActor) != none)
     {
+        SelectedActor = StaticMeshActor(TracedActor);
         // Check if the mesh is already selected
         for (i = 0; i < SelectedActors.Length; i++)
         {
-            if (SelectedActors[i] == SelectedActor)
+            if (SelectedActors[i] == StaticMeshActor(SelectedActor))
             {
-                MessageSelf("Mesh already selected: " $ PathName(SelectedActor.StaticMeshComponent.StaticMesh));
+                MessageSelf("Mesh already selected: " $ PathName(StaticMeshActor(SelectedActor).StaticMeshComponent.StaticMesh));
                 return;
             }
         }
 
         SelectedActors.AddItem(SelectedActor);
-        OriginalMaterials.AddItem(SelectedActor.StaticMeshComponent.GetMaterial(0));
+        OriginalMaterials.AddItem(StaticMeshActor(SelectedActor).StaticMeshComponent.GetMaterial(0));
         `log(OriginalMaterials[OriginalMaterials.Length]);
 
-        SelectedActor.StaticMeshComponent.SetMaterial(0, Material'NodeBuddies.Materials.NodeBuddy_White1');
+        StaticMeshActor(SelectedActor).StaticMeshComponent.SetMaterial(0, Material'NodeBuddies.Materials.NodeBuddy_White1');
 
-        MessageSelf("Selected Mesh: " $ PathName(SelectedActors[SelectedActors.Length - 1].StaticMeshComponent.StaticMesh));
+        MessageSelf("Selected Mesh: " $ PathName(StaticMeshActor(SelectedActors[SelectedActors.Length - 1]).StaticMeshComponent.StaticMesh));
+    }
+    else if (CMAStaticMesh(TracedActor) != none)
+    {
+        SelectedActor = CMAStaticMesh(TracedActor);
+        // Check if the mesh is already selected
+        for (i = 0; i < SelectedActors.Length; i++)
+        {
+            if (SelectedActors[i] == SelectedActor)
+            {
+                MessageSelf("Mesh already selected: " $ PathName(CMAStaticMesh(SelectedActor).StaticMeshComponent.StaticMesh));
+                return;
+            }
+        }
+
+        SelectedActors.AddItem(SelectedActor);
+        OriginalMaterials.AddItem(CMAStaticMesh(SelectedActor).StaticMeshComponent.GetMaterial(0));
+        `log(OriginalMaterials[OriginalMaterials.Length]);
+
+        CMAStaticMesh(SelectedActor).StaticMeshComponent.SetMaterial(0, Material'NodeBuddies.Materials.NodeBuddy_White1');
+
+        MessageSelf("Selected Mesh: " $ PathName(CMAStaticMesh(SelectedActors[SelectedActors.Length - 1]).StaticMeshComponent.StaticMesh));
     }
     else
     {
@@ -379,6 +404,7 @@ function CopySelectedMeshesToClipboard()
     local vector Origin, RelativeLocation, RelativeScale;
     local rotator OriginRot;
     local int i;
+    local string StaticM;
 
     // Get the origin and rotation of the first actor
     if (SelectedActors.Length > 0)
@@ -397,9 +423,18 @@ function CopySelectedMeshesToClipboard()
             RelativeLocation = RelativeLocation >> OriginRot;
 
             // Calculate the relative scale based on the bounds
-            RelativeScale = SelectedActors[i].StaticMeshComponent.Bounds.BoxExtent;
+            if (StaticMeshActor(SelectedActors[i]) != none)
+            {
+                RelativeScale = StaticMeshActor(SelectedActors[i]).StaticMeshComponent.Bounds.BoxExtent;
+                StaticM = PathName(StaticMeshActor(SelectedActors[i]).StaticMeshComponent.StaticMesh);
+            }
+            else if (CMAStaticMesh(SelectedActors[i]) != none)
+            {                
+                RelativeScale = CMAStaticMesh(SelectedActors[i]).StaticMeshComponent.Bounds.BoxExtent;
+                StaticM = PathName(CMAStaticMesh(SelectedActors[i]).StaticMeshComponent.StaticMesh);
+            }
 
-            StructureData $= "StaticMesh=" $ PathName(SelectedActors[i].StaticMeshComponent.StaticMesh) $ "&Translation=" $ RelativeLocation $ "&Rotation=" $ SelectedActors[i].Rotation $ "&Scale=" $ RelativeScale $ ";";
+            StructureData $= "StaticMesh=" $ StaticM $ "&Translation=" $ RelativeLocation $ "&Rotation=" $ SelectedActors[i].Rotation $ "&Scale=" $ RelativeScale $ ";";
         }
     }
 
@@ -409,14 +444,24 @@ function CopySelectedMeshesToClipboard()
 
 function ClearSelectedMeshes()
 {
-    local StaticMeshActor SelectedActor;
+    local Actor SelectedActor;
     local int i;
 
     for (i = 0; i < SelectedActors.Length; i++)
     {
         SelectedActor = SelectedActors[i];
-        SelectedActor.StaticMeshComponent.SetMaterial(0, OriginalMaterials[i]);
-        OriginalMaterials.RemoveItem(SelectedActor.StaticMeshComponent.GetMaterial(0));
+
+        if (StaticMeshActor(SelectedActor) != none)
+        {
+            StaticMeshActor(SelectedActor).StaticMeshComponent.SetMaterial(0, OriginalMaterials[i]);
+            OriginalMaterials.RemoveItem(StaticMeshActor(SelectedActor).StaticMeshComponent.GetMaterial(0));
+        }
+
+        else if (CMAStaticMesh(SelectedActor) != none)
+        {
+            CMAStaticMesh(SelectedActor).StaticMeshComponent.SetMaterial(0, OriginalMaterials[i]);
+            OriginalMaterials.RemoveItem(CMAStaticMesh(SelectedActor).StaticMeshComponent.GetMaterial(0));
+        }
     }
 
     SelectedActors.Remove(0, SelectedActors.Length);
@@ -425,13 +470,21 @@ function ClearSelectedMeshes()
 
 function RemoveLastSelectedMesh()
 {
-    local StaticMeshActor SelectedActor;
+    local Actor SelectedActor;
     // local int i;
 
     if (SelectedActors.Length > 0)
     {
-        SelectedActor = SelectedActors[SelectedActors.Length - 1];
-        SelectedActor.StaticMeshComponent.SetMaterial(0, OriginalMaterials[SelectedActors.Length - 1]);
+        if (StaticMeshActor(SelectedActors[SelectedActors.Length - 1]) != none)
+        {
+            SelectedActor = StaticMeshActor(SelectedActors[SelectedActors.Length - 1]);
+            StaticMeshActor(SelectedActor).StaticMeshComponent.SetMaterial(0, OriginalMaterials[SelectedActors.Length - 1]);
+        }
+        else if (CMAStaticMesh(SelectedActors[SelectedActors.Length - 1]) != none)
+        {
+            SelectedActor = CMAStaticMesh(SelectedActors[SelectedActors.Length - 1]);
+            CMAStaticMesh(SelectedActor).StaticMeshComponent.SetMaterial(0, OriginalMaterials[SelectedActors.Length - 1]);
+        }
 
         SelectedActors.Remove(SelectedActors.Length - 1, 1);
         OriginalMaterials.Remove(SelectedActors.Length - 1, 1);
@@ -449,14 +502,14 @@ defaultproperties
     MenuName="STRUCTURES"
 
     MenuText.add("Select Mesh")
-    MenuText.add("Confirm Selection")
+    MenuText.add("Copy Selection To Clipboard")
     MenuText.add("Remove Last Selected")
     MenuText.add("Clear Selected")
-    MenuText.add("Paste Selection")
-	MenuText.add("Copy Structure")
+    MenuText.add("Paste Structure From Clipboard")
+	MenuText.add("Copy Area To Clipboard")
 
     MenuCommand.add("SELECTMESH")
-    MenuCommand.add("STOPSELECT")
+    MenuCommand.add("COPYSELECT")
     MenuCommand.add("REMOVESELECTED")
     MenuCommand.add("CLEARSELECTED")
     MenuCommand.add("PASTESTRUCT")

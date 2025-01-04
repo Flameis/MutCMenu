@@ -592,7 +592,7 @@ function LoadObjects()
 
     if (bLoadExtras)
     {
-        ROMI.SharedContentReferences.AddItem(class<ROVehicle>(DynamicLoadObject("GOM3.GOMVehicle_M113_ACAV_ActualContent", class'Class')));
+        // TODO
     }
     if (bLoadGOM3)
     {

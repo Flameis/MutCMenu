@@ -20,15 +20,6 @@ function Initialize()
 	super.Initialize();
 }
 
-simulated state MenuVisible
-{ 
-    function EndState(name PreviousStateName)
-	{
-        MenuText.Remove(default.MenuCommand.Length, MenuText.Length-default.MenuCommand.Length);
-        MenuCommand.Remove(default.MenuCommand.Length, MenuCommand.Length-default.MenuCommand.Length);
-	}
-}
-
 defaultproperties
 {
     MenuName="MAIN MENU"

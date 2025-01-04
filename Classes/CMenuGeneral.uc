@@ -1,5 +1,16 @@
 class CMenuGeneral extends CMenu;
 
+function Initialize()
+{
+    super.Initialize();
+
+    if (bIsAuthorized)
+    {
+        MenuText.AddItem("Admin Toggle Fly");
+        MenuCommand.AddItem("FLY");
+    }
+}
+
 function bool CheckExceptions(string Command)
 {
     switch (Caps(Command))
@@ -57,7 +68,29 @@ function bool CheckExceptions(string Command)
                 ROPlayerController(PC).PlayerReplicationInfo.bOnlySpectator = false;
                 ROPlayerController(PC).Reset();
             }
-            
+            return true;
+
+        case "FLY":
+            if (ROPlayerController(PC.CheatManager.Outer).bCheatFlying != true)
+            {
+                if ( (PC.Pawn != None) && PC.Pawn.CheatFly() )
+	            {
+	            	MessageSelf("You feel much lighter");
+	            	ROPlayerController(PC.CheatManager.Outer).bCheatFlying = true;
+	            	ROPlayerController(PC.CheatManager.Outer).GotoState('PlayerFlying');
+                    PC.Pawn.AirSpeed = PC.Pawn.Default.AirSpeed * 20;
+	            }
+            }
+            else
+            {
+                if ( (PC.Pawn != None) && PC.Pawn.CheatWalk() )
+                {
+                	MessageSelf("You feel much heavier");
+                	ROPlayerController(PC.CheatManager.Outer).bCheatFlying = false;
+                	ROPlayerController(PC.CheatManager.Outer).GotoState('PlayerWalking');
+                    PC.Pawn.AirSpeed = PC.Pawn.Default.AirSpeed;
+                }
+            }
             return true;
 
         default:
@@ -65,10 +98,10 @@ function bool CheckExceptions(string Command)
     }
 }
 
+
+
 defaultproperties
 {
-    
-
     MenuName="GENERAL"
 
     MenuText(0)="Respawn"
@@ -83,7 +116,7 @@ defaultproperties
     MenuText(8)="Switch Team"
     MenuText(9)="Set Team Not Ready"
     MenuText(10)="Set Team Ready"
-    MenuText(11)="Toggle Spectator"
+    // MenuText(11)="Toggle Spectator"
     
     MenuCommand(0)="RESPAWN"
     MenuCommand(1)="SUICIDE"
@@ -97,5 +130,5 @@ defaultproperties
     MenuCommand(8)="SWITCHTEAM"
     MenuCommand(9)="SAY /NOTREADY"
     MenuCommand(10)="SAY /READY"
-    MenuCommand(11)="TOGGLESPECTATOR"
+    // MenuCommand(11)="TOGGLESPECTATOR"
 }
