@@ -2,6 +2,11 @@ class CMenuBActors extends CMenuB;
 
 function bool CheckExceptions(string Command)
 {
+	local StaticMeshComponent SMC;
+	local int i, j;
+
+	ReferenceSkeletalMesh[0] = none;
+	
     switch (command)
 	{
 		case "NORTHSPAWN":
@@ -27,31 +32,73 @@ function bool CheckExceptions(string Command)
             MyDA.ClearAllActors();
 			MessageSelf("All actors have been cleared.");
             return true;
+
+        case "TURRETM2":
+            ReferenceSkeletalMesh[0] = class'CMATurret_M2_HMG_Destroyable'.Default.Mesh.SkeletalMesh;
+            GoToState('ReadyToPlace',, true);
+            return true;
+
+		case "TURRETDSHK":
+			ReferenceSkeletalMesh[0] = class'ROTurret_DShK_HMG_Destroyable'.Default.Mesh.SkeletalMesh;
+			GoToState('ReadyToPlace',, true);
+			return true;
+
+		case "RESUPPLYPOINT":
+			j = 0;
+			for (i = 0; i < class'CMAResupplyPoint'.Default.StaticMeshComponents.Length; i++)
+			{
+				SMC = class'CMAResupplyPoint'.Default.StaticMeshComponents[i];
+				if (SMC != none)
+				{
+					ReferenceStaticMesh[j] = SMC.StaticMesh;
+					j += 1;
+				}
+			}
+			GoToState('ReadyToPlace',, true);
+			return true;
     }
     return false;
 }
 
 function DoPlace()
 {
-	if (LastCmd == "SETCORNER")
+	switch (LastCmd)
 	{
-        MyDA.SetCorner(PlaceLoc, PlaceRot);
-	}
-	else if (LastCmd == "NORTHSPAWN" || LastCmd == "SOUTHSPAWN")
-	{
-		MyDA.PlaceSpawn(class'CMASpawn',,, PlaceLoc, PlaceRot,,, SpawnTeamIndex);
-	}
-	/* else if (LastCmd == "SPAWNOBJ")
-	{
-    	MyDA.ServerSpawnOBJ(class'CMAObjective',,, PlaceLoc);
-	} */
-	else if (LastCmd == "REDDECAL")
-	{
-    	MyDA.SpawnDecal(DecalMaterial'Effects_Mats.FX_Gore.BloodPool_001_DM', PlaceLoc, PlaceRot);
-	}
-	else if (LastCmd == "YELLOWDECAL")
-	{
-    	MyDA.SpawnDecal(DecalMaterial'FX_VN_Materials.Materials.D_CommanderMark', PlaceLoc, PlaceRot);
+		case "NORTHSPAWN":
+			MyDA.PlaceSpawn(class'CMASpawn',,, PlaceLoc, PlaceRot,,, SpawnTeamIndex);
+			return;
+
+		case "SOUTHSPAWN":
+			MyDA.PlaceSpawn(class'CMASpawn',,, PlaceLoc, PlaceRot,,, SpawnTeamIndex);
+			return;
+
+		case "SETCORNER":
+			MyDA.SetCorner(PlaceLoc, PlaceRot);
+			return;
+
+		// case "SPAWNOBJ":
+		// 	MyDA.ServerSpawnOBJ(class'CMAObjective',,, PlaceLoc);
+		// 	return;
+
+		case "REDDECAL":
+			MyDA.SpawnDecal(DecalMaterial'Effects_Mats.FX_Gore.BloodPool_001_DM', PlaceLoc, PlaceRot);
+			return;
+
+		case "YELLOWDECAL":
+			MyDA.SpawnDecal(DecalMaterial'FX_VN_Materials.Materials.D_CommanderMark', PlaceLoc, PlaceRot);
+			return;
+
+		case "TURRETM2":
+			MyDA.SpawnActor(class'CMATurret_M2_HMG_Destroyable',, 'Turret', PlaceLoc, PlaceRot,, true, LastCmd, ModifyScale.x, ModifyTime*10);
+			return;
+
+		case "TURRETDSHK":
+			MyDA.SpawnActor(class'ROTurret_DShK_HMG_Destroyable',, 'Turret', PlaceLoc, PlaceRot,, true, LastCmd, ModifyScale.x, ModifyTime*10);
+			return;
+
+		case "RESUPPLYPOINT":
+			MyDA.Spawn(class'CMAResupplyPoint',, 'ResupplyPoint', PlaceLoc, PlaceRot,, true);
+			return;
 	}
 }
 
@@ -68,6 +115,9 @@ defaultproperties
 	// MenuText.Add("Clear Corners")
     // MenuText.Add("Clear Objs")
     MenuText.Add("Clear All")
+    MenuText.Add("M2 Turret")
+	MenuText.Add("DShK Turret")
+	MenuText.Add("Resupply Point")
 
     // MenuText.Add("Red Decal")
     // MenuText.Add("Yellow Decal")
@@ -81,6 +131,9 @@ defaultproperties
 	// MenuCommand.Add("CLEARCORNERS")
     // MenuCommand.Add("CLEAROBJS")
     MenuCommand.Add("CLEARALLACTORS")
+	MenuCommand.Add("TURRETM2")
+	MenuCommand.Add("TURRETDSHK")
+	MenuCommand.Add("RESUPPLYPOINT")
 
     // MenuCommand.Add("REDDECAL")
     // MenuCommand.Add("YELLOWDECAL")

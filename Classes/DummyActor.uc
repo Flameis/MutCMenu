@@ -177,6 +177,10 @@ unreliable server function SpawnActor(
         CMAStaticMesh.ServerSetScale3D(CMAStaticMesh.StaticMeshComponent.Scale3D*Scale);
         CMAStaticMesh.Health = ModifyTime;
     }
+    else if (SpawnTag == 'Turret')
+    {
+        Spawn(SpawnClass, SpawnOwner, SpawnTag, SpawnLocation, SpawnRotation, ActorTemplate, bNoCollisionFail);
+    }
 }
 
 unreliable server function DeleteActor(actor ActorToDelete)

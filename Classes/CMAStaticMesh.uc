@@ -275,6 +275,7 @@ defaultproperties
 	bAlwaysRelevant = true
 
 	CollisionType=COLLIDE_BlockAll
+	bProjTarget=true
     bCollideActors=true
 	bCollideWorld=true
 	bBlockActors=true
@@ -297,18 +298,15 @@ defaultproperties
     End Object */
 
     Begin Object class=StaticMeshComponent Name=StaticMeshComponent0
-	    CollideActors=true
+		CastShadow=true
+		bSelfShadowOnly=false
+		bCastDynamicShadow=true
+		bUsePrecomputedShadows=false
+		DepthPriorityGroup=SDPG_World
+		CollideActors=true
 		BlockActors=true
 		BlockZeroExtent=true
 		BlockNonZeroExtent=true
-		// BlockRigidBody=false
-		// bNotifyRigidBodyCollision=false
-		bUseAsOccluder=false
-		CastShadow=true
-		bUsePrecomputedShadows=false
-		bCastDynamicShadow=true
-		bSelfShadowOnly=false
-		bNeverBecomeDynamic=false
 		LightEnvironment=MyLightEnvironment
     End Object
 	StaticMeshComponent=StaticMeshComponent0
