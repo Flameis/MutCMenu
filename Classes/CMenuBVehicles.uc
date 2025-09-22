@@ -84,15 +84,35 @@ defaultproperties
     MenuText.add("GOM4 T34")
 
     MenuText.add("GOM4 M113 ARVN")
-    MenuText.add("WW T54")
+    MenuText.add("GOM4 T54")
     MenuText.add("WW T20")
     MenuText.add("WW T26")
     MenuText.add("WW T28")
     MenuText.add("WW HT130")
     MenuText.add("WW ATGun")
     MenuText.add("WW Vickers")
-    
-    MenuText.add("WW Skis")
+
+    MenuText.add("WW2 WW Skis")
+    MenuText.add("WW2 Churchill Mk VII")
+    MenuText.add("WW2 Crusader Mk III")
+    MenuText.add("WW2 Ha-Go")
+    MenuText.add("WW2 Kubelwagen")
+    MenuText.add("WW2 Panzer III")
+    MenuText.add("WW2 Panzer IV F2")
+    MenuText.add("WW2 SdKfz 222 Recon")
+
+    MenuText.add("WW2 SdKfz 251 Halftrack")
+    MenuText.add("WW2 Semovente")
+    MenuText.add("WW2 Sherman III")
+    MenuText.add("WW2 Stuart M3")
+    MenuText.add("WW2 Stug III G")
+    MenuText.add("WW2 T-34")
+    MenuText.add("WW2 T-70")
+    MenuText.add("WW2 UC Bren")
+
+    MenuText.add("WW2 UC")
+    MenuText.add("WW2 Valentine")
+    MenuText.add("WW2 Willys")
 
     MenuCommand.add("CUSTOM")
     MenuCommand.add("CLEARALLVICS")
@@ -122,4 +142,25 @@ defaultproperties
     MenuCommand.add("WinterWar.WWVehicle_Vickers_ActualContent")
 
     MenuCommand.add("WinterWar.WWVehicle_Skis_ActualContent")
+    MenuCommand.add("WW2.WW2Vehicle_ChurchillMkVII_Content")
+    MenuCommand.add("WW2.WW2Vehicle_CrusaderMkIII_Content")
+    MenuCommand.add("WW2.WW2Vehicle_HaGo_Content")
+    MenuCommand.add("WW2.WW2Vehicle_Kubelwagen_Content")
+    MenuCommand.add("WW2.WW2Vehicle_PanzerIII_Content")
+    MenuCommand.add("WW2.WW2Vehicle_PanzerIVF_Content")
+    MenuCommand.add("WW2.WW2Vehicle_SdKfz_222_Recon_Content")
+
+    MenuCommand.add("WW2.WW2Vehicle_SdKfz_251_Halftrack_Content")
+    MenuCommand.add("WW2.WW2Vehicle_Semovente_Content")
+    MenuCommand.add("WW2.WW2Vehicle_ShermanIII_Content")
+    MenuCommand.add("WW2.WW2Vehicle_StuartM3_Content")
+    MenuCommand.add("WW2.WW2Vehicle_StugIIIG_Content")
+    MenuCommand.add("WW2.WW2Vehicle_T34_Content")
+    MenuCommand.add("WW2.WW2Vehicle_T70_Content")
+    MenuCommand.add("WW2.WW2Vehicle_UC_Bren_Content")
+
+    MenuCommand.add("WW2.WW2Vehicle_UC_Content")
+    MenuCommand.add("WW2.WW2Vehicle_Valentine_Content")
+    MenuCommand.add("WW2.WW2Vehicle_Willys_Content")
+
 }

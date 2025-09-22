@@ -2,7 +2,7 @@ class CMenuMain extends CMenu;
 
 function Initialize()
 {
-    MessageSelf("Welcome to CMenu, make sure to login to scrim admin to see all the options.");
+    MessageSelf("Welcome to CMenu, login to scrim admin to see all the options.");
 
     if (bIsAuthorized)
     {

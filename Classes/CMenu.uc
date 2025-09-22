@@ -273,6 +273,11 @@ function bool CheckMutsLoaded(string StrToCheck)
 		MessageSelf("MutExtrasTB is not loaded");
 		return false;
 	}
+	else if (InStr(StrToCheck, "WW2",,true) != -1 && !MyDA.bLoadWW2)
+	{
+		MessageSelf("WW2 is not loaded");
+		return false;
+	}
 	return true;
 }
 

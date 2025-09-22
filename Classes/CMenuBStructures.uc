@@ -7,6 +7,8 @@ var array<MaterialInterface> OriginalMaterials;
 
 function Initialize()
 {
+    MessageSelf("Welcome to the Structures Menu, login to scrim admin to see all the options.");
+    
     if (bIsAuthorized)
     {
         MenuText.additem("Clear All Meshes");

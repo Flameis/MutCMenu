@@ -2,7 +2,7 @@ class DummyActor extends actor;
 
 var MutCMenu                     MyMut;
 
-var bool bIsAuthorized, bNewTankPhys, bLoadExtras, bLoadGOM3, bLoadGOM4, bLoadWW;
+var bool bIsAuthorized, bNewTankPhys, bLoadExtras, bLoadGOM3, bLoadGOM4, bLoadWW, bLoadWW2;
 var string TargetName;
 
 var array<vector2d>				Corners;
@@ -10,7 +10,7 @@ var array<vector2d>				Corners;
 replication
 {
     if (bNetDirty)
-        bIsAuthorized, bNewTankPhys, bLoadExtras, bLoadGOM3, bLoadGOM4, bLoadWW;
+        bIsAuthorized, bNewTankPhys, bLoadExtras, bLoadGOM3, bLoadGOM4, bLoadWW, bLoadWW2;
 }
 
 reliable client function CMenuSetup()

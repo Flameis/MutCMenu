@@ -2,13 +2,13 @@ class CMenuGeneral extends CMenu;
 
 function Initialize()
 {
-    super.Initialize();
-
     if (bIsAuthorized)
     {
         MenuText.AddItem("Admin Toggle Fly");
         MenuCommand.AddItem("FLY");
     }
+
+    super.Initialize();
 }
 
 function bool CheckExceptions(string Command)

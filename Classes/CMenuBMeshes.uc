@@ -2,6 +2,8 @@ class CMenuBMeshes extends CMenuB;
 
 function Initialize()
 {
+    MessageSelf("Welcome to the Static Meshes Menu, login to scrim admin to see all the options.");
+
     if (bIsAuthorized)
     {
         MenuText.additem("Clear All Meshes");

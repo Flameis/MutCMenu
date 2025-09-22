@@ -16,8 +16,9 @@ var int                         NumObjs;
 
 var config ENorthernForces      MyNorthForce;
 var config ESouthernForces      MySouthForce;
-var config bool                 bUseDefaultFactions, bLoadExtras, bLoadGOM3, bLoadGOM4, bLoadWW, bNewTankPhys;
+var config bool                 bUseDefaultFactions, bLoadExtras, bLoadGOM3, bLoadGOM4, bLoadWW, bLoadWW2, bNewTankPhys;
 var config array<string>        MutatorAdmins; // A list of all mutator admins and their passwords
+var config array<string>        ExtrasToLoad, GOM3ToLoad, GOM4ToLoad, WWToLoad, WW2ToLoad; // Lists of all the objects to load
 
 function PreBeginPlay()
 {
@@ -75,6 +76,7 @@ simulated function NotifyLogin(Controller NewPlayer)
     DA.bLoadGOM3 = bLoadGOM3;
     DA.bLoadGOM4 = bLoadGOM4;
     DA.bLoadWW = bLoadWW;
+    DA.bLoadWW2 = bLoadWW2;
 
     DA.CMenuSetup();
 
@@ -532,7 +534,44 @@ function GiveWeapon(PlayerController PC, string WeaponName, optional bool bGiveA
     {
         PrivateMessage(PC, "bLoadGOM3 must be enabled in the WebAdmin mutators settings for you to spawn this weapon!");
     }
+    else if (InStr(ActualName, "WW2") != -1 && !bLoadWW2)
+    {
+        PrivateMessage(PC, "bLoadWW2 must be enabled in the WebAdmin mutators settings for you to spawn this weapon!");
+    }
 }
+
+/*
+function string DoGiveWeapon(PlayerController PC, ROInventoryManager InvManager, string WeaponName)
+{
+
+    if (InStr(WeaponName, "Weap") != -1 || InStr(WeaponName, "Item") != -1)
+    {
+        InvManager.LoadAndCreateInventory(WeaponName, false, true);
+        return "true";
+    }
+    else
+        return "false";
+
+    if (InStr(WeaponName, "WinterWar") != -1 && !bLoadWW)
+    {
+        return WeaponName;
+    }
+    else if (InStr(WeaponName, "GOM4") != -1 && !bLoadGOM4)
+    {
+        return WeaponName;
+    }
+    else if (InStr(WeaponName, "GOM3") != -1 && !bLoadGOM3)
+    {
+        return WeaponName;
+    }
+    else if (InStr(WeaponName, "WW2") != -1 && !bLoadWW2)
+    {
+        return WeaponName;
+    }
+
+    InvManager.LoadAndCreateInventory(WeaponName, false, true);
+    return "true";
+} */
 
 function ClearWeapons(PlayerController PC, bool ClearAll, optional int TeamIndex)
 {
@@ -585,6 +624,7 @@ function ClearWeapons(PlayerController PC, bool ClearAll, optional int TeamIndex
 function LoadObjects()
 {
     local ROMapInfo               ROMI;
+    local string                  WeaponName;
 
     ROMI = ROMapInfo(WorldInfo.GetMapInfo());
 
@@ -592,118 +632,58 @@ function LoadObjects()
 
     if (bLoadExtras)
     {
-        // TODO
+        foreach ExtrasToLoad(WeaponName)
+        {
+            if (WeaponName == "") continue;
+            if (InStr(WeaponName, "Vehicle") != -1)
+                ROMI.SharedContentReferences.AddItem(class<ROVehicle>(DynamicLoadObject(WeaponName, class'Class'))); // Load the object
+            else
+                ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject(WeaponName, class'Class'))); // Load the object
+        }
     }
     if (bLoadGOM3)
     {
-        ROMI.SharedContentReferences.AddItem(class<ROVehicle>(DynamicLoadObject("GOM3.GOMVehicle_M113_ACAV_ActualContent", class'Class')));
+        foreach GOM3ToLoad(WeaponName)
+        {
+            if (WeaponName == "") continue;
+            if (InStr(WeaponName, "Vehicle") != -1)
+                ROMI.SharedContentReferences.AddItem(class<ROVehicle>(DynamicLoadObject(WeaponName, class'Class'))); // Load the object
+            else
+                ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject(WeaponName, class'Class'))); // Load the object
+        }
     }
     if (bLoadGOM4)
     {
-        ROMI.SharedContentReferences.AddItem(class<ROVehicle>(DynamicLoadObject("GOM4.GOMVehicle_M113_ACAV_ActualContent", class'Class')));
-        ROMI.SharedContentReferences.AddItem(class<ROVehicle>(DynamicLoadObject("GOM4.GOMVehicle_M113_APC_ARVN", class'Class')));
-        ROMI.SharedContentReferences.AddItem(class<ROVehicle>(DynamicLoadObject("GOM4.GOMVehicle_M151_MUTT_US", class'Class')));
-        ROMI.SharedContentReferences.AddItem(class<ROVehicle>(DynamicLoadObject("GOM4.GOMVehicle_T34_ActualContent", class'Class')));
-        ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject("GOM4.GOMWeapon_38Bodyguard_ActualContent", class'Class')));
-        ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject("GOM4.GOMWeapon_BarShotgun_ActualContent", class'Class')));
-        ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject("GOM4.GOMWeapon_Bayonet_M4_ActualContent", class'Class')));
-        ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject("GOM4.GOMWeapon_Bayonet_M5_ActualContent", class'Class')));
-        ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject("GOM4.GOMWeapon_Bayonet_M7_ActualContent", class'Class')));
-        ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject("GOM4.GOMWeapon_BowieKnife_ActualContent", class'Class')));
-        ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject("GOM4.GOMWeapon_Crossbow_ActualContent", class'Class')));
-        ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject("GOM4.GOMWeapon_DP27", class'Class')));
-        ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject("GOM4.GOMWeapon_DPM", class'Class')));
-        ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject("GOM4.GOMWeapon_F1_Grenade_ActualContent", class'Class')));
-        ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject("GOM4.GOMWeapon_FusilRobust_ActualContent", class'Class')));
-        ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject("GOM4.GOMWeapon_K50M_ActualContent", class'Class')));
-        ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject("GOM4.GOMWeapon_Kar98Scoped_ActualContent", class'Class')));
-        ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject("GOM4.GOMWeapon_Kar98k_ActualContent", class'Class')));
-        ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject("GOM4.GOMWeapon_L1A1_ActualContent", class'Class')));
-        ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject("GOM4.GOMWeapon_LPO50_ActualContent", class'Class')));
-        ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject("GOM4.GOMWeapon_M12_ActualContent", class'Class')));
-        ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject("GOM4.GOMWeapon_M14_ActualContent", class'Class')));
-        ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject("GOM4.GOMWeapon_M16A1_Scoped_ActualContent", class'Class')));
-        ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject("GOM4.GOMWeapon_M16A1_XM148_ActualContent", class'Class')));
-        ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject("GOM4.GOMWeapon_M1897_ActualContent", class'Class')));
-        ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject("GOM4.GOMWeapon_M18_Recoilless_ActualContent", class'Class')));
-        ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject("GOM4.GOMWeapon_M1911A1_ActualContent", class'Class')));
-        ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject("GOM4.GOMWeapon_M1A1_Stockless", class'Class')));
-        ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject("GOM4.GOMWeapon_M7RifleGrenade_ActualContent", class'Class')));
-        ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject("GOM4.GOMWeapon_M37_ActualContent", class'Class')));
-        ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject("GOM4.GOMWeapon_M37_Riot", class'Class')));
-        ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject("GOM4.GOMWeapon_M44_Carbine_ActualContent", class'Class')));
-        ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject("GOM4.GOMWeapon_M60_200", class'Class')));
-        ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject("GOM4.GOMWeapon_M72_ActualContent", class'Class')));
-        ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject("GOM4.GOMWeapon_MAC10_ActualContent", class'Class')));
-        ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject("GOM4.GOMWeapon_MAC10_Silenced", class'Class')));
-        ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject("GOM4.GOMWeapon_MG34_Drum", class'Class')));
-        ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject("GOM4.GOMWeapon_MG42_Drum", class'Class')));
-        ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject("GOM4.GOMWeapon_P38_ActualContent", class'Class')));
-        ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject("GOM4.GOMWeapon_PPS_ActualContent", class'Class')));
-        ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject("GOM4.GOMWeapon_RGD33_ActualContent", class'Class')));
-        ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject("GOM4.GOMWeapon_RPD_SawnOff_ActualContent", class'Class')));
-        ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject("GOM4.GOMWeapon_RPG2_ActualContent", class'Class')));
-        ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject("GOM4.GOMWeapon_SKS_ActualContent", class'Class')));
-        ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject("GOM4.GOMWeapon_SVD_ActualContent", class'Class')));
-        ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject("GOM4.GOMWeapon_Satchel_ActualContent", class'Class')));
-        ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject("GOM4.GOMWeapon_SodaGrenade_ActualContent", class'Class')));
-        ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject("GOM4.GOMWeapon_SodaMine_ActualContent", class'Class')));
-        ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject("GOM4.GOMWeapon_Stel_ActualContent", class'Class')));
-        ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject("GOM4.GOMWeapon_Sten_ActualContent", class'Class')));
-        ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject("GOM4.GOMWeapon_Stevens_ActualContent", class'Class')));
-        ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject("GOM4.GOMWeapon_Stoner63A_ActualContent", class'Class')));
-        ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject("GOM4.GOMWeapon_TUL_ActualContent", class'Class')));
-        ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject("GOM4.GOMWeapon_Type63_ActualContent", class'Class')));
-        ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject("GOM4.GOMWeapon_UZI_ActualContent", class'Class')));
-        ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject("GOM4.GOMWeapon_VCGrenade_ActualContent", class'Class')));
-        ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject("GOM4.GOMWeapon_VCKnife_ActualContent", class'Class')));
-        ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject("GOM4.GOMWeapon_VZ23", class'Class')));
-        ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject("GOM4.GOMWeapon_VZ25", class'Class')));
-        ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject("GOM4.GOMWeapon_VZ58_ActualContent", class'Class')));
-        ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject("GOM4.GOMWeapon_VZ61_ActualContent", class'Class')));
-        ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject("GOM4.GOMWeapon_XM177E2_ActualContent", class'Class')));
-        ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject("GOM4.GOMWeapon_XM177E2_30", class'Class')));
-        ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject("GOM4.GOMWeapon_XM21_Content", class'Class')));
-        ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject("GOM4.GOMWeapon_XM21_Suppressed", class'Class')));
+        foreach GOM4ToLoad(WeaponName)
+        {
+            if (WeaponName == "") continue;
+            if (InStr(WeaponName, "Vehicle") != -1)
+                ROMI.SharedContentReferences.AddItem(class<ROVehicle>(DynamicLoadObject(WeaponName, class'Class'))); // Load the object
+            else
+                ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject(WeaponName, class'Class'))); // Load the object
+        }
     }
     if (bLoadWW)
     {
-        ROMI.SharedContentReferences.AddItem(class<ROVehicle>(DynamicLoadObject("WinterWar.WWVehicle_T20_ActualContent", class'Class')));
-        ROMI.SharedContentReferences.AddItem(class<ROVehicle>(DynamicLoadObject("WinterWar.WWVehicle_T26_EarlyWar_ActualContent", class'Class')));
-        ROMI.SharedContentReferences.AddItem(class<ROVehicle>(DynamicLoadObject("WinterWar.WWVehicle_T28_ActualContent", class'Class')));
-        ROMI.SharedContentReferences.AddItem(class<ROVehicle>(DynamicLoadObject("WinterWar.WWVehicle_HT130_ActualContent", class'Class')));
-        ROMI.SharedContentReferences.AddItem(class<ROVehicle>(DynamicLoadObject("WinterWar.WWVehicle_53K_ActualContent", class'Class')));
-        ROMI.SharedContentReferences.AddItem(class<ROVehicle>(DynamicLoadObject("WinterWar.WWVehicle_Vickers_ActualContent", class'Class')));
-        ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject("WinterWar.WWWeapon_AntiTankMine_ActualContent", class'Class')));
-        ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject("WinterWar.WWWeapon_AVS36_ActualContent", class'Class')));
-        ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject("WinterWar.WWWeapon_Binoculars_ActualContent", class'Class')));
-        ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject("WinterWar.WWWeapon_DP28_ActualContent", class'Class')));
-        ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject("WinterWar.WWWeapon_F1Grenade_ActualContent", class'Class')));
-        ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject("WinterWar.WWWeapon_Kasapanos_FactoryIssue_ActualContent", class'Class')));
-        ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject("WinterWar.WWWeapon_Kasapanos_Improvised_ActualContent", class'Class')));
-        ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject("WinterWar.WWWeapon_KP31_ActualContent", class'Class')));
-        ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject("WinterWar.WWWeapon_L35_ActualContent", class'Class')));
-        ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject("WinterWar.WWWeapon_LahtiSaloranta_ActualContent", class'Class')));
-        ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject("WinterWar.WWWeapon_Luger_ActualContent", class'Class')));
-        ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject("WinterWar.WWWeapon_M20_ActualContent", class'Class')));
-        ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject("WinterWar.WWWeapon_M32Grenade_ActualContent", class'Class')));
-        ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject("WinterWar.WWWeapon_Maxim_ActualContent", class'Class')));
-        ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject("WinterWar.WWWeapon_MN27_ActualContent", class'Class')));
-        ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject("WinterWar.WWWeapon_MN38_ActualContent", class'Class')));
-        ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject("WinterWar.WWWeapon_MN91_ActualContent", class'Class')));
-        ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject("WinterWar.WWWeapon_MN9130_ActualContent", class'Class')));
-        ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject("WinterWar.WWWeapon_MN9130_Dyakonov_ActualContent", class'Class')));
-        ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject("WinterWar.WWWeapon_MN9130_Scoped_ActualContent", class'Class')));
-        ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject("WinterWar.WWWeapon_Molotov_ActualContent", class'Class')));
-        ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject("WinterWar.WWWeapon_NagantRevolver_ActualContent", class'Class')));
-        ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject("WinterWar.WWWeapon_PPD34_ActualContent", class'Class')));
-        ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject("WinterWar.WWWeapon_QuadMaxims_ActualContent", class'Class')));
-        ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject("WinterWar.WWWeapon_RDG1_ActualContent", class'Class')));
-        ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject("WinterWar.WWWeapon_RGD33_ActualContent", class'Class')));
-        ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject("WinterWar.WWWeapon_Satchel_ActualContent", class'Class')));
-        ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject("WinterWar.WWWeapon_Skis_ActualContent", class'Class')));
-        ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject("WinterWar.WWWeapon_SVT38_ActualContent", class'Class')));
-        ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject("WinterWar.WWWeapon_TT33_ActualContent", class'Class')));
+        foreach WWToLoad(WeaponName)
+        {
+            if (WeaponName == "") continue;
+            if (InStr(WeaponName, "Vehicle") != -1)
+                ROMI.SharedContentReferences.AddItem(class<ROVehicle>(DynamicLoadObject(WeaponName, class'Class'))); // Load the object
+            else
+                ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject(WeaponName, class'Class'))); // Load the object
+        }
+    }
+    if (bLoadWW2)
+    {
+        foreach WW2ToLoad(WeaponName)
+        {
+            if (WeaponName == "") continue;
+            if (InStr(WeaponName, "Vehicle") != -1)
+                ROMI.SharedContentReferences.AddItem(class<ROVehicle>(DynamicLoadObject(WeaponName, class'Class'))); // Load the object
+            else
+                ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject(WeaponName, class'Class'))); // Load the object
+        }
     }
 }
 

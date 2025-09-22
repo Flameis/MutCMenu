@@ -1,28 +1,16 @@
 class CMenuPCManager extends CMenu;
 
-simulated state MenuVisible
-{
-	function BeginState(name PreviousStateName)
-	{
-        if (bIsAuthorized == false)
-        {
-            MessageSelf("You are not authorized to use this menu.");
-            GoToState('');
-            return;
-        }
-		else
-        {
-            super.BeginState(PreviousStateName);
-        }
-	}
-}
-
 function Initialize()
 {
     local int i;
 
-	super.Initialize();
-    
+    if (bIsAuthorized == false)
+    {
+        MessageSelf("You are not authorized to use this menu.");
+        GoToState('');
+        return;
+    }
+
     MenuName=TargetName;
 
     for (i = 0; i < MenuCommand.Length; i++)
@@ -30,6 +18,8 @@ function Initialize()
         MenuCommand[i] = default.menucommand[i]@TargetName;
         if(bCMenuDebug) `log(MenuCommand[i]);
     }
+
+    super.Initialize();
 }
 
 function bool CheckExceptions(string Command)

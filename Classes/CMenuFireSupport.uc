@@ -2,8 +2,6 @@ class CMenuFireSupport extends CMenu;
 
 function Initialize()
 {
-    super.Initialize();
-
     if (bIsAuthorized)
     {
         MenuText.AddItem("Call Artillery");
@@ -15,6 +13,8 @@ function Initialize()
         MenuText.AddItem("Call Airstrike");
         MenuCommand.AddItem("CALLAIRSTRIKE");
     }
+
+    super.Initialize();
 }
 
 function bool CheckExceptions(string Command)

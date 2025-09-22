@@ -1,24 +1,14 @@
 class CMenuPlayer extends CMenu;
 
-simulated state MenuVisible
-{
-	function BeginState(name PreviousStateName)
-	{
-        if (bIsAuthorized == false)
-        {
-            MessageSelf("You are not authorized to use this menu.");
-            GoToState('');
-            return;
-        }
-		else
-        {
-            super.BeginState(PreviousStateName);
-        }
-	}
-}
-
 function Initialize()
 {
+    if (bIsAuthorized == false)
+    {
+        MessageSelf("You are not authorized to use this menu.");
+        GoToState('');
+        return;
+    }
+
     UpdatePlayerList(); // Do this here because doing it in PostRender() repeats it over & over
 	super.Initialize();
 }

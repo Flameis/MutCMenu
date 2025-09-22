@@ -1,20 +1,15 @@
 class CMenuRealismMatch extends CMenu;
 
-simulated state MenuVisible
+function Initialize()
 {
-	function BeginState(name PreviousStateName)
-	{
-        if (bIsAuthorized == false)
-        {
-            MessageSelf("You are not authorized to use this menu.");
-            GoToState('');
-            return;
-        }
-		else
-        {
-            super.BeginState(PreviousStateName);
-        }
-	}
+    if (bIsAuthorized == false)
+    {
+        MessageSelf("You are not authorized to use this menu.");
+        GoToState('');
+        return;
+    }
+
+	super.Initialize();
 }
 
 function bool CheckExceptions(string Command)
