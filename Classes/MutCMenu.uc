@@ -1,9 +1,9 @@
 // Command Menu Mutator
-// Created by T/5 Scovel for the 29th Infantry Division Realism Unit
+// Created by T/4 Scovel for the 29th Infantry Division Realism Unit
 // =================================================================
-// Version 2.0
+// Version 2.1
 // =================================================================
-// Code tech: T/5 Scovel
+// Code tech: T/4 Scovel
 // =================================================================
 class MutCMenu extends ROMutator
     config(MutCMenu_Server);
@@ -20,11 +20,15 @@ var config bool                 bUseDefaultFactions, bLoadExtras, bLoadGOM3, bLo
 var config array<string>        MutatorAdmins; // A list of all mutator admins and their passwords
 var config array<string>        ExtrasToLoad, GOM3ToLoad, GOM4ToLoad, WWToLoad, WW2ToLoad; // Lists of all the objects to load
 
+// =================================================================
+// Initialization
+// =================================================================
 function PreBeginPlay()
 {
     local Mutator mut;
     super.PreBeginPlay();
 
+    // Clean up duplicate MutCMenu instances
     for (mut = ROGameInfo(WorldInfo.Game).BaseMutator; mut != none; mut = mut.NextMutator)
     {
         if (mut == ROGameInfo(WorldInfo.Game).BaseMutator && InStr(string(mut.name), "MutCMenu",,true) != -1 && mut != self)
@@ -62,6 +66,9 @@ function bool IsMutThere(string Mutator)
     return false;
 }
 
+// =================================================================
+// Login/Logout Handling
+// =================================================================
 simulated function NotifyLogin(Controller NewPlayer)
 {
     local DummyActor DA;
@@ -106,9 +113,9 @@ simulated function NotifyLogout(Controller Exiting)
     super.NotifyLogout(Exiting);
 }
 
-/* Override GameInfo FindPlayerStart() - called by GameInfo.FindPlayerStart()
-if a NavigationPoint is returned, it will be used as the playerstart
-*/
+// =================================================================
+// Player Start Override
+// =================================================================
 function NavigationPoint FindPlayerStart(Controller Player, optional byte InTeam, optional string incomingName)
 {
     local CMASpawn SMS;
@@ -118,6 +125,7 @@ function NavigationPoint FindPlayerStart(Controller Player, optional byte InTeam
     
     ROGI = ROGameInfo(WorldInfo.Game);
 
+    // Check for custom spawn points defined by CMASpawn actors
     foreach AllActors(class'CMASpawn', SMS)
     {
         if (SMS.TeamIndex == Player.GetTeamNum())
@@ -131,7 +139,9 @@ function NavigationPoint FindPlayerStart(Controller Player, optional byte InTeam
     return super.FindPlayerStart(Player, InTeam, incomingName);
 }
 
-// Interprets commands and broadcasts their execution
+// =================================================================
+// Console Commands
+// =================================================================
 simulated function Mutate(string mutateString, PlayerController sender)
 {
     local DummyActor DA, DASender, DAFound;
@@ -145,11 +155,13 @@ simulated function Mutate(string mutateString, PlayerController sender)
 
     // `log("mutateString = "$mutateString);
 
+    // Parse the mutate string into command and parameters
     params = SplitString(mutateString, " to ", false);
     tertiaryparam = params[1];
     params = SplitString(params[0], " ", true);
     command = Caps(params[0]);
 
+    // Reconstruct secondary parameter from remaining parts
     for(i = 1; i < params.Length; i++)
     {
         if(i == 1)
@@ -162,6 +174,7 @@ simulated function Mutate(string mutateString, PlayerController sender)
         }
     }
 
+    // Find the DummyActor for the sender and the target player (if any)
     foreach DummyActors(DA)
     {
         if (DA.Owner == sender)
@@ -331,10 +344,14 @@ simulated function Mutate(string mutateString, PlayerController sender)
     super.Mutate(MutateString, sender);
 }
 
+// =================================================================
+// Menu Visibility
+// =================================================================
 function ToggleCMenuVisiblity(PlayerController PC, string CMenu, optional string TargetName)
 {
     local DummyActor DA, DASender;
 
+    // Find the DummyActor associated with the player
     foreach DummyActors(DA)
     {
         if (DA.Owner == PC)
@@ -346,6 +363,9 @@ function ToggleCMenuVisiblity(PlayerController PC, string CMenu, optional string
     DASender.ToggleCMenuVisiblity(CMenu, IsAuthorized(PC), TargetName);
 }
 
+// =================================================================
+// Admin Management
+// =================================================================
 function LogInAdmin(PlayerController sender, string MyAdminInfo)
 {
     local string PlayerName;
@@ -355,9 +375,12 @@ function LogInAdmin(PlayerController sender, string MyAdminInfo)
     
     PlayerName = sender.PlayerReplicationInfo.PlayerName;
     AlreadyAdmin = False;
+    
+    // Check if the provided password matches any admin password
     foreach MutatorAdmins(AdminInfo)
     if(MyAdminInfo == AdminInfo)
     {
+        // Check if the player is already logged in as admin
         for(i = 0; i < LoggedInMutatorAdmins.Length; i++)
         {
             if(PlayerName == LoggedInMutatorAdmins[i])
@@ -380,6 +403,7 @@ function LogOutAdmin(PlayerController sender)
     
     PlayerName = sender.PlayerReplicationInfo.PlayerName;
     
+    // Rebuild the list of logged-in admins, excluding the logging-out player
     for(i = 0; i < LoggedInMutatorAdmins.Length; i++)
     {
         if(PlayerName != LoggedInMutatorAdmins[i])
@@ -401,6 +425,7 @@ function bool IsAuthorized(PlayerController Sender)
     IsServerAdmin = self.WorldInfo.Game.AccessControl.IsAdmin(Sender);
     
     IsMutatorAdmin = False;
+    // Check if the player is in the list of logged-in mutator admins
     for(i = 0; i < LoggedInMutatorAdmins.Length; i++)
     {
         if(LoggedInMutatorAdmins[i] == PlayerName)
@@ -411,6 +436,9 @@ function bool IsAuthorized(PlayerController Sender)
     return IsServerAdmin || IsMutatorAdmin;
 }
 
+// =================================================================
+// Utility Functions
+// =================================================================
 function bool bIsMutThere(string Mutator)
 {
     local ROGameInfo ROGI;
@@ -420,6 +448,7 @@ function bool bIsMutThere(string Mutator)
 
     mut = ROGI.BaseMutator;
 
+    // Iterate through mutators to find if a specific one is present
     for (mut = ROGI.BaseMutator; mut != none; mut = mut.NextMutator)
     {
         if(InStr(string(mut.name), Mutator,,true) != -1) 
@@ -436,6 +465,7 @@ function ROPlayerController FindPlayer(string PlayerName)
 
     if(PlayerName != "")
     {
+        // Search for a player controller with a matching name
         foreach WorldInfo.AllControllers(class'ROPlayerController', PC)
         {
             if (PC.PlayerReplicationInfo.PlayerName ~= PlayerName)
@@ -448,9 +478,13 @@ function ROPlayerController FindPlayer(string PlayerName)
 
 function PrivateMessage(PlayerController receiver, coerce string msg)
 {
+    // Send a private message to a specific player
     receiver.TeamMessage(None, msg, '');
 }
 
+// =================================================================
+// Weapon Management
+// =================================================================
 function GiveWeapon(PlayerController PC, string WeaponName, optional bool bGiveAll, optional int TeamIndex)
 {
 	local ROInventoryManager        InvManager;
@@ -461,6 +495,7 @@ function GiveWeapon(PlayerController PC, string WeaponName, optional bool bGiveA
     {
         if (bGiveAll)
         { 
+            // Give weapon to all pawns
             foreach worldinfo.allpawns(class'ROPawn', ROP)
             {
                 InvManager = ROInventoryManager(ROP.InvManager);
@@ -474,6 +509,7 @@ function GiveWeapon(PlayerController PC, string WeaponName, optional bool bGiveA
         }   
         else if (TeamIndex == `AXIS_TEAM_INDEX)
         {
+            // Give weapon to all Axis pawns
             foreach worldinfo.allpawns(class'ROPawn', ROP)
             {
                 if (ROP.GetTeamNum() == `AXIS_TEAM_INDEX)
@@ -490,6 +526,7 @@ function GiveWeapon(PlayerController PC, string WeaponName, optional bool bGiveA
         }
         else if (TeamIndex == `ALLIES_TEAM_INDEX)
         {
+            // Give weapon to all Allies pawns
             foreach worldinfo.allpawns(class'ROPawn', ROP)
             {
                 if (ROP.GetTeamNum() == `ALLIES_TEAM_INDEX)
@@ -506,6 +543,7 @@ function GiveWeapon(PlayerController PC, string WeaponName, optional bool bGiveA
         }
         else if (TeamIndex == 100)
         {
+            // Give weapon to the sender
             InvManager = ROInventoryManager(PC.Pawn.InvManager);
 
             ActualName = DoGiveWeapon(PC, InvManager, WeaponName);
@@ -540,10 +578,16 @@ function GiveWeapon(PlayerController PC, string WeaponName, optional bool bGiveA
     }
 }
 
-/*
-function string DoGiveWeapon(PlayerController PC, ROInventoryManager InvManager, string WeaponName)
+// =================================================================
+// Helper: DoGiveWeapon
+// =================================================================
+// Performs the actual weapon giving logic.
+// Checks if the weapon name is valid and if the required content package is loaded.
+// If valid, it attempts to load and create the inventory item for the player.
+// =================================================================
+/* function string DoGiveWeapon(PlayerController PC, ROInventoryManager InvManager, string WeaponName)
 {
-
+    // Check if it's a generic weapon or item path
     if (InStr(WeaponName, "Weap") != -1 || InStr(WeaponName, "Item") != -1)
     {
         InvManager.LoadAndCreateInventory(WeaponName, false, true);
@@ -552,6 +596,7 @@ function string DoGiveWeapon(PlayerController PC, ROInventoryManager InvManager,
     else
         return "false";
 
+    // Check for specific mod content requirements
     if (InStr(WeaponName, "WinterWar") != -1 && !bLoadWW)
     {
         return WeaponName;
@@ -569,6 +614,7 @@ function string DoGiveWeapon(PlayerController PC, ROInventoryManager InvManager,
         return WeaponName;
     }
 
+    // Fallback attempt to load
     InvManager.LoadAndCreateInventory(WeaponName, false, true);
     return "true";
 } */
@@ -582,6 +628,7 @@ function ClearWeapons(PlayerController PC, bool ClearAll, optional int TeamIndex
 
     if (ClearAll)
     { 
+        // Remove weapons from all pawns
         foreach worldinfo.allpawns(class'ROPawn', ROP)
         {
             ROIM = ROInventoryManager(ROP.InvManager);
@@ -595,6 +642,7 @@ function ClearWeapons(PlayerController PC, bool ClearAll, optional int TeamIndex
     }   
     else if (TeamIndex != 100)
     {
+        // Remove weapons from pawns of a specific team
         foreach worldinfo.allpawns(class'ROPawn', ROP)
         {
             if (ROP.GetTeamNum() == TeamIndex)
@@ -611,6 +659,7 @@ function ClearWeapons(PlayerController PC, bool ClearAll, optional int TeamIndex
     }
     else if (TeamIndex == 100)
     {
+        // Remove weapons from the sender
         ROIM = ROInventoryManager(PC.Pawn.InvManager);
         ROIM.GetWeaponList(WeaponsToRemove);
 
@@ -621,6 +670,9 @@ function ClearWeapons(PlayerController PC, bool ClearAll, optional int TeamIndex
     }
 }
 
+// =================================================================
+// Content Loading
+// =================================================================
 function LoadObjects()
 {
     local ROMapInfo               ROMI;
@@ -628,8 +680,10 @@ function LoadObjects()
 
     ROMI = ROMapInfo(WorldInfo.GetMapInfo());
 
+    // Load settings object
     ROMI.SharedContentReferences.AddItem(class<Settings>(DynamicLoadObject("MutCMenuTB.MutCMenuSettings", class'Class')));
 
+    // Load extra content if enabled
     if (bLoadExtras)
     {
         foreach ExtrasToLoad(WeaponName)
@@ -637,10 +691,13 @@ function LoadObjects()
             if (WeaponName == "") continue;
             if (InStr(WeaponName, "Vehicle") != -1)
                 ROMI.SharedContentReferences.AddItem(class<ROVehicle>(DynamicLoadObject(WeaponName, class'Class'))); // Load the object
-            else
+            else if (InStr(WeaponName, "Weap") != -1 || InStr(WeaponName, "Item") != -1)
                 ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject(WeaponName, class'Class'))); // Load the object
+            else
+                ROMI.SharedContentReferences.AddItem(class<Object>(DynamicLoadObject(WeaponName, class'Class'))); // Load the object
         }
     }
+    // Load GOM3 content if enabled
     if (bLoadGOM3)
     {
         foreach GOM3ToLoad(WeaponName)
@@ -648,10 +705,13 @@ function LoadObjects()
             if (WeaponName == "") continue;
             if (InStr(WeaponName, "Vehicle") != -1)
                 ROMI.SharedContentReferences.AddItem(class<ROVehicle>(DynamicLoadObject(WeaponName, class'Class'))); // Load the object
-            else
+            else if (InStr(WeaponName, "Weap") != -1 || InStr(WeaponName, "Item") != -1)
                 ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject(WeaponName, class'Class'))); // Load the object
+            else
+                ROMI.SharedContentReferences.AddItem(class<Object>(DynamicLoadObject(WeaponName, class'Class'))); // Load the object
         }
     }
+    // Load GOM4 content if enabled
     if (bLoadGOM4)
     {
         foreach GOM4ToLoad(WeaponName)
@@ -659,10 +719,13 @@ function LoadObjects()
             if (WeaponName == "") continue;
             if (InStr(WeaponName, "Vehicle") != -1)
                 ROMI.SharedContentReferences.AddItem(class<ROVehicle>(DynamicLoadObject(WeaponName, class'Class'))); // Load the object
-            else
+            else if (InStr(WeaponName, "Weap") != -1 || InStr(WeaponName, "Item") != -1)
                 ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject(WeaponName, class'Class'))); // Load the object
+            else
+                ROMI.SharedContentReferences.AddItem(class<Object>(DynamicLoadObject(WeaponName, class'Class'))); // Load the object
         }
     }
+    // Load Winter War content if enabled
     if (bLoadWW)
     {
         foreach WWToLoad(WeaponName)
@@ -670,10 +733,13 @@ function LoadObjects()
             if (WeaponName == "") continue;
             if (InStr(WeaponName, "Vehicle") != -1)
                 ROMI.SharedContentReferences.AddItem(class<ROVehicle>(DynamicLoadObject(WeaponName, class'Class'))); // Load the object
-            else
+            else if (InStr(WeaponName, "Weap") != -1 || InStr(WeaponName, "Item") != -1)
                 ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject(WeaponName, class'Class'))); // Load the object
+            else
+                ROMI.SharedContentReferences.AddItem(class<Object>(DynamicLoadObject(WeaponName, class'Class'))); // Load the object
         }
     }
+    // Load WW2 content if enabled
     if (bLoadWW2)
     {
         foreach WW2ToLoad(WeaponName)
@@ -681,8 +747,11 @@ function LoadObjects()
             if (WeaponName == "") continue;
             if (InStr(WeaponName, "Vehicle") != -1)
                 ROMI.SharedContentReferences.AddItem(class<ROVehicle>(DynamicLoadObject(WeaponName, class'Class'))); // Load the object
-            else
+            else if (InStr(WeaponName, "Weap") != -1 || InStr(WeaponName, "Item") != -1)
                 ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject(WeaponName, class'Class'))); // Load the object
+            else
+                ROMI.SharedContentReferences.AddItem(class<Object>(DynamicLoadObject(WeaponName, class'Class'))); // Load the object
+            
         }
     }
 }
