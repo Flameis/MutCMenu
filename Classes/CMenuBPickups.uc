@@ -49,7 +49,7 @@ function bool CheckExceptions(string Command)
             }
             else if (InStr(string(PC.Pawn.Weapon), "AC",,true) != -1)
             {
-                WeaponPackage = "MutExtrasTB.";
+                WeaponPackage = "MutExtras.";
             }
             else if (InStr(string(PC.Pawn.Weapon), "GM",,true) != -1)
             {

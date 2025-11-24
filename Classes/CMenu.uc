@@ -268,9 +268,9 @@ function bool CheckMutsLoaded(string StrToCheck)
 		MessageSelf("GOM4 is not loaded");
 		return false;
 	}
-	else if (InStr(StrToCheck, "MutExtrasTB",,true) != -1 && !MyDA.bLoadExtras)
+	else if (InStr(StrToCheck, "MutExtras",,true) != -1 && !MyDA.bLoadExtras)
 	{
-		MessageSelf("MutExtrasTB is not loaded");
+		MessageSelf("MutExtras is not loaded");
 		return false;
 	}
 	else if (InStr(StrToCheck, "WW2",,true) != -1 && !MyDA.bLoadWW2)

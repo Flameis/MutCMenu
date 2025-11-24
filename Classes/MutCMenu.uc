@@ -681,7 +681,7 @@ function LoadObjects()
     ROMI = ROMapInfo(WorldInfo.GetMapInfo());
 
     // Load settings object
-    ROMI.SharedContentReferences.AddItem(class<Settings>(DynamicLoadObject("MutCMenuTB.MutCMenuSettings", class'Class')));
+    ROMI.SharedContentReferences.AddItem(class<Settings>(DynamicLoadObject("MutCMenu.MutCMenuSettings", class'Class')));
 
     // Load extra content if enabled
     if (bLoadExtras)

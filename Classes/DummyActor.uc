@@ -386,7 +386,7 @@ unreliable server function ClearAllActors()
     local DummyActor DA;
 
     SpawnLocation.z = SpawnLocation.z + 200;
-	ObjTemplate = CMAObjective(DynamicLoadObject("MutCMenuTBPkg.Objectives.OBJ"$MyMut.NumObjs+1, class'CMAObjective'));
+	ObjTemplate = CMAObjective(DynamicLoadObject("MutCMenuPkg.Objectives.OBJ"$MyMut.NumObjs+1, class'CMAObjective'));
 	MyMut.NumObjs++;
     `log(ObjTemplate);
 	CMPO = Spawn(class'CMAObjective',, SpawnTag, SpawnLocation, SpawnRotation, ObjTemplate);
