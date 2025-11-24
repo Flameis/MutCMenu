@@ -20,6 +20,14 @@ var config bool                 bUseDefaultFactions, bLoadExtras, bLoadGOM3, bLo
 var config array<string>        MutatorAdmins; // A list of all mutator admins and their passwords
 var config array<string>        ExtrasToLoad, GOM3ToLoad, GOM4ToLoad, WWToLoad, WW2ToLoad; // Lists of all the objects to load
 
+struct WeaponMapping
+{
+    var string FriendlyName;
+    var string ClassPath;
+};
+
+var config array<WeaponMapping> WeaponMappings;
+
 // =================================================================
 // Initialization
 // =================================================================
@@ -50,20 +58,6 @@ auto state StartUp
 {
     Begin:
     SetTimer(1, false, 'LoadObjects');
-}
-
-function bool IsMutThere(string Mutator)
-{
-	local Mutator mut;
-
-    for (mut = ROGameInfo(WorldInfo.Game).BaseMutator; mut != none; mut = mut.NextMutator)
-    {
-        if(InStr(string(mut.name), Mutator,,true) != -1) 
-        {
-            return true;
-        }
-    }
-    return false;
 }
 
 // =================================================================
@@ -439,26 +433,6 @@ function bool IsAuthorized(PlayerController Sender)
 // =================================================================
 // Utility Functions
 // =================================================================
-function bool bIsMutThere(string Mutator)
-{
-    local ROGameInfo ROGI;
-	local Mutator mut;
-
-    ROGI = ROGameInfo(WorldInfo.Game);
-
-    mut = ROGI.BaseMutator;
-
-    // Iterate through mutators to find if a specific one is present
-    for (mut = ROGI.BaseMutator; mut != none; mut = mut.NextMutator)
-    {
-        if(InStr(string(mut.name), Mutator,,true) != -1) 
-        {
-            return true;
-        }
-    }
-    return false;
-}
-
 function ROPlayerController FindPlayer(string PlayerName)
 {
     local ROPlayerController PC;
@@ -585,39 +559,65 @@ function GiveWeapon(PlayerController PC, string WeaponName, optional bool bGiveA
 // Checks if the weapon name is valid and if the required content package is loaded.
 // If valid, it attempts to load and create the inventory item for the player.
 // =================================================================
-/* function string DoGiveWeapon(PlayerController PC, ROInventoryManager InvManager, string WeaponName)
+function string DoGiveWeapon(PlayerController PC, ROInventoryManager InvManager, string WeaponName)
 {
-    // Check if it's a generic weapon or item path
-    if (InStr(WeaponName, "Weap") != -1 || InStr(WeaponName, "Item") != -1)
+    local string ActualName;
+    local int i;
+    local bool bFound;
+
+    ActualName = WeaponName;
+    bFound = false;
+
+    // Search in config array for friendly name match
+    for (i = 0; i < WeaponMappings.Length; i++)
     {
-        InvManager.LoadAndCreateInventory(WeaponName, false, true);
-        return "true";
+        if (WeaponMappings[i].FriendlyName ~= WeaponName)
+        {
+            ActualName = WeaponMappings[i].ClassPath;
+            bFound = true;
+            break;
+        }
     }
-    else
-        return "false";
+
+    // If not found in mappings, check if it is already a valid path
+    if (!bFound)
+    {
+        if (InStr(WeaponName, "Weap") != -1 || InStr(WeaponName, "Item") != -1)
+        {
+             ActualName = WeaponName;
+        }
+        else
+        {
+             return "false";
+        }
+    }
 
     // Check for specific mod content requirements
-    if (InStr(WeaponName, "WinterWar") != -1 && !bLoadWW)
+    if (InStr(ActualName, "WinterWar") != -1 && !bLoadWW)
     {
-        return WeaponName;
+        return ActualName;
     }
-    else if (InStr(WeaponName, "GOM4") != -1 && !bLoadGOM4)
+    else if (InStr(ActualName, "GOM4") != -1 && !bLoadGOM4)
     {
-        return WeaponName;
+        return ActualName;
     }
-    else if (InStr(WeaponName, "GOM3") != -1 && !bLoadGOM3)
+    else if (InStr(ActualName, "GOM3") != -1 && !bLoadGOM3)
     {
-        return WeaponName;
+        return ActualName;
     }
-    else if (InStr(WeaponName, "WW2") != -1 && !bLoadWW2)
+    else if (InStr(ActualName, "WW2") != -1 && !bLoadWW2)
     {
-        return WeaponName;
+        return ActualName;
+    }
+    else if (InStr(ActualName, "AC") != -1 && !bLoadExtras)
+    {
+        return ActualName;
     }
 
-    // Fallback attempt to load
-    InvManager.LoadAndCreateInventory(WeaponName, false, true);
+    // Attempt to load
+    InvManager.LoadAndCreateInventory(ActualName, false, true);
     return "true";
-} */
+}
 
 function ClearWeapons(PlayerController PC, bool ClearAll, optional int TeamIndex)
 {
@@ -755,8 +755,6 @@ function LoadObjects()
         }
     }
 }
-
-`include(MutCMenuTB\Classes\WeaponNames.uci)
 
 defaultproperties
 {
