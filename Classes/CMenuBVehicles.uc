@@ -4,6 +4,12 @@ function Initialize()
 {
     local class<ROVehicle>          VehicleClass;
 
+    if (bIsAuthorized)
+    {
+        MenuText.InsertItem(4, "Clear All Vehicles");
+        MenuCommand.InsertItem(4, "CLEARVICS");
+    }
+
     super.Initialize();
 
     LastCmd = TargetName;
@@ -34,8 +40,18 @@ function bool CheckExceptions(string Command)
             GoToState('ReadyToPlace',, true);
             return true;
 
-        case "CLEARALLVICS":
-            MyDa.ClearAllVehicles();
+        case "ENTERVEHICLE":
+            MyDA.EnterVehicle();
+            MessageSelf("You have entered the vehicle.");
+            return true;
+
+        case "DELETEVEHICLE":
+            // MyDA.DeleteVehicle();
+            MessageSelf("The vehicle has been deleted.");
+            return true;
+
+        case "CLEARVICS":
+            MyDA.ClearAllVehicles();
             MessageSelf("All vehicles have been cleared.");
             return true;
     }
@@ -65,8 +81,9 @@ defaultproperties
 {
     MenuName="VEHICLES"
 
+    MenuText.add("Enter Vehicle")
+    MenuText.add("Delete Vehicle")
     MenuText.add("Custom")
-    MenuText.add("Clear All Vehicles")
     MenuText.add("Cobra")
     MenuText.add("Loach")
     MenuText.add("Huey")
@@ -114,8 +131,9 @@ defaultproperties
     MenuText.add("WW2 Valentine")
     MenuText.add("WW2 Willys")
 
+    MenuCommand.add("ENTERVEHICLE")
+    MenuCommand.add("DELETEVEHICLE")
     MenuCommand.add("CUSTOM")
-    MenuCommand.add("CLEARALLVICS")
     MenuCommand.add("ROGameContent.ROHeli_AH1G_Content")
     MenuCommand.add("ROGameContent.ROHeli_OH6_Content")
     MenuCommand.add("ROGameContent.ROHeli_UH1H_Content")

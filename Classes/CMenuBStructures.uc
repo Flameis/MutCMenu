@@ -12,7 +12,7 @@ function Initialize()
     if (bIsAuthorized)
     {
         MenuText.additem("Clear All Meshes");
-        MenuCommand.additem("CLEARCMAStaticMesh");
+        MenuCommand.additem("CLEARMESH");
     }
 
 	super.Initialize();
@@ -45,7 +45,7 @@ function bool CheckExceptions(string Command)
             GoToState('ReadyToPlace',, true);
             return true;
 
-        case "CLEARCMAStaticMesh": 
+        case "CLEARMESH": 
             GarbageCollection();
             ClearSelectedMeshes();
             MyDA.ClearAllMeshes();

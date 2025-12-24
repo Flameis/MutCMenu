@@ -69,7 +69,7 @@ function bool CheckExceptions(string Command)
 
             FullWepPath = WeaponPackage $ Repl(string(PC.Pawn.Weapon), Right(string(PC.Pawn.Weapon), 2), "", false);
 
-            MessageSelf("Weapon Copied to ClipboardL: " $ FullWepPath);
+            MessageSelf("Weapon Copied to Clipboard: " $ FullWepPath);
             PC.CopyToClipboard(FullWepPath);
             return true;
     }

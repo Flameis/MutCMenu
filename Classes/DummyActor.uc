@@ -137,13 +137,13 @@ simulated function FactionSetup(ENorthernForces MyNorthForce, ESouthernForces My
 
     if( MyNorthForce < 2 )
 	{
-		ROMI.NorthernForce = ENorthernForces(MyNorthForce);
+		ROMI.NorthernForce = MyNorthForce;
 		CMGameReplicationInfo(WorldInfo.GRI).CampaignFactionOverrides[0] = MyNorthForce;
 	}
 
 	if( MySouthForce < 4 )
 	{
-		ROMI.SouthernForce = ESouthernForces(MySouthForce);
+		ROMI.SouthernForce = MySouthForce;
 		CMGameReplicationInfo(WorldInfo.GRI).CampaignFactionOverrides[1] = MySouthForce;
 	}
 
@@ -257,6 +257,55 @@ unreliable server function SpawnVehicle(string VehicleName, vector PlaceLoc, rot
             ROV.TryToDrive(ROP);
         }
     }
+}
+
+unreliable server function EnterVehicle()
+{
+    local ROVehicle                 ROV;
+    local PlayerController          PC;
+    local Pawn                      P;
+    local vector                    ViewDirection, StartTrace, EndTrace, HitLocation, HitNormal;
+    local rotator                   PRot;
+    local actor                     TracedActor;
+    local bool                      bEnteredVehicle;
+    local float                     TraceLength;
+
+    PC = PlayerController(Owner);
+
+    PC.GetPlayerViewPoint(StartTrace, PRot);
+    ViewDirection = Vector(PC.Pawn.GetViewRotation());
+    TraceLength = 2000;
+    EndTrace = StartTrace + ViewDirection * TraceLength;
+
+    P = PC.Pawn;
+
+    // Trace for nearest vehicle
+	TracedActor = PC.trace(HitLocation, HitNormal, EndTrace, StartTrace, true);
+
+    ROV = ROVehicle(TracedActor);
+
+    if (ROV == none)
+    {
+        return;
+    }
+
+    if (!ROV.bIsDisabled && (!ROV.bTeamLocked || !WorldInfo.Game.bTeamGame || WorldInfo.GRI.OnSameTeam(self, P)))
+	{
+
+		if( !ROV.AnySeatAvailable() )
+		{
+			return;
+		}
+
+		bEnteredVehicle = (ROV.Driver == None) ? ROV.DriverEnter(P) : ROV.PassengerEnter(P, ROV.GetFirstAvailableSeat());
+
+		if( bEnteredVehicle )
+		{
+			ROV.SetTexturesToBeResident( true );
+		}
+
+		return;
+	}
 }
 
 reliable server function ClearAllVehicles()
