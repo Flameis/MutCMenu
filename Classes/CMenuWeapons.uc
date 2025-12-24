@@ -24,7 +24,7 @@ function Initialize()
 
 function bool CheckExceptions(string Command)
 {
-    local string WeaponPackage, FullWepPath;
+    local string WeaponPath;
 
     switch (Caps(Command))
     {
@@ -42,35 +42,10 @@ function bool CheckExceptions(string Command)
             return true;
 
         case "COPY":
-            if (InStr(string(PC.Pawn.Weapon), "RO",,true) != -1)
-            {
-                WeaponPackage = "ROGameContent.";
-            }
-            else if (InStr(string(PC.Pawn.Weapon), "GOM",,true) != -1)
-            {
-                WeaponPackage = "GOM4.";
-            }
-            else if (InStr(string(PC.Pawn.Weapon), "WW",,true) != -1)
-            {
-                WeaponPackage = "WinterWar.";
-            }
-            else if (InStr(string(PC.Pawn.Weapon), "AC",,true) != -1)
-            {
-                WeaponPackage = "MutExtras.";
-            }
-            else if (InStr(string(PC.Pawn.Weapon), "GM",,true) != -1)
-            {
-                WeaponPackage = "GreenMenMod.";
-            }
-            else if (InStr(string(PC.Pawn.Weapon), "BO",,true) != -1)
-            {
-                WeaponPackage = "BlackOrchestra.";
-            }
+            WeaponPath = PathName(PC.Pawn.Weapon);
+            PC.CopyToClipboard(WeaponPath);
 
-            FullWepPath = WeaponPackage $ Repl(string(PC.Pawn.Weapon), Right(string(PC.Pawn.Weapon), 2), "", false);
-
-            MessageSelf("Weapon Copied to Clipboard: " $ FullWepPath);
-            PC.CopyToClipboard(FullWepPath);
+            MessageSelf("Weapon Copied to Clipboard: " $ WeaponPath);
             return true;
     }
     return false;

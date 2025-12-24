@@ -4,11 +4,22 @@ function Initialize()
 {
     local class<ROVehicle>          VehicleClass;
 
+    MessageSelf("Mods enabled: " $
+        (MyDA.bLoadGOM3 ? "GOM3 " : "") $
+        (MyDA.bLoadGOM4 ? "GOM4 " : "") $
+        (MyDA.bLoadExtras ? "MutExtras " : "") $
+        (MyDA.bLoadWW ? "WW " : "") $
+        (MyDA.bLoadWW2 ? "WW2 " : "")
+    );
+    MessageSelf("Enable the desired mod in the CMenu webadmin mutator settings to spawn vehicles.");
+
     if (bIsAuthorized)
     {
         MenuText.InsertItem(4, "Clear All Vehicles");
         MenuCommand.InsertItem(4, "CLEARVICS");
     }
+
+    AddModOptions();
 
     super.Initialize();
 
@@ -77,6 +88,111 @@ function DoPlace()
 	MyDA.SpawnVehicle(LastCmd, PlaceLoc, PlaceRot);
 }
 
+function AddModOptions()
+{
+    if (MyDA.bLoadWW2)
+    {
+        MenuText.additem("WW2 WW Skis");
+        MenuText.additem("WW2 Churchill Mk VII");
+        MenuText.additem("WW2 Crusader Mk III");
+        MenuText.additem("WW2 Ha-Go");
+        MenuText.additem("WW2 Kubelwagen");
+        MenuText.additem("WW2 Panzer III");
+        MenuText.additem("WW2 Panzer IV F2");
+        MenuText.additem("WW2 SdKfz 222 Recon");
+
+        MenuText.additem("WW2 SdKfz 251 Halftrack");
+        MenuText.additem("WW2 Semovente");
+        MenuText.additem("WW2 Sherman III");
+        MenuText.additem("WW2 Stuart M3");
+        MenuText.additem("WW2 Stug III G");
+        MenuText.additem("WW2 T-34");
+        MenuText.additem("WW2 T-70");
+        MenuText.additem("WW2 UC Bren");
+
+        MenuText.additem("WW2 UC");
+        MenuText.additem("WW2 Valentine");
+        MenuText.additem("WW2 Willys");
+
+        MenuCommand.additem("WW2.WW2Vehicle_ChurchillMkVII_Content");
+        MenuCommand.additem("WW2.WW2Vehicle_CrusaderMkIII_Content");
+        MenuCommand.additem("WW2.WW2Vehicle_HaGo_Content");
+        MenuCommand.additem("WW2.WW2Vehicle_Kubelwagen_Content");
+        MenuCommand.additem("WW2.WW2Vehicle_PanzerIII_Content");
+        MenuCommand.additem("WW2.WW2Vehicle_PanzerIVF_Content");
+        MenuCommand.additem("WW2.WW2Vehicle_SdKfz_222_Recon_Content");
+
+        MenuCommand.additem("WW2.WW2Vehicle_SdKfz_251_Halftrack_Content");
+        MenuCommand.additem("WW2.WW2Vehicle_Semovente_Content");
+        MenuCommand.additem("WW2.WW2Vehicle_ShermanIII_Content");
+        MenuCommand.additem("WW2.WW2Vehicle_StuartM3_Content");
+        MenuCommand.additem("WW2.WW2Vehicle_StugIIIG_Content");
+        MenuCommand.additem("WW2.WW2Vehicle_T34_Content");
+        MenuCommand.additem("WW2.WW2Vehicle_T70_Content");
+        MenuCommand.additem("WW2.WW2Vehicle_UC_Bren_Content");
+
+        MenuCommand.additem("WW2.WW2Vehicle_UC_Content");
+        MenuCommand.additem("WW2.WW2Vehicle_Valentine_Content");
+        MenuCommand.additem("WW2.WW2Vehicle_Willys_Content");
+    }
+
+    if (MyDA.bLoadWW)
+    {
+        MenuText.additem("WW T20");
+        MenuText.additem("WW T26");
+        MenuText.additem("WW T28");
+        MenuText.additem("WW HT130");
+        MenuText.additem("WW ATGun");
+        MenuText.additem("WW Vickers");
+
+        MenuText.additem("WW Skis");
+
+        MenuCommand.additem("WinterWar.WWVehicle_T20_ActualContent");
+        MenuCommand.additem("WinterWar.WWVehicle_T26_EarlyWar_ActualContent");
+        MenuCommand.additem("WinterWar.WWVehicle_T28_ActualContent");
+        MenuCommand.additem("WinterWar.WWVehicle_HT130_ActualContent");
+        MenuCommand.additem("WinterWar.WWVehicle_53K_ActualContent");
+        MenuCommand.additem("WinterWar.WWVehicle_Vickers_ActualContent");
+
+        MenuCommand.additem("WinterWar.WWVehicle_Skis_ActualContent");
+    }
+
+    if (MyDA.bLoadGOM3)
+    {
+        MenuText.additem("GOM3 M113 ACAV");
+
+        MenuCommand.additem("GOM3.GOMVehicle_M113_ACAV_ActualContent");
+    }
+
+    if (MyDA.bLoadGOM4)
+    {
+        MenuText.additem("GOM4 MUTT");
+        MenuText.additem("GOM4 T34");
+
+        MenuText.additem("GOM4 M113 ARVN");
+        MenuText.additem("GOM4 T54");
+
+        MenuCommand.additem("GOM4.GOMVehicle_M151_MUTT_US");
+        MenuCommand.additem("GOM4.GOMVehicle_T34_ActualContent");
+
+        MenuCommand.additem("GOM4.GOMVehicle_M113_APC_ARVN");
+        MenuCommand.additem("GOM4.GOMVehicle_T54_ActualContent");
+    }
+
+    if (MyDA.bLoadExtras)
+    {
+        MenuText.additem("MutExtras AC Cobra");
+        MenuText.additem("MutExtras AC Loach");
+        MenuText.additem("MutExtras AC Huey");
+        MenuText.additem("MutExtras AC Bushranger");
+
+        MenuCommand.additem("MutExtras.ACHeli_AH1G_Content");
+        MenuCommand.additem("MutExtras.ACHeli_OH6_Content");
+        MenuCommand.additem("MutExtras.ACHeli_UH1H_Content");
+        MenuCommand.additem("MutExtras.ACHeli_UH1H_Gunship_Content");
+    }
+}
+
 defaultproperties
 {
     MenuName="VEHICLES"
@@ -88,48 +204,10 @@ defaultproperties
     MenuText.add("Loach")
     MenuText.add("Huey")
     MenuText.add("Bushranger")
-    MenuText.add("ACCobra")
-    MenuText.add("ACLoach")
 
-    MenuText.add("ACHuey")
-    MenuText.add("ACBushranger")
     MenuText.add("BlueHuey")
     MenuText.add("GreenHuey")
     MenuText.add("GreenBushranger")
-    MenuText.add("GOM3 M113 ACAV")
-    MenuText.add("GOM4 MUTT")
-    MenuText.add("GOM4 T34")
-
-    MenuText.add("GOM4 M113 ARVN")
-    MenuText.add("GOM4 T54")
-    MenuText.add("WW T20")
-    MenuText.add("WW T26")
-    MenuText.add("WW T28")
-    MenuText.add("WW HT130")
-    MenuText.add("WW ATGun")
-    MenuText.add("WW Vickers")
-
-    MenuText.add("WW2 WW Skis")
-    MenuText.add("WW2 Churchill Mk VII")
-    MenuText.add("WW2 Crusader Mk III")
-    MenuText.add("WW2 Ha-Go")
-    MenuText.add("WW2 Kubelwagen")
-    MenuText.add("WW2 Panzer III")
-    MenuText.add("WW2 Panzer IV F2")
-    MenuText.add("WW2 SdKfz 222 Recon")
-
-    MenuText.add("WW2 SdKfz 251 Halftrack")
-    MenuText.add("WW2 Semovente")
-    MenuText.add("WW2 Sherman III")
-    MenuText.add("WW2 Stuart M3")
-    MenuText.add("WW2 Stug III G")
-    MenuText.add("WW2 T-34")
-    MenuText.add("WW2 T-70")
-    MenuText.add("WW2 UC Bren")
-
-    MenuText.add("WW2 UC")
-    MenuText.add("WW2 Valentine")
-    MenuText.add("WW2 Willys")
 
     MenuCommand.add("ENTERVEHICLE")
     MenuCommand.add("DELETEVEHICLE")
@@ -138,47 +216,8 @@ defaultproperties
     MenuCommand.add("ROGameContent.ROHeli_OH6_Content")
     MenuCommand.add("ROGameContent.ROHeli_UH1H_Content")
     MenuCommand.add("ROGameContent.ROHeli_UH1H_Gunship_Content")
-    MenuCommand.add("MutExtras.ACHeli_AH1G_Content")
-    MenuCommand.add("MutExtras.ACHeli_OH6_Content")
 
-    MenuCommand.add("MutExtras.ACHeli_UH1H_Content")
-    MenuCommand.add("MutExtras.ACHeli_UH1H_Gunship_Content")
     MenuCommand.add("GreenMenMod.GMHeli_Blue_UH1H")
     MenuCommand.add("GreenMenMod.GMHeli_Green_UH1H")
     MenuCommand.add("GreenMenMod.GMHeli_Green_UH1H_Gunship_Content")
-    MenuCommand.add("GOM3.GOMVehicle_M113_ACAV_ActualContent")
-    MenuCommand.add("GOM4.GOMVehicle_M151_MUTT_US")
-    MenuCommand.add("GOM4.GOMVehicle_T34_ActualContent")
-    
-    MenuCommand.add("GOM4.GOMVehicle_M113_APC_ARVN")
-    MenuCommand.add("GOM4.GOMVehicle_T54_ActualContent")
-    MenuCommand.add("WinterWar.WWVehicle_T20_ActualContent")
-    MenuCommand.add("WinterWar.WWVehicle_T26_EarlyWar_ActualContent")
-    MenuCommand.add("WinterWar.WWVehicle_T28_ActualContent")
-    MenuCommand.add("WinterWar.WWVehicle_HT130_ActualContent")
-    MenuCommand.add("WinterWar.WWVehicle_53K_ActualContent")
-    MenuCommand.add("WinterWar.WWVehicle_Vickers_ActualContent")
-
-    MenuCommand.add("WinterWar.WWVehicle_Skis_ActualContent")
-    MenuCommand.add("WW2.WW2Vehicle_ChurchillMkVII_Content")
-    MenuCommand.add("WW2.WW2Vehicle_CrusaderMkIII_Content")
-    MenuCommand.add("WW2.WW2Vehicle_HaGo_Content")
-    MenuCommand.add("WW2.WW2Vehicle_Kubelwagen_Content")
-    MenuCommand.add("WW2.WW2Vehicle_PanzerIII_Content")
-    MenuCommand.add("WW2.WW2Vehicle_PanzerIVF_Content")
-    MenuCommand.add("WW2.WW2Vehicle_SdKfz_222_Recon_Content")
-
-    MenuCommand.add("WW2.WW2Vehicle_SdKfz_251_Halftrack_Content")
-    MenuCommand.add("WW2.WW2Vehicle_Semovente_Content")
-    MenuCommand.add("WW2.WW2Vehicle_ShermanIII_Content")
-    MenuCommand.add("WW2.WW2Vehicle_StuartM3_Content")
-    MenuCommand.add("WW2.WW2Vehicle_StugIIIG_Content")
-    MenuCommand.add("WW2.WW2Vehicle_T34_Content")
-    MenuCommand.add("WW2.WW2Vehicle_T70_Content")
-    MenuCommand.add("WW2.WW2Vehicle_UC_Bren_Content")
-
-    MenuCommand.add("WW2.WW2Vehicle_UC_Content")
-    MenuCommand.add("WW2.WW2Vehicle_Valentine_Content")
-    MenuCommand.add("WW2.WW2Vehicle_Willys_Content")
-
 }
