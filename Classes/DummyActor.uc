@@ -7,10 +7,128 @@ var string TargetName;
 
 var array<vector2d>				Corners;
 
+// WW2 Tank compatibility - stores original ClassIndex when temporarily modifying for vehicle entry
+var byte OriginalClassIndex;
+var bool bInWW2TankEntryCheck;
+var float WW2TankCheckTimer;
+
 replication
 {
     if (bNetDirty)
-        bIsAuthorized, bNewTankPhys, bLoadExtras, bLoadGOM3, bLoadGOM4, bLoadWW, bLoadWW2;
+        bIsAuthorized, bNewTankPhys, bLoadExtras, bLoadGOM3, bLoadGOM4, bLoadWW, bLoadWW2, OriginalClassIndex, bInWW2TankEntryCheck;
+}
+
+simulated event Tick(float DeltaTime)
+{
+    local ROPlayerController ROPC;
+    local ROPlayerReplicationInfo ROPRI;
+    local ROVehicle TargetVehicle;
+    local vector ViewLocation, HitLocation, HitNormal, TraceEnd, ViewDirection;
+    local rotator ViewRotation;
+    local actor TracedActor;
+    local float TraceLength;
+    
+    super.Tick(DeltaTime);
+    
+    // Only run on client for local player
+    if (WorldInfo.NetMode == NM_DedicatedServer || Owner == none)
+    {
+        // `log("[DummyActor] Tick: Skipping (DedicatedServer or no Owner)");
+        return;
+    }
+    
+    // Only check once per second
+    WW2TankCheckTimer += DeltaTime;
+    if (WW2TankCheckTimer < 1.0)
+    {
+        return;
+    }
+    WW2TankCheckTimer = 0.0;
+    
+    ROPC = ROPlayerController(Owner);
+    if (ROPC == none || ROPC.Pawn == none)
+    {
+        // `log("[DummyActor] Tick: No ROPC or Pawn");
+        return;
+    }
+    
+    ROPRI = ROPlayerReplicationInfo(ROPC.PlayerReplicationInfo);
+    if (ROPRI == none || ROPRI.RoleInfo == none)
+    {
+        // `log("[DummyActor] Tick: No ROPRI or RoleInfo");
+        return;
+    }
+    
+    // Check if player has a tank crew role (ClassIndex 8 or 9, or bIsTankCommander flag)
+    // Use OriginalClassIndex if we've temporarily modified it, otherwise use current ClassIndex
+    if ((bInWW2TankEntryCheck ? OriginalClassIndex : ROPRI.RoleInfo.ClassIndex) != 8 || !ROPRI.RoleInfo.bIsTankCommander)
+    {
+        // Restore original ClassIndex if we modified it
+        if (bInWW2TankEntryCheck)
+        {
+            `log("[DummyActor] Tick: Restoring ClassIndex from"@ROPRI.RoleInfo.ClassIndex@"to"@OriginalClassIndex@"(not tank crew)");
+            ROPRI.RoleInfo.ClassIndex = OriginalClassIndex;
+            bInWW2TankEntryCheck = false;
+        }
+        return;
+    }
+    
+    // Find WW2/WW tank the player is looking at or trying to enter
+    ROPC.GetPlayerViewPoint(ViewLocation, ViewRotation);
+    ViewDirection = Vector(ROPC.Pawn.GetViewRotation());
+    TraceLength = 2000;
+    TraceEnd = ViewLocation + ViewDirection * TraceLength;
+    TracedActor = ROPC.Trace(HitLocation, HitNormal, TraceEnd, ViewLocation, true);
+    TargetVehicle = ROVehicle(TracedActor);
+
+    `log("[DummyActor] Tick: Checking for WW2/WW tank. Looking at:"@TargetVehicle);
+    
+    // Check if this is a WW2 or Winter War tank
+    if (TargetVehicle != none && 
+        (InStr(string(TargetVehicle.Class.Name), "WW2", , true) != -1 || 
+         InStr(string(TargetVehicle.Class.Outer.Name), "WW2", , true) != -1))
+    {
+        `log("[DummyActor] Tick: Looking at WW2/WW tank:"@TargetVehicle);
+        // Temporarily set ClassIndex to 9 to pass WW2 vehicle entry check
+        if (!bInWW2TankEntryCheck)
+        {
+            `log("[DummyActor] Tick: Setting ClassIndex to 9 (was"@ROPRI.RoleInfo.ClassIndex$")");
+            OriginalClassIndex = ROPRI.RoleInfo.ClassIndex;
+            bInWW2TankEntryCheck = true;
+        }
+        ROPRI.RoleInfo.ClassIndex = 9;
+    }
+    else
+    {
+        // Restore original ClassIndex when not near WW2 tanks
+        if (bInWW2TankEntryCheck)
+        {
+            `log("[DummyActor] Tick: Restoring ClassIndex to"@OriginalClassIndex@"(no longer looking at WW2/WW tank)");
+            ROPRI.RoleInfo.ClassIndex = OriginalClassIndex;
+            bInWW2TankEntryCheck = false;
+        }
+    }
+    
+    /* // Also check if player is already in a WW2 tank (for seat switching)
+    if (ROPC.Pawn.IsA('ROVehicle'))
+    {
+        TargetVehicle = ROVehicle(ROPC.Pawn);
+        if (TargetVehicle != none && 
+            (InStr(string(TargetVehicle.Class.Name), "WW2", , true) != -1 || 
+             InStr(string(TargetVehicle.Class.Outer.Name), "WW2", , true) != -1 ||
+             InStr(string(TargetVehicle.Class.Name), "WW", , true) != -1 ||
+             InStr(string(TargetVehicle.Class.Outer.Name), "WinterWar", , true) != -1))
+        {
+            `log("[DummyActor] Tick: Player is inside WW2/WW tank:"@TargetVehicle);
+            if (!bInWW2TankEntryCheck)
+            {
+                `log("[DummyActor] Tick: Setting ClassIndex to 9 for seat switching (was"@ROPRI.RoleInfo.ClassIndex$")");
+                OriginalClassIndex = ROPRI.RoleInfo.ClassIndex;
+                bInWW2TankEntryCheck = true;
+            }
+            ROPRI.RoleInfo.ClassIndex = 9;
+        }
+    } */
 }
 
 reliable client function CMenuSetup()
