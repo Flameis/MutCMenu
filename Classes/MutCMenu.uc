@@ -463,7 +463,7 @@ function GiveWeapon(PlayerController PC, string WeaponName, optional bool bGiveA
 {
 	local ROInventoryManager        InvManager;
     local ROPawn                    ROP;
-    local string                    ActualName;
+    local string                    bSuccess;
 
     if (PC != none)
     {
@@ -474,11 +474,11 @@ function GiveWeapon(PlayerController PC, string WeaponName, optional bool bGiveA
             {
                 InvManager = ROInventoryManager(ROP.InvManager);
 
-                ActualName = DoGiveWeapon(PC, InvManager, WeaponName);
-                if (ActualName != "true")
+                bSuccess = DoGiveWeapon(PC, InvManager, WeaponName);
+                if (!bSuccess)
                     break;
             }
-            if (ActualName == "true")
+            if (bSuccess)
                 WorldInfo.Game.Broadcast(self, "[CMenu] "$PC.PlayerReplicationInfo.PlayerName$" gave a "$WeaponName$" to everyone");
         }   
         else if (TeamIndex == `AXIS_TEAM_INDEX)
@@ -490,12 +490,12 @@ function GiveWeapon(PlayerController PC, string WeaponName, optional bool bGiveA
                 {
                     InvManager = ROInventoryManager(ROP.InvManager);
 
-                    ActualName = DoGiveWeapon(PC, InvManager, WeaponName);
-                    if (ActualName != "true")
+                    bSuccess = DoGiveWeapon(PC, InvManager, WeaponName);
+                    if (!bSuccess)
                         break;
                 }
             }
-            if (ActualName == "true")
+            if (bSuccess)
                 WorldInfo.Game.Broadcast(self, "[CMenu] "$PC.PlayerReplicationInfo.PlayerName$" gave a "$WeaponName$" to the north");
         }
         else if (TeamIndex == `ALLIES_TEAM_INDEX)
@@ -507,12 +507,12 @@ function GiveWeapon(PlayerController PC, string WeaponName, optional bool bGiveA
                 {
                     InvManager = ROInventoryManager(ROP.InvManager);
 
-                    ActualName = DoGiveWeapon(PC, InvManager, WeaponName);
-                    if (ActualName != "true")
+                    bSuccess = DoGiveWeapon(PC, InvManager, WeaponName);
+                    if (!bSuccess)
                         break;
                 }
             }
-            if (ActualName == "true")
+            if (bSuccess)
                 WorldInfo.Game.Broadcast(self, "[CMenu] "$PC.PlayerReplicationInfo.PlayerName$" gave a "$WeaponName$" to the south");
         }
         else if (TeamIndex == 100)
@@ -520,8 +520,8 @@ function GiveWeapon(PlayerController PC, string WeaponName, optional bool bGiveA
             // Give weapon to the sender
             InvManager = ROInventoryManager(PC.Pawn.InvManager);
 
-            ActualName = DoGiveWeapon(PC, InvManager, WeaponName);
-            if (ActualName == "true")
+            bSuccess = DoGiveWeapon(PC, InvManager, WeaponName);
+            if (bSuccess)
                 WorldInfo.Game.Broadcast(self, "[CMenu] "$PC.PlayerReplicationInfo.PlayerName$" spawned a "$WeaponName);
         }
     }
@@ -538,70 +538,59 @@ function GiveWeapon(PlayerController PC, string WeaponName, optional bool bGiveA
 // Checks if the weapon name is valid and if the required content package is loaded.
 // If valid, it attempts to load and create the inventory item for the player.
 // =================================================================
-function string DoGiveWeapon(PlayerController PC, ROInventoryManager InvManager, string WeaponName)
+function bool DoGiveWeapon(PlayerController PC, ROInventoryManager InvManager, string WeaponName)
 {
-    local string ActualName;
     local int i;
-    local bool bFound;
-
-    ActualName = WeaponName;
-    bFound = false;
 
     // Search in config array for friendly name match
     for (i = 0; i < WeaponMappings.Length; i++)
     {
         if (WeaponMappings[i].FriendlyName ~= WeaponName)
         {
-            ActualName = WeaponMappings[i].ClassPath;
-            bFound = true;
+            InvManager.LoadAndCreateInventory(WeaponMappings[i].ClassPath, false, true);
             break;
         }
     }
 
-    // If not found in mappings, check if it is already a valid path
-    if (!bFound)
+    // If not found in mappings, check if it is a valid path
+    if (InStr(WeaponName, "Weap") != -1 || InStr(WeaponName, "Item") != -1)
     {
-        if (InStr(WeaponName, "Weap") != -1 || InStr(WeaponName, "Item") != -1)
+        // Check for specific mod content requirements
+        if (InStr(WeaponName, "WinterWar") != -1 && !bLoadWW)
         {
-             ActualName = WeaponName;
+            PrivateMessage(PC, "bLoadWinterWar must be enabled in the WebAdmin mutators settings for you to spawn this weapon!");
+            return false;
         }
-        else
+        else if (InStr(WeaponName, "GOM4") != -1 && !bLoadGOM4)
         {
-            PrivateMessage(PC, "Not a valid weapon name.");
-            return "false";
+            PrivateMessage(PC, "bLoadGOM4 must be enabled in the WebAdmin mutators settings for you to spawn this weapon!");
+            return false;
         }
+        else if (InStr(WeaponName, "GOM3") != -1 && !bLoadGOM3)
+        {
+            PrivateMessage(PC, "bLoadGOM3 must be enabled in the WebAdmin mutators settings for you to spawn this weapon!");
+            return false;
+        }
+        else if (InStr(WeaponName, "WW2") != -1 && !bLoadWW2)
+        {
+            PrivateMessage(PC, "bLoadWW2 must be enabled in the WebAdmin mutators settings for you to spawn this weapon!");
+            return false;
+        }
+        else if (InStr(WeaponName, "AC") != -1 && !bLoadExtras)
+        {
+            PrivateMessage(PC, "bLoadExtras must be enabled in the WebAdmin mutators settings for you to spawn this weapon!");
+            return false;
+        }
+        
+        // Attempt to load
+        InvManager.LoadAndCreateInventory(WeaponName, false, true);
+        return true;
     }
-
-    // Check for specific mod content requirements
-    if (InStr(ActualName, "WinterWar") != -1 && !bLoadWW)
+    else
     {
-        PrivateMessage(PC, "bLoadWinterWar must be enabled in the WebAdmin mutators settings for you to spawn this weapon!");
-        return ActualName;
+        PrivateMessage(PC, "Not a valid weapon name.");
+        return false;
     }
-    else if (InStr(ActualName, "GOM4") != -1 && !bLoadGOM4)
-    {
-        PrivateMessage(PC, "bLoadGOM4 must be enabled in the WebAdmin mutators settings for you to spawn this weapon!");
-        return ActualName;
-    }
-    else if (InStr(ActualName, "GOM3") != -1 && !bLoadGOM3)
-    {
-        PrivateMessage(PC, "bLoadGOM3 must be enabled in the WebAdmin mutators settings for you to spawn this weapon!");
-        return ActualName;
-    }
-    else if (InStr(ActualName, "WW2") != -1 && !bLoadWW2)
-    {
-        PrivateMessage(PC, "bLoadWW2 must be enabled in the WebAdmin mutators settings for you to spawn this weapon!");
-        return ActualName;
-    }
-    else if (InStr(ActualName, "AC") != -1 && !bLoadExtras)
-    {
-        PrivateMessage(PC, "bLoadExtras must be enabled in the WebAdmin mutators settings for you to spawn this weapon!");
-        return ActualName;
-    }
-
-    // Attempt to load
-    InvManager.LoadAndCreateInventory(ActualName, false, true);
-    return "true";
 }
 
 function ClearWeapons(PlayerController PC, bool ClearAll, optional int TeamIndex)
