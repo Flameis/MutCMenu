@@ -529,27 +529,6 @@ function GiveWeapon(PlayerController PC, string WeaponName, optional bool bGiveA
     {
         // `log ("[MutExtras Debug] Error: GW PlayerController is none!");
     }
-
-    if (ActualName == "false")
-    {
-        PrivateMessage(PC, "Not a valid weapon name.");
-    }
-    else if (InStr(ActualName, "WinterWar") != -1 && !bLoadWW)
-    {
-        PrivateMessage(PC, "bLoadWinterWar must be enabled in the WebAdmin mutators settings for you to spawn this weapon!");
-    }
-    else if (InStr(ActualName, "GOM4") != -1 && !bLoadGOM4)
-    {
-        PrivateMessage(PC, "bLoadGOM4 must be enabled in the WebAdmin mutators settings for you to spawn this weapon!");
-    }
-    else if (InStr(ActualName, "GOM3") != -1 && !bLoadGOM3)
-    {
-        PrivateMessage(PC, "bLoadGOM3 must be enabled in the WebAdmin mutators settings for you to spawn this weapon!");
-    }
-    else if (InStr(ActualName, "WW2") != -1 && !bLoadWW2)
-    {
-        PrivateMessage(PC, "bLoadWW2 must be enabled in the WebAdmin mutators settings for you to spawn this weapon!");
-    }
 }
 
 // =================================================================
@@ -588,29 +567,35 @@ function string DoGiveWeapon(PlayerController PC, ROInventoryManager InvManager,
         }
         else
         {
-             return "false";
+            PrivateMessage(PC, "Not a valid weapon name.");
+            return "false";
         }
     }
 
     // Check for specific mod content requirements
     if (InStr(ActualName, "WinterWar") != -1 && !bLoadWW)
     {
+        PrivateMessage(PC, "bLoadWinterWar must be enabled in the WebAdmin mutators settings for you to spawn this weapon!");
         return ActualName;
     }
     else if (InStr(ActualName, "GOM4") != -1 && !bLoadGOM4)
     {
+        PrivateMessage(PC, "bLoadGOM4 must be enabled in the WebAdmin mutators settings for you to spawn this weapon!");
         return ActualName;
     }
     else if (InStr(ActualName, "GOM3") != -1 && !bLoadGOM3)
     {
+        PrivateMessage(PC, "bLoadGOM3 must be enabled in the WebAdmin mutators settings for you to spawn this weapon!");
         return ActualName;
     }
     else if (InStr(ActualName, "WW2") != -1 && !bLoadWW2)
     {
+        PrivateMessage(PC, "bLoadWW2 must be enabled in the WebAdmin mutators settings for you to spawn this weapon!");
         return ActualName;
     }
     else if (InStr(ActualName, "AC") != -1 && !bLoadExtras)
     {
+        PrivateMessage(PC, "bLoadExtras must be enabled in the WebAdmin mutators settings for you to spawn this weapon!");
         return ActualName;
     }
 
