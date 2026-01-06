@@ -330,8 +330,12 @@ simulated function Mutate(string mutateString, PlayerController sender)
                 DAFound.ClientCMConsoleCommand("mutate safetyon");
                 break;
 
-            case "FORCESAFETYOFF":
-                DAFound.ClientCMConsoleCommand("mutate safetyoff");
+            case "FORCEPATCHUNIT":
+                DAFound.ClientCMConsoleCommand("mutate changeunit "$tertiaryparam);
+                break;
+
+            case "FORCEPATCHRANK":
+                DAFound.ClientCMConsoleCommand("mutate changerank "$tertiaryparam);
                 break;
         }
     }
