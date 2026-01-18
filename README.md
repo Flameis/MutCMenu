@@ -161,6 +161,57 @@ Access: Main Menu > Paradrop Menu (admin only)
 | Drop North At Grid | Teleport Northern team to grid |
 | Drop South At Grid | Teleport Southern team to grid |
 
+## Configuration
+
+### WebAdmin Settings
+
+Access: WebAdmin > Mutators > MutCMenu Settings
+
+| Setting | Description |
+| :--- | :--- |
+| `bUseDefaultFactions` | Must be enabled for bAITRoles to work. Controls faction selection |
+| `MyNorthForce` | Northern force faction (PAVN = 0, NLF = 1) |
+| `MySouthForce` | Southern force faction (USA = 0, USMC = 1, AUS = 2, ARVN = 3) |
+| `bLoadExtras` | Enable MutExtras mod content |
+| `bLoadGOM3` | Enable GOM3 mod content |
+| `bLoadGOM4` | Enable GOM4 mod content |
+| `bLoadWW` | Enable Winter War mod content |
+| `bLoadWW2` | Enable Black Orchestra (WW2) mod content |
+| `bNewTankPhys` | Enable new tank physics |
+
+## Realism Match Integration
+
+MutCMenu includes direct integration with MutRealismMatch for match control:
+
+Access: Main Menu > Realism Match Menu (admin only)
+
+| Action | Description |
+| :--- | :--- |
+| Scrimmage Admin Help | Display admin commands help |
+| Enable Match | Enable match mode |
+| Disable Match | Disable match mode |
+| Force Match Live | Force the match LIVE |
+| Countdown | Start a countdown to LIVE |
+| Cancel Live Countdown | Cancel the LIVE countdown |
+| Reset Match Live | Cancel LIVE status |
+| Restart Round | Restart the round |
+| Suicide All / End Round | End the round by suiciding all players |
+| Respawn All Dead Players | Respawn all dead players |
+| Open Objective | Open specified objective |
+| Close Objective | Close specified objective |
+| Set Objective Neutral/North/South | Set objective ownership |
+| Set All Objectives Neutral/North/South | Set all objectives ownership |
+| Swap Teams | Force team swap |
+| Swap North to South | Swap North team to South |
+| Swap South to North | Swap South team to North |
+| Weapons Hold | Turn on weapon safeties for all |
+| Weapons Free | Turn off weapon safeties for all |
+| Toggle Auto Respawns | Toggle automatic respawns |
+| Set Round Duration | Set round timer |
+| Set Friendly Fire Modifier | Set FF modifier (0-1) |
+| Set North/South Reinforcements | Set team reinforcements |
+| Set Obj Minimum Capture Time | Set objective capture time |
+
 ## Mod Compatibility
 
 **Supported mods:**

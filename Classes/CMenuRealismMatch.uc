@@ -63,6 +63,16 @@ function bool CheckExceptions(string Command)
             MessageSelf("Please specify a OBJ letter and a minimum capture timer in seconds (Example: A 45)");
             return true;
 
+        case "COUNTDOWN":
+            if(bCMenuDebug) `Log("COUNTDOWN");
+            LocalPlayer(PC.Player).ViewportClient.ViewportConsole.TypedStr="Mutate "$Command$" ";
+            LocalPlayer(PC.Player).ViewportClient.ViewportConsole.TypedStrPos=Len(LocalPlayer(PC.Player).ViewportClient.ViewportConsole.TypedStr); // set the value high in case name is quite long
+            LocalPlayer(PC.Player).ViewportClient.ViewportConsole.GoToState('Typing');
+            LocalPlayer(PC.Player).ViewportClient.ClearProgressMessages();
+            LocalPlayer(PC.Player).ViewportClient.SetProgressTime(6);
+            MessageSelf("Please specify countdown duration in seconds (Example: 10)");
+            return true;
+
         default:
             return false;
     }
@@ -77,6 +87,8 @@ defaultproperties
     MenuText.add("Enable Match")
     MenuText.add("Disable Match")
     MenuText.add("Force Match Live")
+    MenuText.add("Countdown")
+    MenuText.add("Cancel Live Countdown")
     MenuText.add("Reset Match Live")
     MenuText.add("Restart Round")
     MenuText.add("Suicide All / End Round")
@@ -108,6 +120,8 @@ defaultproperties
     MenuCommand.add("ENABLEMATCH")
     MenuCommand.add("DISABLEMATCH")
     MenuCommand.add("MATCHLIVE")
+    MenuCommand.add("COUNTDOWN")
+    MenuCommand.add("CANCELCOUNT")
     MenuCommand.add("RESETLIVE")
     MenuCommand.add("RESTARTROUND")
     MenuCommand.add("ENDROUND")
