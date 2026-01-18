@@ -467,7 +467,7 @@ function GiveWeapon(PlayerController PC, string WeaponName, optional bool bGiveA
 {
 	local ROInventoryManager        InvManager;
     local ROPawn                    ROP;
-    local string                    bSuccess;
+    local bool                    bSuccess;
 
     if (PC != none)
     {
