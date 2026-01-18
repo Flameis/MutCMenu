@@ -42,7 +42,7 @@ function bool CheckExceptions(string Command)
             return true;
 
         case "COPY":
-            WeaponPath = PathName(PC.Pawn.Weapon);
+            WeaponPath = PC.Pawn.Weapon.Class.Outer.name$"."$PC.Pawn.Weapon.Class.name;
             PC.CopyToClipboard(WeaponPath);
 
             MessageSelf("Weapon Copied to Clipboard: " $ WeaponPath);
