@@ -244,36 +244,6 @@ reliable client function SetCMenuColor(string InColor, string type)
     }
 }
 
-simulated function FactionSetup(ENorthernForces MyNorthForce, ESouthernForces MySouthForce)
-{
-    local ROMapInfo ROMI;
-	
-	ROMI = ROMapInfo(WorldInfo.GetMapInfo());
-
-    `log(MyNorthForce);
-    `log(MySouthForce);
-
-    if( MyNorthForce < 2 )
-	{
-		ROMI.NorthernForce = MyNorthForce;
-		CMGameReplicationInfo(WorldInfo.GRI).CampaignFactionOverrides[0] = MyNorthForce;
-	}
-
-	if( MySouthForce < 4 )
-	{
-		ROMI.SouthernForce = MySouthForce;
-		CMGameReplicationInfo(WorldInfo.GRI).CampaignFactionOverrides[1] = MySouthForce;
-	}
-
-    ROMI.bInitializedRoles = false;
-	ROMI.InitRolesForGametype(WorldInfo.GetGameClass(), 64, false);
-}
-
-reliable client function ClientFactionSetup(ENorthernForces MyNorthForce, ESouthernForces MySouthForce)
-{
-    FactionSetup(MyNorthForce, MySouthForce);
-}
-
 unreliable server function SpawnActor(
     class<actor>        SpawnClass,
 	optional actor	    SpawnOwner,
