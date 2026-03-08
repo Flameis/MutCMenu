@@ -14,9 +14,7 @@ var array<vector2d>			    Corners;
 var array<string>               LoggedInMutatorAdmins; // list of the names of all the players that are currently logged in as a mutator admin
 var int                         NumObjs;
 
-var config ENorthernForces      MyNorthForce;
-var config ESouthernForces      MySouthForce;
-var config bool                 bUseDefaultFactions, bLoadExtras, bLoadGOM3, bLoadGOM4, bLoadWW, bLoadWW2, bNewTankPhys;
+var config bool                 bLoadExtras, bLoadGOM3, bLoadGOM4, bLoadWW, bLoadWW2, bNewTankPhys;
 var config array<string>        MutatorAdmins; // A list of all mutator admins and their passwords
 var config array<string>        ExtrasToLoad, GOM3ToLoad, GOM4ToLoad, WWToLoad, WW2ToLoad; // Lists of all the objects to load
 
@@ -81,11 +79,6 @@ simulated function NotifyLogin(Controller NewPlayer)
 
     DA.CMenuSetup();
 
-    if (!bUseDefaultFactions)
-    {
-        if (WorldInfo.NetMode != NM_Standalone) DA.FactionSetup(MyNorthForce, MySouthForce);
-        DA.ClientFactionSetup(MyNorthForce, MySouthForce);
-    }
 
     super.NotifyLogin(NewPlayer);
 }
@@ -337,6 +330,18 @@ simulated function Mutate(string mutateString, PlayerController sender)
             case "FORCEPATCHRANK":
                 DAFound.ClientCMConsoleCommand("mutate changerank "$tertiaryparam);
                 break;
+
+            /* case "CALLARTY":
+                CallArtillery(sender, secondaryparam);
+                break;
+
+            case "CALLNAPALM":
+                CallNapalm(sender, secondaryparam);
+                break;
+
+            case "CALLSPOOKY":
+                CallSpooky(sender);
+                break; */
         }
     }
     super.Mutate(MutateString, sender);
@@ -551,12 +556,12 @@ function bool DoGiveWeapon(PlayerController PC, ROInventoryManager InvManager, s
     {
         if (WeaponMappings[i].FriendlyName ~= WeaponName)
         {
-            InvManager.LoadAndCreateInventory(WeaponMappings[i].ClassPath, false, true);
+            WeaponName = WeaponMappings[i].ClassPath;
             break;
         }
     }
 
-    // If not found in mappings, check if it is a valid path
+    // Check if it is a valid path
     if (InStr(WeaponName, "Weap") != -1 || InStr(WeaponName, "Item") != -1)
     {
         // Check for specific mod content requirements
@@ -651,6 +656,76 @@ function ClearWeapons(PlayerController PC, bool ClearAll, optional int TeamIndex
 // =================================================================
 // Content Loading
 // =================================================================
+// =================================================================
+// Fire Support Commands
+// =================================================================
+/* function CallArtillery(PlayerController PC, string GridCoords)
+{
+    local int TeamIndex;
+    
+    TeamIndex = PC.GetTeamNum();
+    
+    if (GridCoords != "")
+    {
+        TargetLoc = GridToWorldLocation(GridCoords);
+        
+        if (TeamIndex == `AXIS_TEAM_INDEX)
+        {
+            // ROGRI.CallInNorthArtilleryStrike(TargetLoc, PC);
+            WorldInfo.Game.Broadcast(self, "[CMenu] "$PC.PlayerReplicationInfo.PlayerName$" called North artillery at "$GridCoords);
+        }
+        else
+        {
+            // ROGRI.CallInSouthArtilleryStrike(TargetLoc, PC);
+            WorldInfo.Game.Broadcast(self, "[CMenu] "$PC.PlayerReplicationInfo.PlayerName$" called South artillery at "$GridCoords);
+        }
+    }
+}
+
+function CallNapalm(PlayerController PC, string GridCoords)
+{
+    if (GridCoords != "" && PC.GetTeamNum() == `ALLIES_TEAM_INDEX)
+    {
+        TargetLoc = GridToWorldLocation(GridCoords);
+        // ROGRI.CallInNapalmStrike(TargetLoc, PC);
+        WorldInfo.Game.Broadcast(self, "[CMenu] "$PC.PlayerReplicationInfo.PlayerName$" called napalm strike at "$GridCoords);
+    }
+}
+
+function CallSpooky(PlayerController PC)
+{
+    if (PC.GetTeamNum() == `ALLIES_TEAM_INDEX)
+    {
+        // ROGRI.CallInSpookyStrike(PC);
+        WorldInfo.Game.Broadcast(self, "[CMenu] "$PC.PlayerReplicationInfo.PlayerName$" called AC-47 Spooky");
+    }
+}
+
+function vector GridToWorldLocation(string GridCoords)
+{
+    local vector WorldLoc;
+    local int GridX, GridY;
+    local string X, Y;
+    local array<string> Parts;
+    
+    Parts = SplitString(GridCoords, ",", true);
+    if (Parts.Length >= 2)
+    {
+        X = Parts[0];
+        Y = Parts[1];
+        GridX = int(X);
+        GridY = int(Y);
+        
+        // Convert grid coordinates to world location
+        // Assuming standard RS2 grid conversion: each grid is 5000 units
+        WorldLoc.X = GridX * 5000;
+        WorldLoc.Y = GridY * 5000;
+        WorldLoc.Z = 1000; // Default height
+    }
+    
+    return WorldLoc;
+} */
+
 function LoadObjects()
 {
     local ROMapInfo               ROMI;
