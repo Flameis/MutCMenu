@@ -15,8 +15,8 @@ function Initialize()
 
     if (bIsAuthorized)
     {
-        MenuText.InsertItem(4, "Clear All Vehicles");
-        MenuCommand.InsertItem(4, "CLEARVICS");
+        MenuText.InsertItem(2, "Clear All Vehicles");
+        MenuCommand.InsertItem(2, "CLEARVICS");
     }
 
     AddModOptions();
@@ -57,7 +57,7 @@ function bool CheckExceptions(string Command)
             return true;
 
         case "DELETEVEHICLE":
-            // MyDA.DeleteVehicle();
+            MyDA.DeleteActor(ROVehicle(TraceActors()));
             MessageSelf("The vehicle has been deleted.");
             return true;
 
@@ -92,16 +92,15 @@ function AddModOptions()
 {
     if (MyDA.bLoadWW2)
     {
-        MenuText.additem("WW2 WW Skis");
         MenuText.additem("WW2 Churchill Mk VII");
         MenuText.additem("WW2 Crusader Mk III");
         MenuText.additem("WW2 Ha-Go");
         MenuText.additem("WW2 Kubelwagen");
         MenuText.additem("WW2 Panzer III");
-        MenuText.additem("WW2 Panzer IV F2");
+        MenuText.additem("WW2 Panzer IV F");
         MenuText.additem("WW2 SdKfz 222 Recon");
-
         MenuText.additem("WW2 SdKfz 251 Halftrack");
+        
         MenuText.additem("WW2 Semovente");
         MenuText.additem("WW2 Sherman III");
         MenuText.additem("WW2 Stuart M3");
@@ -109,8 +108,8 @@ function AddModOptions()
         MenuText.additem("WW2 T-34");
         MenuText.additem("WW2 T-70");
         MenuText.additem("WW2 UC Bren");
-
         MenuText.additem("WW2 UC");
+
         MenuText.additem("WW2 Valentine");
         MenuText.additem("WW2 Willys");
 
@@ -121,8 +120,8 @@ function AddModOptions()
         MenuCommand.additem("WW2.WW2Vehicle_PanzerIII_Content");
         MenuCommand.additem("WW2.WW2Vehicle_PanzerIVF_Content");
         MenuCommand.additem("WW2.WW2Vehicle_SdKfz_222_Recon_Content");
-
         MenuCommand.additem("WW2.WW2Vehicle_SdKfz_251_Halftrack_Content");
+
         MenuCommand.additem("WW2.WW2Vehicle_Semovente_Content");
         MenuCommand.additem("WW2.WW2Vehicle_ShermanIII_Content");
         MenuCommand.additem("WW2.WW2Vehicle_StuartM3_Content");
@@ -130,8 +129,8 @@ function AddModOptions()
         MenuCommand.additem("WW2.WW2Vehicle_T34_Content");
         MenuCommand.additem("WW2.WW2Vehicle_T70_Content");
         MenuCommand.additem("WW2.WW2Vehicle_UC_Bren_Content");
-
         MenuCommand.additem("WW2.WW2Vehicle_UC_Content");
+
         MenuCommand.additem("WW2.WW2Vehicle_Valentine_Content");
         MenuCommand.additem("WW2.WW2Vehicle_Willys_Content");
     }
@@ -144,7 +143,6 @@ function AddModOptions()
         MenuText.additem("WW HT130");
         MenuText.additem("WW ATGun");
         MenuText.additem("WW Vickers");
-
         MenuText.additem("WW Skis");
 
         MenuCommand.additem("WinterWar.WWVehicle_T20_ActualContent");
@@ -153,7 +151,6 @@ function AddModOptions()
         MenuCommand.additem("WinterWar.WWVehicle_HT130_ActualContent");
         MenuCommand.additem("WinterWar.WWVehicle_53K_ActualContent");
         MenuCommand.additem("WinterWar.WWVehicle_Vickers_ActualContent");
-
         MenuCommand.additem("WinterWar.WWVehicle_Skis_ActualContent");
     }
 

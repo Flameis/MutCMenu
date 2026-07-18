@@ -57,8 +57,8 @@ function bool CheckExceptions(string Command)
             MessageSelf("Please Specify a Grid Location (Example: E 5 kp 5)");
             return true;
 
-        case "FORCEPATCHUNIT":
-            if(bCMenuDebug) `Log("ForcePatchUnit");
+        case "FORCEUNITPATCH":
+            if(bCMenuDebug) `Log("ForceUnitPatch");
             LocalPlayer(PC.Player).ViewportClient.ViewportConsole.TypedStr="mutate "$Command$" to ";
             LocalPlayer(PC.Player).ViewportClient.ViewportConsole.TypedStrPos=Len(LocalPlayer(PC.Player).ViewportClient.ViewportConsole.TypedStr); // set the value high in case name is quite long
             LocalPlayer(PC.Player).ViewportClient.ViewportConsole.GoToState('Typing');
@@ -67,8 +67,8 @@ function bool CheckExceptions(string Command)
             MessageSelf("Please Specify a Unit (Example: DP2S4)");
             return true;
 
-        case "FORCEPATCHRANK":
-            if(bCMenuDebug) `Log("ForcePatchRank");
+        case "FORCERANKPATCH":
+            if(bCMenuDebug) `Log("ForceRankPatch");
             LocalPlayer(PC.Player).ViewportClient.ViewportConsole.TypedStr="mutate "$Command$" to ";
             LocalPlayer(PC.Player).ViewportClient.ViewportConsole.TypedStrPos=Len(LocalPlayer(PC.Player).ViewportClient.ViewportConsole.TypedStr); // set the value high in case name is quite long
             LocalPlayer(PC.Player).ViewportClient.ViewportConsole.GoToState('Typing');
@@ -90,8 +90,8 @@ defaultproperties
     MenuText.add("Change Name")
     MenuText.add("Find Original Name")
     MenuText.add("Switch Team")
-    MenuText.add("Change Patch Unit")
-    MenuText.add("Change Patch Rank")
+    MenuText.add("Change Unit Patch")
+    MenuText.add("Change Rank Patch")
 
     MenuText.add("Safety On")
     MenuText.add("Safety Off")
@@ -107,8 +107,8 @@ defaultproperties
     MenuCommand.add("FORCECHANGENAME")
     MenuCommand.add("WHOIS")
     MenuCommand.add("FORCESWITCHTEAM")
-    MenuCommand.add("FORCEPATCHUNIT")
-    MenuCommand.add("FORCEPATCHRANK")
+    MenuCommand.add("FORCEUNITPATCH")
+    MenuCommand.add("FORCERANKPATCH")
 
 
     MenuCommand.add("FORCESAFETYON")

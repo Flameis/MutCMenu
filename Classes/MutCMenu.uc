@@ -323,11 +323,11 @@ simulated function Mutate(string mutateString, PlayerController sender)
                 DAFound.ClientCMConsoleCommand("mutate safetyon");
                 break;
 
-            case "FORCEPATCHUNIT":
+            case "FORCEUNITPATCH":
                 DAFound.ClientCMConsoleCommand("mutate changeunit "$tertiaryparam);
                 break;
 
-            case "FORCEPATCHRANK":
+            case "FORCERANKPATCH":
                 DAFound.ClientCMConsoleCommand("mutate changerank "$tertiaryparam);
                 break;
 

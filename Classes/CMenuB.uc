@@ -198,10 +198,8 @@ simulated function actor TraceActors()
     ViewDirection = Vector(PC.Pawn.GetViewRotation());
     TraceLength = 40000;
     EndTrace = StartTrace + ViewDirection * TraceLength;
-	foreach PC.TraceActors(class'Actor', TracedActor, HitLocation, HitNormal, EndTrace, StartTrace,,, PC.TRACEFLAG_Blocking | PC.TRACEFLAG_PhysicsVolumes)
-	{
-		return TracedActor;
-	}
+	TracedActor = PC.trace(HitLocation, HitNormal, EndTrace, StartTrace, true);
+	return TracedActor;
 }
 
 function DoPlace() //Override in child class

@@ -73,6 +73,16 @@ function bool CheckExceptions(string Command)
             MessageSelf("Please specify countdown duration in seconds (Example: 10)");
             return true;
 
+        case "ROUNDTIMER":
+            if(bCMenuDebug) `Log("ROUNDTIMER");
+            LocalPlayer(PC.Player).ViewportClient.ViewportConsole.TypedStr="Mutate "$Command$" ";
+            LocalPlayer(PC.Player).ViewportClient.ViewportConsole.TypedStrPos=Len(LocalPlayer(PC.Player).ViewportClient.ViewportConsole.TypedStr); // set the value high in case name is quite long
+            LocalPlayer(PC.Player).ViewportClient.ViewportConsole.GoToState('Typing');
+            LocalPlayer(PC.Player).ViewportClient.ClearProgressMessages();
+            LocalPlayer(PC.Player).ViewportClient.SetProgressTime(6);
+            MessageSelf("Please specify round timer duration in minutes, 0 to disable (Example: 20)");
+            return true;
+
         default:
             return false;
     }
@@ -89,6 +99,8 @@ defaultproperties
     MenuText.add("Force Match Live")
     MenuText.add("Countdown")
     MenuText.add("Cancel Live Countdown")
+    MenuText.add("Round Timer")
+    MenuText.add("Cancel Round Timer")
     MenuText.add("Reset Match Live")
     MenuText.add("Restart Round")
     MenuText.add("Suicide All / End Round")
@@ -122,6 +134,8 @@ defaultproperties
     MenuCommand.add("MATCHLIVE")
     MenuCommand.add("COUNTDOWN")
     MenuCommand.add("CANCELCOUNT")
+    MenuCommand.add("ROUNDTIMER")
+    MenuCommand.add("CANCELROUNDTIMER")
     MenuCommand.add("RESETLIVE")
     MenuCommand.add("RESTARTROUND")
     MenuCommand.add("ENDROUND")
