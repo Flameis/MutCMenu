@@ -34,6 +34,8 @@ function PreBeginPlay()
     local Mutator mut;
     super.PreBeginPlay();
 
+    ApplyMapModLoads();
+
     // Clean up duplicate MutCMenu instances
     for (mut = ROGameInfo(WorldInfo.Game).BaseMutator; mut != none; mut = mut.NextMutator)
     {
@@ -50,6 +52,19 @@ function PreBeginPlay()
     }
 
     ROGameInfo(WorldInfo.Game).GameReplicationInfoClass = class'CMGameReplicationInfo';
+}
+
+function ApplyMapModLoads()
+{
+    local string MapName;
+
+    MapName = WorldInfo.GetMapName(true);
+
+    if (InStr(MapName, "WWTE",,true) != -1 || InStr(MapName, "WWSU",,true) != -1)
+        bLoadWW = true;
+
+    if (InStr(MapName, "RR",,true) != -1 || InStr(MapName, "DR",,true) != -1)
+        bLoadWW2 = true;
 }
 
 auto state StartUp

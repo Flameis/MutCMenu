@@ -9,7 +9,39 @@ function Initialize()
         return;
     }
 
+    SetTeamDisplayNames();
+
 	super.Initialize();
+}
+
+function SetTeamDisplayNames()
+{
+    local string MapName;
+    local string NorthTeamName, SouthTeamName;
+
+    MapName = PC.WorldInfo.GetMapName(true);
+    NorthTeamName = "North";
+    SouthTeamName = "South";
+
+    if (InStr(MapName, "WWTE",,true) != -1 || InStr(MapName, "WWSU",,true) != -1)
+    {
+        NorthTeamName = "Finnish";
+        SouthTeamName = "Soviets";
+    }
+    else if (InStr(MapName, "RR",,true) != -1 || InStr(MapName, "DR",,true) != -1)
+    {
+        NorthTeamName = "Axis";
+        SouthTeamName = "Allies";
+    }
+
+    MenuText[15] = "Set Objective "$NorthTeamName;
+    MenuText[16] = "Set Objective "$SouthTeamName;
+    MenuText[18] = "Set All Objectives "$NorthTeamName;
+    MenuText[19] = "Set All Objectives "$SouthTeamName;
+    MenuText[26] = "Set "$NorthTeamName$" Reinforcements";
+    MenuText[27] = "Set "$SouthTeamName$" Reinforcements";
+    MenuText[28] = "Swap "$NorthTeamName$" to "$SouthTeamName;
+    MenuText[29] = "Swap "$SouthTeamName$" to "$NorthTeamName;
 }
 
 function bool CheckExceptions(string Command)

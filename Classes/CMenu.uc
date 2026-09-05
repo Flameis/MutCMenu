@@ -131,7 +131,10 @@ function bool HandleInput(name Key, array<string> SelectionList)
 			FindCMenuLength(); // Do this here and in BeginState() so we aren't spamming a loop every tick
 		}
 		else
-			GotoState(''); // Close Menu
+		{
+			GotoState('');
+			OpenParentMenu();
+		}
 		return true;
 	}
 	else if(SelectionList.Length >= IniLine)
@@ -154,6 +157,31 @@ function bool HandleInput(name Key, array<string> SelectionList)
 		if (!bKeepOpen) GotoState(''); // Close Menu
 		return true;
 	}
+}
+
+function OpenParentMenu()
+{
+	local string ParentMenu;
+
+	switch (Caps(MenuName))
+	{
+		case "GENERAL": ParentMenu = "CMENUMAIN"; break;
+		case "BUILDER": ParentMenu = "CMENUMAIN"; break;
+		case "WEAPONS": ParentMenu = "CMENUMAIN"; break;
+		case "SETTINGS": ParentMenu = "CMENUMAIN"; break;
+		case "REALISM MATCH": ParentMenu = "CMENUMAIN"; break;
+		case "PARADROPS": ParentMenu = "CMENUMAIN"; break;
+		case "PLAYERS": ParentMenu = "CMENUMAIN"; break;
+		case "FIRE SUPPORT": ParentMenu = "CMENUMAIN"; break;
+		case "ACTORS": ParentMenu = "CMENUBMAIN"; break;
+		case "STATIC MESHES": ParentMenu = "CMENUBMAIN"; break;
+		case "STRUCTURES": ParentMenu = "CMENUBMAIN"; break;
+		case "VEHICLES": ParentMenu = "CMENUBMAIN"; break;
+		case "WEAPON PICKUPS": ParentMenu = "CMENUBMAIN"; break;
+	}
+
+	if (ParentMenu != "")
+		PC.ConsoleCommand("mutate cmenu "$ParentMenu);
 }
 
 // Find the longest string currently displayed on the menu
