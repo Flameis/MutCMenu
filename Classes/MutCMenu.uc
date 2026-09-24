@@ -51,7 +51,11 @@ function PreBeginPlay()
         }
     }
 
-    ROGameInfo(WorldInfo.Game).GameReplicationInfoClass = class'CMGameReplicationInfo';
+    if (ROGameInfo(WorldInfo.Game).GameReplicationInfoClass == class'ROGameReplicationInfo')
+    {
+        ROGameInfo(WorldInfo.Game).GameReplicationInfoClass = class'CMGameReplicationInfo';
+    }
+
 }
 
 function ApplyMapModLoads()

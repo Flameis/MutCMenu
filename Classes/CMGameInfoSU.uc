@@ -6,6 +6,32 @@ function RoundWon(int WinningTeam, byte WinCondition)
 	return;
 } */
 
+function string GetObjectiveDisplayName(ROObjective Objective)
+{
+	local CMAObjective CustomObjective;
+
+	CustomObjective = CMAObjective(Objective);
+	if (CustomObjective != none)
+	{
+		return CustomObjective.GetDisplayName();
+	}
+
+	return Objective.ObjName;
+}
+
+function bool IsPointInObjective(ROObjective Objective, vector Point)
+{
+	local CMAObjective CustomObjective;
+
+	CustomObjective = CMAObjective(Objective);
+	if (CustomObjective != none)
+	{
+		return CustomObjective.CheckForPlayers(Point);
+	}
+
+	return Objective != none && Objective.ObjVolume != none && Objective.ObjVolume.EncompassesPoint(Point);
+}
+
 function CaptureTimer()
 {
 	local ROGameReplicationInfo ROGRI;
@@ -131,7 +157,7 @@ function CaptureTimer()
 							ROAIController(P.Controller).NotifyActiveObjectiveIndex( Objectives[i].ObjIndex );
 						}
 					}
-					if ( ROPlayerController(P.Controller) != none && ROPlayerController(P.Controller).ObjectiveName == Objectives[i].ObjName && !CMAObjective(Objectives[i]).CheckForPlayers(P.Location) && !Objectives[i].ObjVolume.ContainsPoint(P.Location))
+					if ( ROPlayerController(P.Controller) != none && ROPlayerController(P.Controller).ObjectiveName == GetObjectiveDisplayName(Objectives[i]) && !CMAObjective(Objectives[i]).CheckForPlayers(P.Location) && !Objectives[i].ObjVolume.ContainsPoint(P.Location))
 					{
 						ROPlayerController(P.Controller).ObjectiveName = "";
 					}
@@ -174,7 +200,7 @@ function CaptureTimer()
 				{
 					for ( j = 0; j < ROV.Seats.Length; j++ )
 					{
-						if ( ROV.Seats[j].SeatPawn != none && ROPlayerController(ROV.Seats[j].SeatPawn.Controller) != none && ROPlayerController(ROV.Seats[j].SeatPawn.Controller).ObjectiveName == Objectives[i].ObjName )
+						if ( ROV.Seats[j].SeatPawn != none && ROPlayerController(ROV.Seats[j].SeatPawn.Controller) != none && ROPlayerController(ROV.Seats[j].SeatPawn.Controller).ObjectiveName == GetObjectiveDisplayName(Objectives[i]) )
 						{
 							ROPlayerController(ROV.Seats[j].SeatPawn.Controller).ObjectiveName = "";
 						}
@@ -210,7 +236,7 @@ function CaptureTimer()
 
 						AllCappers.AddItem(ROTurret(P).Driver);
 					}
-					else if ( ROPlayerController(P.Controller) != none && ROPlayerController(P.Controller).ObjectiveName == Objectives[i].ObjName )
+					else if ( ROPlayerController(P.Controller) != none && ROPlayerController(P.Controller).ObjectiveName == GetObjectiveDisplayName(Objectives[i]) )
 					{
 						ROPlayerController(P.Controller).ObjectiveName = "";
 					}
@@ -472,7 +498,7 @@ function CaptureTimer()
 				PlayerCappers[j].ObjectiveEnterTime = -1;
 			}
 			// if this player has just entered this objective, reset their entry time
-			else if( PlayerCappers[j].ObjectiveName != Objectives[i].ObjName )
+			else if( PlayerCappers[j].ObjectiveName != GetObjectiveDisplayName(Objectives[i]) )
 			{
 				PlayerCappers[j].ObjectiveEnterTime = WorldInfo.TimeSeconds;
 			}
@@ -483,12 +509,12 @@ function CaptureTimer()
 			}
 
 			PlayerCappers[j].ObjectiveIndex	= i;
-			PlayerCappers[j].ObjectiveName	= Objectives[i].ObjName;
+			PlayerCappers[j].ObjectiveName	= GetObjectiveDisplayName(Objectives[i]);
 			PlayerCappers[j].ReplicatedEvent('ObjectiveName');
 		}
 
 		if ( bDebugTerritories )
-			`log("ROGameInfoTerritories.CaptureTimer Objective"$i @ "- Name:"$Objectives[i].ObjName @ "State:"$Objectives[i].ObjState);
+			`log("ROGameInfoTerritories.CaptureTimer Objective"$i @ "- Name:"$GetObjectiveDisplayName(Objectives[i]) @ "State:"$Objectives[i].ObjState);
 
 		// Update GRI for everyone
 		if ( ROGRI != none )

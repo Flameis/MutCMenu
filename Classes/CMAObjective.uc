@@ -1,241 +1,263 @@
-// A C++ program to check if a given Vector2D lies inside a given polygon
-// Refer https://www.geeksforgeeks.org/check-if-two-given-line-segments-intersect/
-// for explanation of functions onSegment(), orientation() and doIntersect()
 class CMAObjective extends ROObjective;
 
 const INF = 100000;
 var array<Vector2D> Corners;
 var ROGameInfoTerritories ROGIT;
 var ROGameReplicationInfo ROGRI;
-var bool bSpawnedOBJ;
 
-function Init(array<vector2d> InCorners)
+var repnotify byte ReplicatedObjIndex;
+var repnotify byte ReplicatedObjRepIndex;
+var repnotify string ReplicatedObjName;
+var repnotify string ReplicatedObjShortName;
+var repnotify byte ReplicatedInitialObjState;
+var repnotify bool ReplicatedEnabled;
+var repnotify bool ReplicatedActive;
+var repnotify byte ReplicatedCornerCount;
+var Vector2D ReplicatedCorners[32];
+var repnotify bool bObjectiveReady;
+
+function string GetDisplayName()
 {
-    local vector2d Cornerp;
-    local int i, i2;
+    return ReplicatedObjName;
+}
+
+replication
+{
+    if (Role == ROLE_Authority)
+        ReplicatedObjIndex, ReplicatedObjRepIndex, ReplicatedObjName, ReplicatedObjShortName,
+        ReplicatedInitialObjState, ReplicatedEnabled, ReplicatedActive,
+        ReplicatedCornerCount, ReplicatedCorners, bObjectiveReady;
+}
+
+function Init(array<Vector2D> InCorners)
+{
+    local Vector2D Cornerp;
+    local int ObjSlot;
 
     Corners = InCorners;
-    bSpawnedOBJ = true;
-
     ROGIT = ROGameInfoTerritories(WorldInfo.Game);
     ROGRI = ROGameReplicationInfo(WorldInfo.GRI);
-/*     for(i = 0; i < ROGIT.Objectives.Length; I++)
+
+    if (ROGIT == none || ROGRI == none || Corners.Length < 3)
     {
-        if (ROGIT.Objectives[i].ObjIndex >= i2)
+        return;
+    }
+
+    for (ObjSlot = 0; ObjSlot < `MAX_OBJECTIVES; ObjSlot++)
+    {
+        if (ObjSlot >= ROGIT.Objectives.Length || ROGIT.Objectives[ObjSlot] == none)
         {
-            i2 = ROGIT.Objectives[i].ObjIndex + 1;
+            break;
         }
     }
-     */
-    for(i = 0; i < ROGIT.Objectives.Length; I++)
+
+    if (ObjSlot >= `MAX_OBJECTIVES)
     {
-        if (ROGIT.Objectives[i].ObjRepIndex >= i2)
-        {
-            i2 = ROGIT.Objectives[i].ObjRepIndex + 1;
-        }
+        `warn("CMAObjective: no free objective slot");
+        return;
     }
-    ObjIndex = i2;
-    ObjRepIndex = i2;
-    ObjShortName = IntToString(i2);
+
+    ObjIndex = ObjSlot;
+    ObjRepIndex = ObjSlot;
+    ObjShortName = IntToString(ObjSlot);
+    ReplicatedObjName = "Custom Objective " $ ObjShortName;
     MinimumCaptureTime = 30;
+    InitialObjState = OBJ_Neutral;
+    AppliedInitialObjState = InitialObjState;
+    bEnabled = true;
 
-    ROGRI.AddObjective(Self, True);
-    CMGameReplicationInfo(ROGRI).NewObj = Self;
-
-    ROGIT.Objectives.AddItem(self);
+    ROGIT.Objectives[ObjIndex] = self;
+    ROGIT.EnabledObjectives++;
     Reset();
-	SetEnabled(true);
-	SetActive(true);
+    SetEnabled(true);
+    SetActive(true);
+    ROGRI.AddObjective(self, true);
+    ROGRI.ObjectiveNames[ObjIndex] = ReplicatedObjName;
 
-    foreach InCorners(CornerP)
+    ReplicatedObjIndex = ObjIndex;
+    ReplicatedObjRepIndex = ObjRepIndex;
+    ReplicatedObjShortName = ObjShortName;
+    ReplicatedInitialObjState = InitialObjState;
+    ReplicatedEnabled = bEnabled;
+    ReplicatedActive = bActive;
+    ReplicatedCornerCount = Min(Corners.Length, 32);
+    for (ObjSlot = 0; ObjSlot < ReplicatedCornerCount; ObjSlot++)
     {
-        `log(self$": My Corners are - "$CornerP.x@cornerp.y);
+        ReplicatedCorners[ObjSlot] = Corners[ObjSlot];
+    }
+    bObjectiveReady = true;
+    bNetDirty = true;
+
+    foreach InCorners(Cornerp)
+    {
+        `log(self $ ": corner " $ Cornerp.X @ Cornerp.Y);
+    }
+}
+
+simulated event ReplicatedEvent(name VarName)
+{
+    local ROPlayerController ROPC;
+    local int I;
+
+    if (VarName == 'bObjectiveReady' && bObjectiveReady)
+    {
+        ObjIndex = ReplicatedObjIndex;
+        ObjRepIndex = ReplicatedObjRepIndex;
+        ObjShortName = ReplicatedObjShortName;
+        InitialObjState = EObjectiveState(ReplicatedInitialObjState);
+        AppliedInitialObjState = InitialObjState;
+        bEnabled = ReplicatedEnabled;
+        bActive = ReplicatedActive;
+        Corners.Remove(0, Corners.Length);
+        for (I = 0; I < ReplicatedCornerCount; I++)
+        {
+            Corners.AddItem(ReplicatedCorners[I]);
+        }
+
+        ROGRI = ROGameReplicationInfo(WorldInfo.GRI);
+        if (ROGRI != none)
+        {
+            ROGRI.AddObjective(self, true);
+            ROGRI.ObjectiveNames[ObjIndex] = ReplicatedObjName;
+            foreach LocalPlayerControllers(class'ROPlayerController', ROPC)
+            {
+                ROPC.ObjectivesUpdated();
+                ROPC.ObjectiveStatusChanged(ROGRI);
+            }
+        }
+    }
+    else
+    {
+        super.ReplicatedEvent(VarName);
     }
 }
 
 function bool CheckForPlayers(vector PlayerLoc)
 {
-    local vector2d P;
+    local Vector2D P;
 
-    p.x = PlayerLoc.X;
-    p.y = PlayerLoc.y;
-
-    return isInside(Corners, Corners.Length, p);
+    P.X = PlayerLoc.X;
+    P.Y = PlayerLoc.Y;
+    return IsInside(Corners, Corners.Length, P);
 }
 
-// Given three collinear Vector2Ds p, q, r, the function checks if
-// Vector2D q lies on line segment 'pr'
-function bool onSegment(Vector2D p, Vector2D q, Vector2D r)
+function bool OnSegment(Vector2D P, Vector2D Q, Vector2D R)
 {
-    if (q.x <= max(p.x, r.x) && q.x >= min(p.x, r.x) &&
-            q.y <= max(p.y, r.y) && q.y >= min(p.y, r.y))
+    return Q.X <= Max(P.X, R.X) && Q.X >= Min(P.X, R.X)
+        && Q.Y <= Max(P.Y, R.Y) && Q.Y >= Min(P.Y, R.Y);
+}
+
+function int Orientation(Vector2D P, Vector2D Q, Vector2D R)
+{
+    local int Value;
+
+    Value = (Q.Y - P.Y) * (R.X - Q.X) - (Q.X - P.X) * (R.Y - Q.Y);
+    if (Value == 0)
+    {
+        return 0;
+    }
+
+    return Value > 0 ? 1 : 2;
+}
+
+function bool DoIntersect(Vector2D P1, Vector2D Q1, Vector2D P2, Vector2D Q2)
+{
+    local int O1, O2, O3, O4;
+
+    O1 = Orientation(P1, Q1, P2);
+    O2 = Orientation(P1, Q1, Q2);
+    O3 = Orientation(P2, Q2, P1);
+    O4 = Orientation(P2, Q2, Q1);
+
+    if (O1 != O2 && O3 != O4)
+    {
         return true;
-    else
+    }
+
+    if (O1 == 0 && OnSegment(P1, P2, Q1)) return true;
+    if (O2 == 0 && OnSegment(P1, Q2, Q1)) return true;
+    if (O3 == 0 && OnSegment(P2, P1, Q2)) return true;
+    if (O4 == 0 && OnSegment(P2, Q1, Q2)) return true;
+    return false;
+}
+
+function bool IsInside(array<Vector2D> Polygon, int Count, Vector2D P)
+{
+    local Vector2D Extreme;
+    local int DuplicateCount, Intersections, I, Next;
+
+    if (Count < 3)
+    {
         return false;
-}
- 
-// To find orientation of ordered triplet (p, q, r).
-// The function returns following values
-// 0 --> p, q and r are collinear
-// 1 --> Clockwise
-// 2 --> Counterclockwise
-function int orientation(Vector2D p, Vector2D q, Vector2D r)
-{
-    local int val;
-    val = (q.y - p.y) * (r.x - q.x) -
-            (q.x - p.x) * (r.y - q.y);
- 
-    if (val == 0) return 0; // collinear
-    return (val > 0)? 1: 2; // clock or counterclock wise
-}
- 
-// The function that returns true if line segment 'p1q1'
-// and 'p2q2' intersect.
-function bool doIntersect(Vector2D p1, Vector2D q1, Vector2D p2, Vector2D q2)
-{
-    local int o1, o2, o3, o4;
-    // Find the four orientations needed for general and
-    // special cases
-    o1 = orientation(p1, q1, p2);
-    o2 = orientation(p1, q1, q2);
-    o3 = orientation(p2, q2, p1);
-    o4 = orientation(p2, q2, q1);
- 
-    // General case
-    if (o1 != o2 && o3 != o4)
-        return true;
- 
-    // Special Cases
-    // p1, q1 and p2 are collinear and p2 lies on segment p1q1
-    if (o1 == 0 && onSegment(p1, p2, q1)) return true;
- 
-    // p1, q1 and p2 are collinear and q2 lies on segment p1q1
-    if (o2 == 0 && onSegment(p1, q2, q1)) return true;
- 
-    // p2, q2 and p1 are collinear and p1 lies on segment p2q2
-    if (o3 == 0 && onSegment(p2, p1, q2)) return true;
- 
-    // p2, q2 and q1 are collinear and q1 lies on segment p2q2
-    if (o4 == 0 && onSegment(p2, q1, q2)) return true;
- 
-    return false; // Doesn't fall in any of the above cases
-}
- 
-// Returns true if the Vector2D p lies inside the polygon[] with n vertices
-function bool isInside(array<Vector2D> polygon, int n, Vector2D p)
-{
-    local Vector2D extreme;
-    local int decrease, count, i, next;
-    // There must be at least 3 vertices in polygon[]
-    if (n < 3) return false;
- 
-    // Create a point for line segment from p to infinite
-    extreme.x = INF;
-    extreme.y = p.y;
-   
-    // To count number of points in polygon
-    // whose y-coordinate is equal to
-    // y-coordinate of the point
-    decrease = 0;
- 
-    // Count intersections of the above line with sides of polygon
-    count = 0;
-    i = 0;
+    }
+
+    Extreme.X = INF;
+    Extreme.Y = P.Y;
+    DuplicateCount = 0;
+    Intersections = 0;
+    I = 0;
+
     while (true)
     {
-        next = (i+1)%n;
-       
-          if(polygon[i].y == p.y) decrease++;
- 
-        // Check if the line segment from 'p' to 'extreme' intersects
-        // with the line segment from 'polygon[i]' to 'polygon[next]'
-        if (doIntersect(polygon[i], polygon[next], p, extreme))
+        Next = (I + 1) % Count;
+        if (Polygon[I].Y == P.Y)
         {
-            // If the point 'p' is collinear with line segment 'i-next',
-            // then check if it lies on segment. If it lies, return true,
-            // otherwise false
-            if (orientation(polygon[i], p, polygon[next]) == 0)
-            return onSegment(polygon[i], p, polygon[next]);
- 
-            count++;
+            DuplicateCount++;
         }
-        i = next;
 
+        if (DoIntersect(Polygon[I], Polygon[Next], P, Extreme))
+        {
+            if (Orientation(Polygon[I], P, Polygon[Next]) == 0)
+            {
+                return OnSegment(Polygon[I], P, Polygon[Next]);
+            }
+            Intersections++;
+        }
+
+        I = Next;
         if (I == 0)
+        {
             break;
+        }
     }
-     
-    // Reduce the count by decrease amount
-    // as these points would have been added twice
-    count -= decrease;
-   
-    // Return true if count is odd, false otherwise
-    return (count % 2 == 1);// Same as (count%2 == 1)
+
+    return ((Intersections - DuplicateCount) % 2) == 1;
 }
 
-function string IntToString(int Int)
+function string IntToString(int Value)
 {
-    switch(Int)
+    switch (Value)
     {
-        case 0:
-        return "A";
-
-        case 1:
-        return "B";
-
-        case 2:
-        return "C";
-
-        case 3:
-        return "D";
-
-        case 4:
-        return "E";
-
-        case 5:
-        return "F";
-
-        case 6:
-        return "G";
-
-        case 7:
-        return "H";
-
-        case 8:
-        return "I";
-
-        case 9:
-        return "J";
-
-        case 10:
-        return "K";
-
-        case 11:
-        return "L";
-
-        case 12:
-        return "M";
-
-        case 13:
-        return "N";
-
-        case 14:
-        return "O";
-
-        case 15:
-        return "P";
+        case 0: return "A";
+        case 1: return "B";
+        case 2: return "C";
+        case 3: return "D";
+        case 4: return "E";
+        case 5: return "F";
+        case 6: return "G";
+        case 7: return "H";
+        case 8: return "I";
+        case 9: return "J";
+        case 10: return "K";
+        case 11: return "L";
+        case 12: return "M";
+        case 13: return "N";
+        case 14: return "O";
+        case 15: return "P";
     }
-}
 
+    return "?";
+}
 
 defaultproperties
 {
     MinimumCaptureTime=30
     InitialObjState=2
     ObjState=2
-
     ObjVolume=none
-
     bStatic=false
-	bNoDelete=false
+    bNoDelete=false
+    bAlwaysRelevant=true
+    bReplicateMovement=false
+    RemoteRole=ROLE_SimulatedProxy
 }

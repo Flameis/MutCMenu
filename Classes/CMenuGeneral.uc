@@ -58,7 +58,6 @@ function bool CheckExceptions(string Command)
                 ROPlayerController(PC).bForcedSpectating = false;
                 ROPlayerController(PC).ServerSpectatorReset();
                 ROPlayerController(PC).ServerViewSelf();
-                //ROPlayerController(PC).myHUD = PC.Spawn(class'CMHUD', PC);
                 /* ROPlayerController(PC).GotoState('Spectating');
 			    ROPlayerController(PC).ClientGotoState('Spectating');
                 ROPlayerController(PC).SetCameraMode('FreeCam'); */

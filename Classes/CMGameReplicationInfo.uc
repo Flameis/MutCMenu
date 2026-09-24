@@ -1,24 +1,12 @@
 class CMGameReplicationInfo extends ROGameReplicationInfo;
 
-var repnotify CMAObjective NewObj;
-
 simulated event ReplicatedEvent(name VarName)
 {
 	local ROPlayerController ROPC;
 
 	//`log(VarName);
 
-	if ( VarName == 'NewObj' )
-	{
-		AddObjective(NewObj, true);
-
-		foreach LocalPlayerControllers(class'ROPlayerController', ROPC)
-		{
-			ROPC.ObjectivesUpdated();
-			ROPC.ObjectiveStatusChanged(self);
-		}
-	}
-	else if( VarName == 'CampaignFactionOverrides' )
+	if( VarName == 'CampaignFactionOverrides' )
 	{
 		if( ROMapInfo(WorldInfo.GetMapInfo()) != none )
 		{

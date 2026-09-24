@@ -191,6 +191,7 @@ reliable server function ServerSetStaticMesh(StaticMesh NewMesh)
 {
 	StaticMeshComponent.SetStaticMesh(NewMesh);
 	ReplicatedMesh = NewMesh;
+	RefreshLighting();
 
 	ForceNetRelevant();
 }
@@ -223,6 +224,7 @@ reliable server function ServerSetScale3D(vector NewScale3D)
 {
 	StaticMeshComponent.SetScale3D(NewScale3D);
 	ReplicatedMeshScale3D = NewScale3D;
+	RefreshLighting();
 
 	ForceNetRelevant();
 }
@@ -230,6 +232,19 @@ reliable server function ServerSetScale3D(vector NewScale3D)
 simulated function SetStaticMesh(StaticMesh NewMesh)
 {
 	StaticMeshComponent.SetStaticMesh(NewMesh);
+	RefreshLighting();
+}
+
+simulated function RefreshLighting()
+{
+	if (LightEnvironment != None)
+	{
+		LightEnvironment.SetEnabled(true);
+		LightEnvironment.ResetEnvironment();
+	}
+
+	if (StaticMeshComponent != None)
+		StaticMeshComponent.ForceUpdate(false);
 }
 
 simulated function SetMaterial(MaterialInterface NewMaterial)
@@ -250,6 +265,7 @@ simulated function SetMeshRotation(rotator NewRotation)
 simulated function SetScale3D(vector NewScale3D)
 {
 	StaticMeshComponent.SetScale3D(NewScale3D);
+	RefreshLighting();
 }
 
 /* event Tick(float DeltaTime)
@@ -288,6 +304,10 @@ defaultproperties
 
 	Begin Object Class=DynamicLightEnvironmentComponent Name=MyLightEnvironment
 		bEnabled=TRUE
+		bDynamic=FALSE
+		bCastShadows=TRUE
+		bSynthesizeSHLight=FALSE
+		bUseBooleanEnvironmentShadowing=FALSE
 	End Object
 	LightEnvironment=MyLightEnvironment
 	Components.Add(MyLightEnvironment)
@@ -301,7 +321,11 @@ defaultproperties
 		CastShadow=true
 		bSelfShadowOnly=false
 		bCastDynamicShadow=true
+		bAllowAutoCastDynamicShadowOverride=false
+		bAllowMergedDynamicShadows=true
+		bForceDirectLightMap=false
 		bUsePrecomputedShadows=false
+		LightingChannels=(Static=true,Dynamic=true,bInitialized=true)
 		DepthPriorityGroup=SDPG_World
 		CollideActors=true
 		BlockActors=true

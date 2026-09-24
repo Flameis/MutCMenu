@@ -260,6 +260,11 @@ unreliable server function SpawnActor(
 
     if (SpawnTag == 'StaticMesh')
     {
+        if (Scale <= 0.0)
+        {
+            Scale = 1.0;
+        }
+
         CMAStaticMesh =  CMAStaticMesh(Spawn(SpawnClass, SpawnOwner, SpawnTag, SpawnLocation, SpawnRotation, ActorTemplate, bNoCollisionFail));
         CMAStaticMesh.ServerSetStaticMesh(StaticMesh(DynamicLoadObject(SMesh, class'StaticMesh')));
         CMAStaticMesh.ServerSetScale3D(CMAStaticMesh.StaticMeshComponent.Scale3D*Scale);
@@ -496,7 +501,7 @@ unreliable server function SpawnDecal(
 	`log(Decal.Height); */
 }
 
-unreliable server function ClearAllActors()
+reliable server function ClearAllActors()
 {
     local Actor ActorToClear;
 
@@ -510,31 +515,24 @@ unreliable server function ClearAllActors()
     `log("All actors have been cleared.");
 }
 
-/* reliable server function ServerSpawnOBJ(
-    class<actor>      SpawnClass,
-	optional actor	  SpawnOwner,
-	optional name     SpawnTag,
-	optional vector   SpawnLocation,
-	optional rotator  SpawnRotation,
-	optional Actor    ActorTemplate,
-	optional bool	  bNoCollisionFail)
+reliable server function ServerSpawnObjective(vector SpawnLocation, array<Vector2D> ObjectiveCorners)
 {
-    local CMAObjective CMPO, ObjTemplate;
-    local DummyActor DA;
+    local CMAObjective CMPO;
 
-    SpawnLocation.z = SpawnLocation.z + 200;
-	ObjTemplate = CMAObjective(DynamicLoadObject("MutCMenuPkg.Objectives.OBJ"$MyMut.NumObjs+1, class'CMAObjective'));
-	MyMut.NumObjs++;
-    `log(ObjTemplate);
-	CMPO = Spawn(class'CMAObjective',, SpawnTag, SpawnLocation, SpawnRotation, ObjTemplate);
-	CMPO.Init(Corners);
-	Corners.Remove(0, Corners.Length);
-
-    foreach AllActors(class'DummyActor', DA)
+    if (ObjectiveCorners.Length < 3)
     {
-        DA.ClientSetupObj(CMPO);
+        `warn("ServerSpawnObjective: at least three corners are required");
+        return;
     }
-} */
+
+    CMPO = Spawn(class'CMAObjective',,, SpawnLocation,,, true);
+    if (CMPO == none)
+    {
+        return;
+    }
+
+    CMPO.Init(ObjectiveCorners);
+}
 
 function ClientSetupObj(CMAObjective CMPO)
 {

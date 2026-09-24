@@ -62,6 +62,8 @@ function bool CheckExceptions(string Command)
 
 function DoPlace()
 {
+	local Vector2D Point2D;
+
 	switch (LastCmd)
 	{
 		case "NORTHSPAWN":
@@ -73,12 +75,16 @@ function DoPlace()
 			return;
 
 		case "SETCORNER":
+			Point2D.X = PlaceLoc.X;
+			Point2D.Y = PlaceLoc.Y;
+			Corners.AddItem(Point2D);
 			MyDA.SetCorner(PlaceLoc, PlaceRot);
 			return;
 
-		// case "SPAWNOBJ":
-		// 	MyDA.ServerSpawnOBJ(class'CMAObjective',,, PlaceLoc);
-		// 	return;
+		case "SPAWNOBJ":
+			MyDA.ServerSpawnObjective(PlaceLoc, Corners);
+			Corners.Remove(0, Corners.Length);
+			return;
 
 		case "REDDECAL":
 			MyDA.SpawnDecal(DecalMaterial'Effects_Mats.FX_Gore.BloodPool_001_DM', PlaceLoc, PlaceRot);
@@ -110,8 +116,8 @@ defaultproperties
     MenuText.Add("Set South Spawn")
     MenuText.Add("Delete North Spawns")
     MenuText.Add("Delete South Spawns")
-    // MenuText.Add("Mark Corner")
-    // MenuText.Add("Spawn Obj")
+	MenuText.Add("Mark Corner")
+	MenuText.Add("Spawn Obj")
 	// MenuText.Add("Clear Corners")
     // MenuText.Add("Clear Objs")
     MenuText.Add("Clear All")
@@ -126,8 +132,8 @@ defaultproperties
     MenuCommand.Add("SOUTHSPAWN")
     MenuCommand.Add("DELNORTHSPAWNS")
     MenuCommand.Add("DELSOUTHSPAWNS")
-    // MenuCommand.Add("SETCORNER")
-    // MenuCommand.Add("SPAWNOBJ")
+	MenuCommand.Add("SETCORNER")
+	MenuCommand.Add("SPAWNOBJ")
 	// MenuCommand.Add("CLEARCORNERS")
     // MenuCommand.Add("CLEAROBJS")
     MenuCommand.Add("CLEARALLACTORS")
