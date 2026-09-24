@@ -17,32 +17,17 @@ function bool CheckExceptions(string Command)
     {
         case "DROPATGRID":
             if(bCMenuDebug) `Log("DropAtGrid");
-            LocalPlayer(PC.Player).ViewportClient.ViewportConsole.TypedStr="Mutate "$Command$" ";
-            LocalPlayer(PC.Player).ViewportClient.ViewportConsole.TypedStrPos=Len(LocalPlayer(PC.Player).ViewportClient.ViewportConsole.TypedStr); // set the value high in case name is quite long
-            LocalPlayer(PC.Player).ViewportClient.ViewportConsole.GoToState('Typing');
-            LocalPlayer(PC.Player).ViewportClient.ClearProgressMessages();
-            LocalPlayer(PC.Player).ViewportClient.SetProgressTime(6);
-            MessageSelf("Please Specify a Grid Location (Example: E 5 kp 5)");
+            PromptForText("Please Specify a Grid Location (Example: E 5 kp 5)", "Mutate "$Command$" ");
             return true;
             
         case "DROPATOBJ":
             if(bCMenuDebug) `Log("DropAtObj");
-            LocalPlayer(PC.Player).ViewportClient.ViewportConsole.TypedStr="Mutate "$Command$" ";
-            LocalPlayer(PC.Player).ViewportClient.ViewportConsole.TypedStrPos=Len(LocalPlayer(PC.Player).ViewportClient.ViewportConsole.TypedStr); // set the value high in case name is quite long
-            LocalPlayer(PC.Player).ViewportClient.ViewportConsole.GoToState('Typing');
-            LocalPlayer(PC.Player).ViewportClient.ClearProgressMessages();
-            LocalPlayer(PC.Player).ViewportClient.SetProgressTime(6);
-            MessageSelf("Please Specify an Objective (Example: A)");
+            PromptForText("Please Specify an Objective (Example: A)", "Mutate "$Command$" ");
             return true;
 
         case "CHANGENAME":
             if(bCMenuDebug) `Log("CHANGENAME");
-            LocalPlayer(PC.Player).ViewportClient.ViewportConsole.TypedStr="Mutate "$Command$" ";
-            LocalPlayer(PC.Player).ViewportClient.ViewportConsole.TypedStrPos=Len(LocalPlayer(PC.Player).ViewportClient.ViewportConsole.TypedStr); // set the value high in case name is quite long
-            LocalPlayer(PC.Player).ViewportClient.ViewportConsole.GoToState('Typing');
-            LocalPlayer(PC.Player).ViewportClient.ClearProgressMessages();
-            LocalPlayer(PC.Player).ViewportClient.SetProgressTime(6);
-            MessageSelf("Please Type Your Desired Name (Example: T/5 Scovel [29ID])");
+            PromptForText("Please Type Your Desired Name (Example: T/5 Scovel [29ID])", "Mutate "$Command$" ");
             return true;
 
         case "SUICIDE":

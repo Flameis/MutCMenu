@@ -42,12 +42,7 @@ function bool CheckExceptions(string Command)
     switch (Command)
     {
         case "CUSTOM":
-            LocalPlayer(PC.Player).ViewportClient.ViewportConsole.TypedStr="mutate CMENU CMenuBVehicles to ";
-            LocalPlayer(PC.Player).ViewportClient.ViewportConsole.TypedStrPos=Len(LocalPlayer(PC.Player).ViewportClient.ViewportConsole.TypedStr); // set the value high in case name is quite long
-            LocalPlayer(PC.Player).ViewportClient.ViewportConsole.GoToState('Typing');
-            LocalPlayer(PC.Player).ViewportClient.ClearProgressMessages();
-            LocalPlayer(PC.Player).ViewportClient.SetProgressTime(6);
-            MessageSelf("Please Type Your Desired Vehicle (Example: ROGameContent.ROHeli_AH1G_Content)");
+            PromptForText("Please Type Your Desired Vehicle (Example: ROGameContent.ROHeli_AH1G_Content)", "mutate CMENU CMenuBVehicles to ");
             GoToState('ReadyToPlace',, true);
             return true;
 

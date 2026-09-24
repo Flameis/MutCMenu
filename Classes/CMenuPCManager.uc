@@ -29,52 +29,27 @@ function bool CheckExceptions(string Command)
     switch (Caps(Params[0]))
     {
         case "FORCECHANGENAME":
-            LocalPlayer(PC.Player).ViewportClient.ViewportConsole.TypedStr="mutate "$Command$" to ";
-            LocalPlayer(PC.Player).ViewportClient.ViewportConsole.TypedStrPos=Len(LocalPlayer(PC.Player).ViewportClient.ViewportConsole.TypedStr); // set the value high in case name is quite long
-            LocalPlayer(PC.Player).ViewportClient.ViewportConsole.GoToState('Typing');
-            LocalPlayer(PC.Player).ViewportClient.ClearProgressMessages();
-            LocalPlayer(PC.Player).ViewportClient.SetProgressTime(6);
-            MessageSelf("Please Type Your Desired Name (Example: T/5 Scovel [29ID])");
+            PromptForText("Please Type Your Desired Name (Example: T/5 Scovel [29ID])", "mutate "$Command$" to ");
             return true;
 
         case "FDAO":
             if(bCMenuDebug) `Log("DropAtObj");
-            LocalPlayer(PC.Player).ViewportClient.ViewportConsole.TypedStr="mutate "$Command$" to ";
-            LocalPlayer(PC.Player).ViewportClient.ViewportConsole.TypedStrPos=Len(LocalPlayer(PC.Player).ViewportClient.ViewportConsole.TypedStr); // set the value high in case name is quite long
-            LocalPlayer(PC.Player).ViewportClient.ViewportConsole.GoToState('Typing');
-            LocalPlayer(PC.Player).ViewportClient.ClearProgressMessages();
-            LocalPlayer(PC.Player).ViewportClient.SetProgressTime(6);
-            MessageSelf("Please Specify an Objective (Example: A)");
+            PromptForText("Please Specify an Objective (Example: A)", "mutate "$Command$" to ");
             return true;
 
         case "FDAG":
             if(bCMenuDebug) `Log("DropAtGrid");
-            LocalPlayer(PC.Player).ViewportClient.ViewportConsole.TypedStr="mutate "$Command$" to ";
-            LocalPlayer(PC.Player).ViewportClient.ViewportConsole.TypedStrPos=Len(LocalPlayer(PC.Player).ViewportClient.ViewportConsole.TypedStr); // set the value high in case name is quite long
-            LocalPlayer(PC.Player).ViewportClient.ViewportConsole.GoToState('Typing');
-            LocalPlayer(PC.Player).ViewportClient.ClearProgressMessages();
-            LocalPlayer(PC.Player).ViewportClient.SetProgressTime(6);
-            MessageSelf("Please Specify a Grid Location (Example: E 5 kp 5)");
+            PromptForText("Please Specify a Grid Location (Example: E 5 kp 5)", "mutate "$Command$" to ");
             return true;
 
         case "FORCEUNITPATCH":
             if(bCMenuDebug) `Log("ForceUnitPatch");
-            LocalPlayer(PC.Player).ViewportClient.ViewportConsole.TypedStr="mutate "$Command$" to ";
-            LocalPlayer(PC.Player).ViewportClient.ViewportConsole.TypedStrPos=Len(LocalPlayer(PC.Player).ViewportClient.ViewportConsole.TypedStr); // set the value high in case name is quite long
-            LocalPlayer(PC.Player).ViewportClient.ViewportConsole.GoToState('Typing');
-            LocalPlayer(PC.Player).ViewportClient.ClearProgressMessages();
-            LocalPlayer(PC.Player).ViewportClient.SetProgressTime(6);
-            MessageSelf("Please Specify a Unit (Example: DP2S4)");
+            PromptForText("Please Specify a Unit (Example: DP2S4)", "mutate "$Command$" to ");
             return true;
 
         case "FORCERANKPATCH":
             if(bCMenuDebug) `Log("ForceRankPatch");
-            LocalPlayer(PC.Player).ViewportClient.ViewportConsole.TypedStr="mutate "$Command$" to ";
-            LocalPlayer(PC.Player).ViewportClient.ViewportConsole.TypedStrPos=Len(LocalPlayer(PC.Player).ViewportClient.ViewportConsole.TypedStr); // set the value high in case name is quite long
-            LocalPlayer(PC.Player).ViewportClient.ViewportConsole.GoToState('Typing');
-            LocalPlayer(PC.Player).ViewportClient.ClearProgressMessages();
-            LocalPlayer(PC.Player).ViewportClient.SetProgressTime(6);
-            MessageSelf("Please Specify a Rank (Example: sgtmaj)");
+            PromptForText("Please Specify a Rank (Example: sgtmaj)", "mutate "$Command$" to ");
             return true;
 
         default:

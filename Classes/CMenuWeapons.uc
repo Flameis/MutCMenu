@@ -33,12 +33,7 @@ function bool CheckExceptions(string Command)
         case "GIVEWEAPONSOUTH":
         case "GIVEWEAPONALL":
             if(bCMenuDebug) `Log("GIVEWEAPON");
-            LocalPlayer(PC.Player).ViewportClient.ViewportConsole.TypedStr="Mutate "$Command$" ";
-            LocalPlayer(PC.Player).ViewportClient.ViewportConsole.TypedStrPos=Len(LocalPlayer(PC.Player).ViewportClient.ViewportConsole.TypedStr); // set the value high in case name is quite long
-            LocalPlayer(PC.Player).ViewportClient.ViewportConsole.GoToState('Typing');
-            LocalPlayer(PC.Player).ViewportClient.ClearProgressMessages();
-            LocalPlayer(PC.Player).ViewportClient.SetProgressTime(6);
-            MessageSelf("Please Specify a Weapon (Example: L1A1)");
+            PromptForText("Please Specify a Weapon (Example: L1A1)", "Mutate "$Command$" ");
             return true;
 
         case "COPY":

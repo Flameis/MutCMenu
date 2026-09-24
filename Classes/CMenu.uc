@@ -3,7 +3,10 @@ class CMenu extends Interaction
 
 var PlayerController PC;
 var DummyActor MyDA;
+var CMenuTextEntryScene TextEntryScene;
+var CMenuClickOverlayScene ClickOverlay;
 var Texture2D DefaultTexture_Black, DefaultTexture_White;
+var string PendingCmdPrefix, PendingCmdSuffix;
 
 const ITEMS_PER_PAGE = 8;
 const TEXT_OFFSET = 10;
@@ -21,6 +24,7 @@ simulated state MenuVisible
 	function BeginState(name PreviousStateName)
 	{
 		Initialize();
+		RebuildClickOverlay();
 	}
 	
 	function bool InputKey( int ControllerId, name Key, EInputEvent EventType, float AmountDepressed = 1.f, bool bGamepad = FALSE )
@@ -42,6 +46,9 @@ simulated state MenuVisible
 
 	function EndState(name NextStateName)
 	{
+		if (ClickOverlay != None)
+			ClickOverlay.EnsureClosed(GetCMenuSceneClient());
+
 		if (NextStateName != 'ReadyToPlace')
 		{
 			if (MenuCommand.Length > default.MenuCommand.Length)
@@ -104,23 +111,31 @@ function int KeyToNumber(name InKey)
 	return -1;
 }
 
-// Takes the number pressed and executes a command based on the selection list
+// Takes the number pressed (via numpad key or a click-overlay button) and executes a command based on the selection list
 function bool HandleInput(name Key, array<string> SelectionList)
 {
-	local int IniLine;
-	local string Command;
 	local int NumKey;
 
 	NumKey = KeyToNumber(Key);
 	if(NumKey == -1)
 		return false;
 
+	return SelectLine(NumKey);
+}
+
+// Shared by numpad input and click-overlay buttons once a 0-9 selection has been resolved
+function bool SelectLine(int NumKey)
+{
+	local int IniLine;
+	local string Command;
+
 	IniLine = NumKey-1 + (MenuPage * ITEMS_PER_PAGE); // Adjust for line 1 being row 0 in array & page number
 
-	if(NumKey == 9 && SelectionList.Length > ((MenuPage+1)*ITEMS_PER_PAGE)) // next page
+	if(NumKey == 9 && MenuCommand.Length > ((MenuPage+1)*ITEMS_PER_PAGE)) // next page
 	{
 		MenuPage++;
 		FindCMenuLength(); // Do this here and in BeginState() so we aren't spamming a loop every tick
+		RebuildClickOverlay();
 		return true;
 	}
 	else if(NumKey == 0)
@@ -129,6 +144,7 @@ function bool HandleInput(name Key, array<string> SelectionList)
 		{
 			MenuPage--;
 			FindCMenuLength(); // Do this here and in BeginState() so we aren't spamming a loop every tick
+			RebuildClickOverlay();
 		}
 		else
 		{
@@ -137,9 +153,9 @@ function bool HandleInput(name Key, array<string> SelectionList)
 		}
 		return true;
 	}
-	else if(SelectionList.Length >= IniLine)
+	else if(MenuCommand.Length >= IniLine)
 	{
-		Command = SelectionList[IniLine];
+		Command = MenuCommand[IniLine];
 		LastCmd	= Command;
 
 		if (CheckExceptions(Command)) //Check for any exceptions in child classes
@@ -203,6 +219,95 @@ function FindCMenuLength()
 function bool CheckExceptions(string Command) 
 {
 	return false;
+}
+
+function GameUISceneClient GetCMenuSceneClient()
+{
+	local LocalPlayer LP;
+
+	LP = LocalPlayer(PC.Player);
+	if (LP == None || LP.ViewportClient == None || LP.ViewportClient.UIController == None)
+		return None;
+
+	return LP.ViewportClient.UIController.SceneClient;
+}
+
+// Opens the shared text-entry dialog; on submit, runs Prefix$EnteredText$Suffix as a console command
+function PromptForText(string Prompt, string CommandPrefix, optional string CommandSuffix)
+{
+	local GameUISceneClient SceneClient;
+	local UIScene Opened;
+
+	SceneClient = GetCMenuSceneClient();
+	if (SceneClient == None || TextEntryScene == None)
+		return;
+
+	PendingCmdPrefix = CommandPrefix;
+	PendingCmdSuffix = CommandSuffix;
+	TextEntryScene.Configure(Prompt, "", OnPromptSubmitted);
+	SceneClient.OpenScene(TextEntryScene, LocalPlayer(PC.Player), Opened);
+}
+
+function bool OnPromptSubmitted(string EnteredText, bool bCancelled)
+{
+	local GameUISceneClient SceneClient;
+
+	SceneClient = GetCMenuSceneClient();
+	if (SceneClient != None)
+		SceneClient.CloseScene(TextEntryScene);
+
+	if (!bCancelled && EnteredText != "")
+		PC.ConsoleCommand(PendingCmdPrefix $ EnteredText $ PendingCmdSuffix);
+
+	return true;
+}
+
+// Mirrors the currently visible page as mouse-clickable hit-regions; no-op unless click mode is active
+function RebuildClickOverlay()
+{
+	local int i, Count;
+	local float LineX, LineY;
+	local GameUISceneClient SceneClient;
+
+	if (ClickOverlay == None || MyDA == None)
+		return;
+
+	SceneClient = GetCMenuSceneClient();
+
+	if (!MyDA.bClickModeActive)
+	{
+		ClickOverlay.EnsureClosed(SceneClient);
+		return;
+	}
+
+	ClickOverlay.EnsureOpen(SceneClient, LocalPlayer(PC.Player));
+
+	LineX = TEXT_OFFSET;
+	LineY = 240 + TEXT_OFFSET + (MenuName != "" ? 50 : 0);
+
+	Count = Min((MenuPage+1)*ITEMS_PER_PAGE, MenuCommand.Length) - (MenuPage*ITEMS_PER_PAGE);
+	for (i = 0; i < Count; i++)
+	{
+		ClickOverlay.PositionButton(i, LineX, LineY, 500.f, 50.f, Self, i+1);
+		LineY += 50;
+	}
+	for (i = Count; i < ITEMS_PER_PAGE; i++)
+	{
+		ClickOverlay.HideButton(i);
+	}
+
+	if (MenuCommand.Length > ((MenuPage+1)*ITEMS_PER_PAGE)) // Next
+	{
+		LineY += 100;
+		ClickOverlay.PositionButton(ITEMS_PER_PAGE, LineX, LineY, 200.f, 50.f, Self, 9);
+	}
+	else
+	{
+		ClickOverlay.HideButton(ITEMS_PER_PAGE);
+	}
+
+	LineY += 100;
+	ClickOverlay.PositionButton(ITEMS_PER_PAGE+1, LineX, LineY, 200.f, 50.f, Self, 0);
 }
 
 // Displays the menu based on an input list

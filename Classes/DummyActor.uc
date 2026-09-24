@@ -3,7 +3,11 @@ class DummyActor extends actor;
 var MutCMenu                     MyMut;
 
 var bool bIsAuthorized, bNewTankPhys, bLoadExtras, bLoadGOM3, bLoadGOM4, bLoadWW, bLoadWW2;
+var bool bClickModeActive;
 var string TargetName;
+
+var CMenuTextEntryScene TextEntryScene;
+var CMenuClickOverlayScene ClickOverlay;
 
 var array<vector2d>				Corners;
 
@@ -159,15 +163,40 @@ reliable client function CMenuSetup()
 
     pc.Interactions[pc.Interactions.Length] = pc.Interactions[0];
     pc.Interactions.remove(0, 1);
-    
+
+    EnsureUIScenesCreated(PC);
+
     for (i = 0; i < PC.Interactions.Length; i++)
     {
         if (InStr(PC.Interactions[i].name, "CMenu",,true) != -1)
         {
             CMenu(PC.Interactions[i]).PC = PC;
             CMenu(PC.Interactions[i]).MyDA = self;
+            CMenu(PC.Interactions[i]).TextEntryScene = TextEntryScene;
+            CMenu(PC.Interactions[i]).ClickOverlay = ClickOverlay;
         }
     }
+}
+
+// Creates the shared, code-only UIScenes used for text input and mouse click selection, once per player
+function EnsureUIScenesCreated(PlayerController PC)
+{
+    local LocalPlayer LP;
+    local GameUISceneClient SceneClient;
+
+    if (TextEntryScene != None && ClickOverlay != None)
+        return;
+
+    LP = LocalPlayer(PC.Player);
+    if (LP == None || LP.ViewportClient == None || LP.ViewportClient.UIController == None)
+        return;
+
+    SceneClient = LP.ViewportClient.UIController.SceneClient;
+    if (SceneClient == None)
+        return;
+
+    TextEntryScene = SceneClient.CreateScene(class'CMenuTextEntryScene', 'CMenuTextEntry');
+    ClickOverlay = SceneClient.CreateScene(class'CMenuClickOverlayScene', 'CMenuClickOverlay');
 }
 
 reliable client function ToggleCMenuVisiblity(string CMenu, bool bAuthorized, string TName)

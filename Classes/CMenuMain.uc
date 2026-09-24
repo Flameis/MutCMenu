@@ -17,7 +17,25 @@ function Initialize()
     MenuText.AddItem("CMenu Settings");
     MenuCommand.AddItem("CMENU CMENUSETTINGS");
 
+    MenuText.AddItem("Toggle Mouse Click Mode");
+    MenuCommand.AddItem("TOGGLECLICKMODE");
+
 	super.Initialize();
+}
+
+function bool CheckExceptions(string Command)
+{
+    switch (Caps(Command))
+    {
+        case "TOGGLECLICKMODE":
+            MyDA.bClickModeActive = !MyDA.bClickModeActive;
+            MessageSelf(MyDA.bClickModeActive ? "Mouse click mode enabled" : "Mouse click mode disabled");
+            RebuildClickOverlay();
+            return true;
+
+        default:
+            return false;
+    }
 }
 
 defaultproperties

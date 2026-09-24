@@ -8,12 +8,7 @@ function bool CheckExceptions(string Command)
         case "SETCMENUBGCOLOR":
         case "SETCMENUBORDERCOLOR":
             if(bCMenuDebug) `Log("DropAtGrid");
-            LocalPlayer(PC.Player).ViewportClient.ViewportConsole.TypedStr="Mutate "$Command$" ";
-            LocalPlayer(PC.Player).ViewportClient.ViewportConsole.TypedStrPos=Len(LocalPlayer(PC.Player).ViewportClient.ViewportConsole.TypedStr); // set the value high in case name is quite long
-            LocalPlayer(PC.Player).ViewportClient.ViewportConsole.GoToState('Typing');
-            LocalPlayer(PC.Player).ViewportClient.ClearProgressMessages();
-            LocalPlayer(PC.Player).ViewportClient.SetProgressTime(6);
-            MessageSelf("Please Specify a Color in RGBA Format (Example: 255 128 0 255(Optional Transparency) for Orange)");
+            PromptForText("Please Specify a Color in RGBA Format (Example: 255 128 0 255(Optional Transparency) for Orange)", "Mutate "$Command$" ");
             return true;
 
         case "TOGGLECMENUBACKGROUND":

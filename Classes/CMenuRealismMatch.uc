@@ -55,64 +55,34 @@ function bool CheckExceptions(string Command)
         case "SETOBJNORTH":
         case "SETOBJSOUTH":
             if(bCMenuDebug) `Log("DropAllAtObj");
-            LocalPlayer(PC.Player).ViewportClient.ViewportConsole.TypedStr="Mutate "$Command$" ";
-            LocalPlayer(PC.Player).ViewportClient.ViewportConsole.TypedStrPos=Len(LocalPlayer(PC.Player).ViewportClient.ViewportConsole.TypedStr); // set the value high in case name is quite long
-            LocalPlayer(PC.Player).ViewportClient.ViewportConsole.GoToState('Typing');
-            LocalPlayer(PC.Player).ViewportClient.ClearProgressMessages();
-            LocalPlayer(PC.Player).ViewportClient.SetProgressTime(6);
-            MessageSelf("Please Specify an Objective (Example: A or ALL)");
+            PromptForText("Please Specify an Objective (Example: A or ALL)", "Mutate "$Command$" ");
             return true;
 
         case "SETROUNDDURATION":
         case "SETNORTHREINFORCEMENTS":
         case "SETSOUTHREINFORCEMENTS":
             if(bCMenuDebug) `Log("SetRoundDuration");
-            LocalPlayer(PC.Player).ViewportClient.ViewportConsole.TypedStr="Mutate "$Command$" ";
-            LocalPlayer(PC.Player).ViewportClient.ViewportConsole.TypedStrPos=Len(LocalPlayer(PC.Player).ViewportClient.ViewportConsole.TypedStr); // set the value high in case name is quite long
-            LocalPlayer(PC.Player).ViewportClient.ViewportConsole.GoToState('Typing');
-            LocalPlayer(PC.Player).ViewportClient.ClearProgressMessages();
-            LocalPlayer(PC.Player).ViewportClient.SetProgressTime(6);
-            MessageSelf("Please Specify an integer (Example: 60)");
+            PromptForText("Please Specify an integer (Example: 60)", "Mutate "$Command$" ");
             return true;
 
         case "SETFF":
             if(bCMenuDebug) `Log("SETFF");
-            LocalPlayer(PC.Player).ViewportClient.ViewportConsole.TypedStr="Mutate "$Command$" ";
-            LocalPlayer(PC.Player).ViewportClient.ViewportConsole.TypedStrPos=Len(LocalPlayer(PC.Player).ViewportClient.ViewportConsole.TypedStr); // set the value high in case name is quite long
-            LocalPlayer(PC.Player).ViewportClient.ViewportConsole.GoToState('Typing');
-            LocalPlayer(PC.Player).ViewportClient.ClearProgressMessages();
-            LocalPlayer(PC.Player).ViewportClient.SetProgressTime(6);
-            MessageSelf("Please Specify a Decimal (Example: 0.5)");
+            PromptForText("Please Specify a Decimal (Example: 0.5)", "Mutate "$Command$" ");
             return true;
 
         case "SETCAPTIME":
             if(bCMenuDebug) `Log("SETCAPTIME");
-            LocalPlayer(PC.Player).ViewportClient.ViewportConsole.TypedStr="Mutate "$Command$" ";
-            LocalPlayer(PC.Player).ViewportClient.ViewportConsole.TypedStrPos=Len(LocalPlayer(PC.Player).ViewportClient.ViewportConsole.TypedStr); // set the value high in case name is quite long
-            LocalPlayer(PC.Player).ViewportClient.ViewportConsole.GoToState('Typing');
-            LocalPlayer(PC.Player).ViewportClient.ClearProgressMessages();
-            LocalPlayer(PC.Player).ViewportClient.SetProgressTime(6);
-            MessageSelf("Please specify a OBJ letter and a minimum capture timer in seconds (Example: A 45)");
+            PromptForText("Please specify a OBJ letter and a minimum capture timer in seconds (Example: A 45)", "Mutate "$Command$" ");
             return true;
 
         case "COUNTDOWN":
             if(bCMenuDebug) `Log("COUNTDOWN");
-            LocalPlayer(PC.Player).ViewportClient.ViewportConsole.TypedStr="Mutate "$Command$" ";
-            LocalPlayer(PC.Player).ViewportClient.ViewportConsole.TypedStrPos=Len(LocalPlayer(PC.Player).ViewportClient.ViewportConsole.TypedStr); // set the value high in case name is quite long
-            LocalPlayer(PC.Player).ViewportClient.ViewportConsole.GoToState('Typing');
-            LocalPlayer(PC.Player).ViewportClient.ClearProgressMessages();
-            LocalPlayer(PC.Player).ViewportClient.SetProgressTime(6);
-            MessageSelf("Please specify countdown duration in seconds (Example: 10)");
+            PromptForText("Please specify countdown duration in seconds (Example: 10)", "Mutate "$Command$" ");
             return true;
 
         case "ROUNDTIMER":
             if(bCMenuDebug) `Log("ROUNDTIMER");
-            LocalPlayer(PC.Player).ViewportClient.ViewportConsole.TypedStr="Mutate "$Command$" ";
-            LocalPlayer(PC.Player).ViewportClient.ViewportConsole.TypedStrPos=Len(LocalPlayer(PC.Player).ViewportClient.ViewportConsole.TypedStr); // set the value high in case name is quite long
-            LocalPlayer(PC.Player).ViewportClient.ViewportConsole.GoToState('Typing');
-            LocalPlayer(PC.Player).ViewportClient.ClearProgressMessages();
-            LocalPlayer(PC.Player).ViewportClient.SetProgressTime(6);
-            MessageSelf("Please specify round timer duration in minutes, 0 to disable (Example: 20)");
+            PromptForText("Please specify round timer duration in minutes, 0 to disable (Example: 20)", "Mutate "$Command$" ");
             return true;
 
         default:
