@@ -1,294 +1,228 @@
 # MutCMenu
 
-Console-based menu system for server administration and drill management.
+CMenu is an on-screen menu for drill leaders and admins. It lets you run a drill without memorising console commands: you open the menu, press a number, and things happen. It can also place vehicles, walls, spawn points and even whole objectives, give weapons, move players around, and call in fire support.
 
-## Setup
+## Contents
 
-1. Open console (~ key)
-2. Type: `setbind <key> mutate cmenu` (replace `<key>` with your chosen key, e.g., `F1`)
-3. Example: `setbind F1 mutate cmenu`
-4. Press your CMenu bind key to open the menu
-5. Navigate with arrow keys, select with enter
+1. Getting started
+2. Who can do what
+3. The menus
+4. Fire support
+5. Building things (the Builder menu)
+6. Other features
+7. Typing commands instead of using the menu
+8. Settings
+9. Works with other mods
 
-## Command Syntax
+---
 
-Commands take options as `--long value` or the short `-o value`, like Linux commands. A value runs until the next option, so it can contain spaces (player names, grids). `--option=value` also works.
+## 1. Getting started
 
-```
-mutate firesupport --type mortar --grid E 5 kp 5
-mutate giveweapon --weapon L1A1 --team north       (short: -w -t)
-mutate killplayer --player Some Name               (short: -p)
-mutate randomobj --obj a,b,c --time 60 --live      (short: -o -t -l; --live starts the countdown at LIVE)
-```
+1. Open the game console (the `~` key).
+2. Bind a key to the menu: `setbind F1 mutate cmenu` (use any key you like instead of F1).
+3. Press that key in game to open the menu.
+4. Press the **number keys** (top row or number pad) to pick an entry. **1 to 8** pick an entry, **9** goes to the next page and **0** goes back.
+5. Prefer the mouse? Choose **Toggle Mouse Click Mode** in the main menu and each line becomes a clickable button.
 
-Commands that are also provided by another mutator (the Realism Match and Paradrops commands, `scrimadminlogin`, `changename`, `whois`) accept both the options and the older `command value` form. Commands only MutCMenu provides use the options form; the older spellings (`giveweaponnorth`, `clearweaponsall`, `setcmenutextcolor`, `killplayer Name`, `forceunitpatch Name to DP2S4`, ...) are still accepted.
+Some entries need a value from you (a player name, a grid square, a time). When you pick one, the menu closes and the large console opens with the command already typed and short instructions above it. Add your value and press Enter. A mistyped fire support command tells you what was wrong and puts the command back so you can fix it.
 
-| Command | Options |
+Long help text (for example `mutate firesupporthelp`) opens in the large console so it does not flood the chat. Short messages arrive as private chat messages that only you see.
+
+## 2. Who can do what
+
+- **Server admins** (logged in to the server's WebAdmin or admin list) can use everything.
+- **Scrim admins** can use everything too. A scrim admin is a name on the Realism Match admin list who has logged in with `mutate scrimadminlogin`, or someone an admin has given **temporary** admin powers.
+- **Spectators** can use the Builder too, even without a character: they aim with the camera and place things where it points.
+- **Everyone else** sees a smaller menu: General Commands, the Builder, the Weapon menu (for themselves only), CMenu Settings and, if the server allows it, Fire Support.
+
+Anything marked "admin only" below is hidden or refused for everyone else.
+
+## 3. The menus
+
+### Main menu
+The starting point. It lists General Commands, Builder, Weapons, CMenu Settings, Toggle Mouse Click Mode and, for admins, the Realism Match, Paradrop and Manage Players menus. Fire Support appears for admins, and for players when the server allows it.
+
+### General Commands (everyone)
+| Entry | What it does |
 | :--- | :--- |
-| `giveweapon` | `--weapon/-w`, `--team/-t` (north, south or all; leave out for yourself) |
-| `clearweapons` | `--team/-t` (north, south or all; leave out for yourself) |
-| `setcmenucolor` | `--text/-t R G B A`, `--background/-b R G B A`, `--border/-o R G B A` |
-| `cmenu` | `--menu/-m`, `--player/-p` |
-| `firesupport` | `--type/-t`, `--grid/-g` or `--mark/-m`; `--SL/-l [n]` or `--mark SL3` (squad marks); `--direction/-b` (napalm/canberra heading); admin barrage settings `--salvos/-s`, `--shells/-n`, `--spread/-r` (meters), `--interval/-i`, `--persist/-p`; admin `--delay/-d` (first strike delay, 10-300 s) and `--suppress/-q` |
-| `killplayer`, `teleporttome`, `forceswitchteam`, `forcerespawn`, `forcesafetyon`, `forcesafetyoff`, `tempadminlogin`, `tempadminlogout` | `--player/-p` |
-| `fdao` | `--player/-p`, `--obj/-o` |
-| `fdag` | `--player/-p`, `--grid/-g` |
-| `forceunitpatch` | `--player/-p`, `--unit/-u` |
-| `forcerankpatch` | `--player/-p`, `--rank/-r` |
-| `scrimadminlogin` | `--user/-u`, `--password/-p` |
+| Respawn | Puts you back in the game after you die |
+| Kill Self | Kills your character |
+| Drop At Objective / Drop At Grid | Moves you to an objective or a map grid square |
+| Change Name | Changes the name shown for you (the server remembers the original) |
+| Safety On / Safety Off | Turns your own weapon safety on or off |
+| Check AITs | Shows how many of the special AIT roles each team is using |
+| Switch Team | Moves you to the other team |
+| Set Team Ready / Not Ready | Tells the match system your team is ready |
+| Admin Toggle Fly | (Admins) fly around freely |
 
-When you pick an entry that needs a value, CMenu closes, writes the help for that command into the console history, and opens the large console with the command pre-typed, e.g. `Mutate FIRESUPPORT --type mortar --grid ` with the cursor at the end. Read the options and examples in the history above, finish the command with your value and press enter.
+### Manage Players (admin only)
+Pick a player, then choose what to do to them:
 
-A text-entry dialog was tried and is disabled for now (commented out in `CMenuTextEntryScene.uc`, `CMenu.uc` and `DummyActor.uc`).
-
-## CMenu Navigation
-
-All features accessed through: **Main Menu > [Category]**
-
-### Player Management (Admin Only)
-
-Access: Main Menu > Manage Players > Select Player
-
-| Action | Description |
+| Entry | What it does |
 | :--- | :--- |
-| `Drop At Objective/Grid` | Teleport player to objective letter or grid coordinates |
-| `Teleport To Me` | Bring player to your location |
-| `Switch Team` | Force player to switch teams |
-| `Respawn` | Force player to respawn |
-| `Kill` | Force suicide player |
-| `Safety On/Off` | Force weapon safety state |
-| `Change Patch Unit/Rank` | Change player insignia (e.g., DP2S4, cpl) |
-| `Change Name` | Force change player's name |
-| `Find Original Name` | Look up original name (tracks name changes) |
-| `Give Temporary Admin` | Grant temporary scrimmage admin powers |
-| `Revoke Temporary Admin` | Remove temporary admin powers |
+| Drop At Objective / Drop At Grid | Moves that player to an objective or grid square |
+| Teleport To Me | Brings that player to where you are |
+| Change Name / Find Original Name | Renames them, or looks up the name they had before |
+| Switch Team | Moves them to the other team |
+| Change Unit Patch / Change Rank Patch | Changes the unit and rank patch on their helmet (for example `DP2S4`, `cpl`) |
+| Safety On / Safety Off | Forces their weapon safety |
+| Respawn / Kill | Respawns them or kills them |
+| Give / Revoke Temporary Scrimmage Admin Powers | Lets someone use the admin menus until you take it back |
 
-### Weapon Distribution
-
-Access: Main Menu > Weapon Menu
-
-| Action | Description |
+### Weapon menu
+| Entry | What it does |
 | :--- | :--- |
-| `Give Weapon SELF` | Give yourself a weapon |
-| `Give Weapon NORTH` | Give weapon to Northern team (admin only) |
-| `Give Weapon SOUTH` | Give weapon to Southern team (admin only) |
-| `Give Weapon All` | Give weapon to all players (admin only) |
-| `Clear Weapons SELF` | Clear your weapons |
-| `Clear Weapons NORTH/SOUTH/All` | Clear team/all weapons (admin only) |
+| Give Weapon (Self) | Gives you a weapon. Type a short name such as `BHP` or `L1A1`, or a full weapon path |
+| Give Weapon North / South / All | (Admin) gives a weapon to the whole North team, South team or everyone |
+| Clear Weapons (Self) | Removes your weapons |
+| Clear Weapons North / South / All | (Admin) removes weapons from a team or everyone |
+| Copy Held Weapon To Clipboard | Remembers the weapon you are holding so you can give it or turn it into a pickup |
 
-### Vehicle Spawning
+### CMenu Settings (everyone)
+Changes how the menu looks for you: text colour, background colour, border colour, whether the background shows, and whether the menu **stays open** after you pick something.
 
-Access: Main Menu > Builder Menu > VEHICLES
+### Realism Match menu (admin only)
+Controls the match system from the menu. It splits into:
 
-| Action | Description |
+| Submenu | What is in it |
 | :--- | :--- |
-| `Select Vehicle` | Choose vehicle (Cobra, Loach, Huey, etc.), aim, confirm placement |
-| `Delete Vehicle` | Remove the vehicle you're aiming at |
-| `Clear All Vehicles` | Remove all spawned vehicles (admin only) |
+| Match Control | Enable or disable match mode, go live, countdown to live, cancel the countdown, reset live, restart the round, end the round, respawn all dead players |
+| Round Settings | Round timer, round length, **respawn deployment time**, friendly fire, automatic respawns, reinforcement tickets for each team |
+| Objectives | Open or close an objective, open one **at random**, set who owns an objective (or all), set minimum capture time |
+| Teams and Weapons | Swap the teams, swap just one team, weapons hold (safeties on) and weapons free (safeties off) |
+| Scrimmage Admin Help | Shows the list of admin commands |
 
-Supports: Vanilla, GAM, GOM, Black Orchestra, Winter War vehicles
+### Paradrop menu (admin only)
+Moves players instantly to an objective or a grid square: everyone, only the North team, or only the South team. The menu uses the Paradrops mutator.
 
-### Structure Placement
+## 4. Fire support
 
-Access: Main Menu > Builder Menu > STRUCTURES
+Fire support lets an admin (or any player, if the server allows it) call in artillery, mortars, rockets, napalm and more on any spot, without the commander's normal limits.
 
-| Action | Description |
+**Types you can call**
+
+| Type | What you get |
 | :--- | :--- |
-| `Copy Area To Clipboard` | Copy structures you're aiming at |
-| `Paste Structure` | Place copied structures at target location |
-| `Select Mesh` | Aim and select meshes (multiple selection supported) |
-| `Copy Selection` | Copy all selected meshes to clipboard |
-| `Remove Last Selected` | Remove last selected mesh from selection |
-| `Clear Selected` | Deselect all meshes |
-| `Clear All Meshes` | Remove all placed structures (admin only) |
+| Mortar Barrage | Mortar shells |
+| Artillery Barrage | Heavy artillery shells |
+| Airburst Artillery | Shells that burst in the air |
+| Rocket Barrage | Rockets |
+| White Phosphorus Barrage | WP mortar shells |
+| Mixed Barrage | Like the NLF's barrage: each shell is picked at random from artillery, rockets, mortars and white phosphorus |
+| Napalm Strike | A napalm bombing run |
+| Canberra Bombing Run | A bomber run (one or two planes) |
+| AC-47 Gunship | A gunship circling the target |
+| Cancel Fire Support (My Team) | Stops your team's fire support (see below) |
+| Cancel All Fire Support | (Admin) stops every team's fire support |
 
-### Static Mesh Placement
+**Choosing the target:** a map grid square such as `E 5 kp 5` (or `E5`), or a **mark**. With `--mark` a squad leader's call uses their own squad's mark and the commander's call uses the mark they selected on their map. `--mark SL3` (or `--SL 3`) picks squad 3's mark and `--mark CMD` picks the commander's. Squad leaders can only pick their own squad; admins and the commander can pick any.
 
-Access: Main Menu > Builder Menu > STATIC MESHES
+**Options** (everyone who can call fire support can use all of these, except `--persist`):
 
-| Action | Description |
+| Option | Short | What it does |
+| :--- | :--- | :--- |
+| `--salvos` | `-s` | How many salvos a barrage fires (1-20). For napalm, Canberra and gunship runs, how many times the run is repeated (1-10) |
+| `--shells` | `-n` | Shells per salvo (1-100). Barrages only |
+| `--spread` | `-r` | How far the shells scatter, in meters (0-200). Barrages only |
+| `--interval` | `-i` | The time between strikes **after the first**: seconds between salvos for a barrage (1-120), or seconds between repeated runs for aircraft (1-300, 30 if left out) |
+| `--delay` | `-d` | Waits 10-300 seconds before the first strike |
+| `--direction` | `-b` | Napalm and Canberra only: the way the aircraft flies, as a compass point (`N`, `SW`, `ESE`...) or a bearing from 0 to 360 |
+| `--suppress` | `-q` | Skips the server-wide announcement for this call. You still get a private confirmation |
+| `--persist` | `-p` | **Admins only.** Saves the settings you used as the new default for that barrage type |
+
+Examples:
+- `mutate firesupport --type mortar --grid E 5 kp 5`
+- `mutate firesupport --type mixed --grid D 4 --salvos 4 --interval 8`
+- `mutate firesupport --type napalm --grid E 5 --direction SW --salvos 3 --interval 45`
+
+**Cancelling fire support**
+- `mutate cancelfiresupport` stops your team's fire support: barrages (and the shells already in the air), aircraft in flight, and strikes still waiting for their delay or their turn. Anyone who can call fire support can do this for their own team. The Fire Support menu has **Cancel Fire Support (My Team)**.
+- `mutate cancelfiresupport --all` (short `-a`) stops **every team's** fire support. Admins only. The menu has **Cancel All Fire Support** for admins.
+- It only stops fire support started with this command. A commander's own strike from the game is left alone, and the commander's ability timers are not changed.
+- The cancel is announced to everyone (unless the server is set to silent), and tells you if there was nothing to cancel.
+
+**Rules**
+- Players can only call fire support if the server turns it on (`bFSPlayersCanCall`). When they can, they can use every option above except `--persist`.
+- Player calls have a cooldown per team (`FSPlayerCooldown`). Admins ignore the cooldown.
+- Players cannot target "no artillery" zones. Admin strikes can, including the area outside the combat area. Admin aircraft are not removed for flying outside the map.
+- Friendly fire from strikes is off unless the server turns it on (`bFSFriendlyFire`).
+- Calls are announced to the whole server unless the server is set to silent (`bFSSilent`) or the caller uses `--suppress`.
+- Warnings (wrong grid, cooldown, no permission) come back to the caller as private messages.
+
+## 5. Building things (the Builder menu)
+
+Open **Builder Menu** from the main menu. You aim at the spot you want, and confirm to place the item.
+
+| Builder section | What you can do |
 | :--- | :--- |
-| `Copy Mesh` | Copy mesh you're looking at |
-| `Paste Mesh` | Paste mesh from clipboard |
-| `Delete Mesh` | Remove mesh you're aiming at |
-| `Preset Meshes` | Sandbags, F4 Phantom, etc. |
-| `Clear All Meshes` | Remove all placed meshes (admin only) |
-| `Toggle Collision` | Toggle collision on aimed mesh (admin only) |
-| `Delete Any Object` | Delete any object aimed at (admin only) |
+| Vehicles | Place vehicles: Cobra, Loach, Huey, Bushranger, plus lists for WW2, Winter War and GOM (Gameplay Overhaul Mutator) vehicles and the GreenMen (GM) helicopters when those mods are loaded, plus the 29th's own helicopters. **Custom** lets you type any vehicle path. **Delete Vehicle** removes the one you aim at |
+| Structures | Copy buildings or whole areas you are aiming at and paste them somewhere else. Select several meshes, copy the selection, remove the last one, or clear the selection |
+| Static Meshes | Copy, paste and delete single objects. Presets: straight sandbags and an F4 Phantom. Admins also get **Toggle Collision** and **Delete Any Object** |
+| Pickups | Turn a weapon into a pickup on the ground: **Custom** (type the weapon path) or **Copy Held Weapon** (the one in your hands) |
+| Actors | Place team spawn points (North and South), an M2 turret, a DShK turret and an ammo resupply point. **Mark Corner** and **Spawn Obj** let you draw and place a brand new capture objective of your own. **Clear All** removes everything you placed |
 
-### Weapon Pickup Spawning
+Admins also get "Clear All Vehicles / Meshes / Pickups / Actors" entries to wipe what has been placed. Custom objectives you create appear on the map, and with MutExtras their borders are drawn on the overhead map. Placed spawn points are used for the team that owns them.
 
-Access: Main Menu > Builder Menu > PICKUPS
+## 6. Other features
 
-| Action | Description |
+- **Tank entry prompt:** a player who is not tank crew can still climb into a friendly tank. Stand close to it and face it, and an enter prompt appears.
+- **Mouse click mode:** every menu line becomes a clickable button.
+- **Private messages and help in the console:** short replies go to you only; long help opens in the large console.
+- **Loading mod content:** if the server turns it on, CMenu loads extra content packages (MutExtras, GOM 3 and 4, Winter War, WW2) so their weapons and vehicles can be used in the Builder and weapon menu. It switches on Winter War content by itself on Winter War maps and WW2 content on WW2 maps (it goes by the map name).
+- **Spawn points from the Builder:** custom spawn points are respected when players spawn.
+- **Its own game modes:** CMenu adds its own Territories and Supremacy game mode entries (needed for custom objectives and spawn points to work properly). A server has to pick them as its game mode.
+- **Experimental tank physics:** an optional setting (`bNewTankPhys`).
+- **Spectators can build:** the Builder works for spectators, who have no character. The preview and the placing follow the spectator camera. (Copying a held weapon needs a weapon, so it is refused for a spectator.)
+- **No duplicate menu entries:** a menu used to keep the admin entries it had added and add them again every time it opened, so "Clear All Vehicles" could appear several times (and menu entries could go missing) after opening the menu repeatedly or logging in as scrim admin more than once. Every menu now starts from its own list each time it opens. Setting the menus up a second time no longer stacks a second copy of every menu either.
+- **Fixes:** the Builder no longer breaks after you respawn, and the tank entry prompt is fixed.
+
+## 7. Typing commands instead of using the menu
+
+Commands can be typed in the console as `mutate <command> --option value` (short form `-o value`, like Linux commands). A value runs until the next option, so names and grid squares can contain spaces. `--option=value` also works. The older spellings still work too (for example `mutate giveweaponnorth L1A1`).
+
+| Command | What it does | Options |
+| :--- | :--- | :--- |
+| `cmenu` | Opens the menu (or a submenu) | `--menu/-m`, `--player/-p` |
+| `giveweapon` | Gives a weapon | `--weapon/-w`, `--team/-t` (north, south, all; leave out for yourself) |
+| `clearweapons` | Removes weapons | `--team/-t` |
+| `setcmenucolor` | Menu colours | `--text/-t R G B A`, `--background/-b R G B A`, `--border/-o R G B A` |
+| `firesupport` | Calls fire support (see section 4) | `--type/-t`, `--grid/-g`, `--mark/-m`, `--SL/-l`, and the options in section 4 |
+| `firesupporthelp` | Shows the fire support help | none |
+| `cancelfiresupport` | Stops your team's fire support, or every team's with `--all` (admins) | `--all/-a` |
+| `killplayer`, `teleporttome`, `forceswitchteam`, `forcerespawn`, `forcesafetyon`, `forcesafetyoff`, `tempadminlogin`, `tempadminlogout` | Admin actions on a player | `--player/-p` |
+| `fdao` | Move a player to an objective | `--player/-p`, `--obj/-o` |
+| `fdag` | Move a player to a grid square | `--player/-p`, `--grid/-g` |
+| `forceunitpatch` | Change a player's unit patch | `--player/-p`, `--unit/-u` |
+| `forcerankpatch` | Change a player's rank patch | `--player/-p`, `--rank/-r` |
+| `scrimadminlogin` / `scrimadminlogout` | Log in or out as a scrim admin | `--user/-u`, `--password/-p` |
+| `clearobjs`, `clearcorners`, `delnorthspawns`, `delsouthspawns` | Remove custom objectives, marked corners or custom spawn points | none |
+
+Commands shared with the Realism Match and Paradrops mutators (`scrimadminlogin`, `changename`, `whois`, the match commands and the paradrop commands) work through CMenu too.
+
+## 8. Settings
+
+Set in WebAdmin under **Mutators > MutCMenu Settings**, or in `MutCMenu_Server.ini`.
+
+| Setting | What it does |
 | :--- | :--- |
-| `Custom` | Enter custom weapon path |
-| `Copy Held Weapon` | Create pickup for weapon you're holding |
-| `Clear All Pickups` | Remove all weapon pickups (admin only) |
+| `bLoadExtras`, `bLoadGOM3`, `bLoadGOM4`, `bLoadWW`, `bLoadWW2` | Load the content of MutExtras, GOM 3/4 (Gameplay Overhaul Mutator), Winter War or WW2 |
+| `bNewTankPhys` | Experimental tank physics |
+| `bDebugStandalone` | For testing: in a standalone (single player) game every `bLoad` option above counts as on, so all the mods' content is loaded. It does nothing on a server and does not change the saved `bLoad` settings |
+| `bFSPlayersCanCall` | Let players (not only admins) call fire support |
+| `bFSFriendlyFire` | Let strikes hurt the caller's own team |
+| `bFSSilent` | Never announce fire support calls to everyone |
+| `FSPlayerCooldown` | Seconds between player-called strikes for a team (0 = no cooldown). Admins ignore it |
+| `FSBomberCount` | Planes in a Canberra run (1-2) |
+| `FSGunshipDuration` | How long the gunship circles, in seconds (0 = the map's own time) |
+| `FSProfiles` (ini only) | The default size of each barrage type: salvos, shells per salvo, spread, time between salvos and delay before the first. The defaults are written the first time the server runs. A type added later (like `MIXED`) is added automatically without touching your values |
 
-### Actor Placement
+## 9. Works with other mods
 
-Access: Main Menu > Builder Menu > ACTORS
-
-| Action | Description |
-| :--- | :--- |
-| `Set North Spawn` | Place Northern team spawn point |
-| `Set South Spawn` | Place Southern team spawn point |
-| `Delete North/South Spawns` | Remove team spawn points |
-| `M2 Turret` | Place M2 machine gun turret |
-| `DShK Turret` | Place DShK machine gun turret |
-| `Resupply Point` | Place ammo resupply point |
-| `Clear All` | Remove all placed actors (admin only) |
-
-### CMenu Settings
-
-Access: Main Menu > CMenu Settings
-
-| Action | Description |
-| :--- | :--- |
-| `Set CMenu Text Color` | RGBA format (e.g., 255 128 0 255) |
-| `Set CMenu Background Color` | RGBA format |
-| `Set CMenu Border Color` | RGBA format |
-| `Toggle CMenu Background` | Show/hide background |
-| `Toggle CMenu Stay` | Keep menu open or close after selection |
-
-### General Commands
-
-Access: Main Menu > General Commands
-
-| Action | Description |
-| :--- | :--- |
-| `Switch Team` | Switch your team |
-| `Set Team Ready/Not Ready` | Team ready system for matches |
-| `Respawn` | Respawn yourself |
-| `Kill Self` | Suicide command |
-| `Drop At Objective/Grid` | Teleport yourself to location |
-| `Change Name` | Change your displayed name |
-| `Safety On/Off` | Toggle weapon safety |
-| `Check AITs` | See AIT role usage |
-
-### Fire Support
-
-Access: Main Menu > Fire Support Menu (admins always; other players only when `bFSPlayersCanCall` is enabled)
-
-Each action asks for a target: a grid such as `E 5 kp 5` (or `E5`), or `MARK` to use the team's base game marked arty position. Strikes fire for the caller's team and do not use the commander's ability cooldowns. Command form: `mutate firesupport --type <type> --grid <grid>` or `--mark` (short `-t -g -m`).
-
-| Action | Description |
-| :--- | :--- |
-| `Mortar Barrage` | Mortar shells |
-| `Artillery Barrage` | Heavy artillery |
-| `Airburst Artillery` | Airburst artillery |
-| `Rocket Barrage` | Rocket barrage |
-| `White Phosphorus Barrage` | WP mortar rounds |
-| `Napalm Strike` | Napalm aircraft run |
-| `Canberra Bombing Run` | Carpet bomber run |
-| `AC-47 Gunship` | Gunship orbit over the target |
-
-Server settings (`MutCMenu_Server.ini`, section `[MutCMenu.MutCMenu]`):
-
-| Setting | Description |
-| :--- | :--- |
-| `bFSPlayersCanCall` | Let non-admin players use fire support |
-| `FSPlayerCooldown` | Seconds between player-called strikes per team (0 = none). Admins ignore it |
-| `bFSFriendlyFire` | Strikes can damage the caller's own team. When off, friendly strike damage is zeroed (and so is never punished) |
-| `bFSSilent` | Don't broadcast strike calls to everyone |
-| `FSBomberCount` | Aircraft per Canberra run (1-2, 0 = 2) |
-| `FSGunshipDuration` | Gunship orbit seconds (0 = map default) |
-| `FSProfiles` | Per strike type shell settings: `Salvos`, `Shells` per salvo, `Spread` (unreal units), `Interval` between salvos and `Delay` before the first salvo. Defaults are written on first run |
-
-Players cannot call fire support onto no-artillery volumes (admins can).
-
-**Changing a profile in the command (admins only).** Barrage types (mortar, artillery, airburst, rocket, wp) accept per-call overrides of their `FSProfiles` entry:
-
-| Option | Short | Range | Meaning |
-| :--- | :--- | :--- | :--- |
-| `--salvos` | `-s` | 1-20 | Number of salvos |
-| `--shells` | `-n` | 1-100 | Shells per salvo |
-| `--spread` | `-r` | 0-200 | Scatter radius in meters (decimals allowed) |
-| `--interval` | `-i` | 1-120 | Seconds between salvos |
-| `--persist` | `-p` | | Save the resulting values as the new profile for that type |
-
-Anything you leave out uses the saved profile. Out-of-range values are clamped. Example: `mutate firesupport --type mortar --grid E 5 kp 5 --salvos 6 --shells 8 --spread 8 --persist`. Non-admins cannot use these options, and they do not apply to napalm, canberra or spooky.
-
-**First strike delay (admins only, every type).** `--delay` (`-d`) holds the first strike back for 10-300 seconds (smaller or larger values are clamped, with a note). Barrages wait that long before their first salvo (and `--persist` saves it into the profile); aircraft wait that long before taking off, so the strike arrives after the delay plus their flight time. The announcement says when the first strike is due. Without it, barrages use the profile's `Delay` and aircraft launch at once.
-
-**Choosing the mark.** With `--mark` (or no target at all) a squad leader uses their own squad's arty mark, the commander uses the mark selected on their map, and anyone else uses the team's saved mark. `--mark SL3` (also `--SL 3`, `-l 3`; `--SL` alone is your own squad) picks squad 3's mark and `--mark CMD` the commander's. Squad leaders can only pick their own squad; admins and the commander can pick any.
-
-**Outside the combat area.** Admin strikes ignore the no-artillery zones, including the ones that fence off the area outside the combat area: the Canberra and napalm aircraft are the mod's own `CMCarpetBomberAircraft` / `CMNapalmStrikeAircraft(ARVN)`, which skip the base game's check for admin calls, and they are no longer despawned for being outside the map bounds. Players are still blocked from no-artillery zones.
-
-**Flight direction (napalm and canberra, anyone who can call them).** `--direction` (`-b`, or `--dir`) sets the heading the aircraft flies on, as a compass point (`N`, `NE`, `ESE`, ... all 16, or the full names) or a bearing from 0 to 360 clockwise from north, where north is the top of the map grid. The aircraft starts at the map edge behind the target and flies over it on that heading, e.g. `mutate firesupport --type napalm --grid E 5 --direction SW` flies from the north-east toward the south-west. Without it the game picks the direction as before (or the marked one with `--mark`).
-
-**Suppressing the announcement (admins only).** `--suppress` (`-q`) skips the server-wide "called in" message for that call; the caller still gets a private confirmation. `bFSSilent` does the same for every call.
-
-`FSProfiles` `Spread` stays stored in unreal units (50 = 1 meter) so existing configs are unchanged; only commands and messages use meters.
-
-### Round Start Voice
-
-The round-start commander speech is muted by default. Turn on `bAllowIntroVO` on the mutator settings page (or set `bAllowIntroVO=True` in `MutCMenu_Server.ini`) to keep it.
-
-### Mutator settings page
-
-Besides the content loading options, the MutCMenu page of the mutator settings now holds the options that differ from match to match: `bAllowIntroVO`, `bFSPlayersCanCall` (off = only admins can call fire support), `bFSFriendlyFire`, `bFSSilent`, `FSPlayerCooldown`, `FSBomberCount` and `FSGunshipDuration`. `FSProfiles` stays in the ini.
-
-### Help output
-
-Short guidance (a few lines) is sent to you as private chat messages and the one-line console opens with the command already typed. Long guidance (more than 4 lines, e.g. `mutate firesupport` help, `realismhelp`, `scrimadminhelp`) is written to the console history and shown in the large console instead of flooding the chat. A mistyped fire support argument tells you what is wrong in the chat and puts your command back in the one-line console to edit.
-
-### Paradrop Menu
-
-Access: Main Menu > Paradrop Menu (admin only)
-
-| Action | Description |
-| :--- | :--- |
-| `Drop All At Obj` | Teleport all players to objective (e.g., "A", "B") |
-| `Drop North At Obj` | Teleport Northern team to objective |
-| `Drop South At Obj` | Teleport Southern team to objective |
-| `Drop All At Grid` | Teleport all players to grid (e.g., "E 5 kp 5") |
-| `Drop North At Grid` | Teleport Northern team to grid |
-| `Drop South At Grid` | Teleport Southern team to grid |
-
-## Configuration
-
-### WebAdmin Settings
-
-Access: WebAdmin > Mutators > MutCMenu Settings
-
-| `Setting` | Description |
-| :--- | :--- |
-| ``bUseDefaultFactions`` | Must be enabled for bAITRoles to work. Controls faction selection |
-| ``MyNorthForce`` | Northern force faction (PAVN = 0, NLF = 1) |
-| ``MySouthForce`` | Southern force faction (USA = 0, USMC = 1, AUS = 2, ARVN = 3) |
-| ``bLoadExtras`` | Enable MutExtras mod content |
-| ``bLoadGOM3`` | Enable GOM3 mod content |
-| ``bLoadGOM4`` | Enable GOM4 mod content |
-| ``bLoadWW`` | Enable Winter War mod content |
-| ``bLoadWW2`` | Enable Black Orchestra (WW2) mod content |
-| ``bNewTankPhys`` | Enable new tank physics |
-
-## Realism Match Integration
-
-MutCMenu includes direct integration with MutRealismMatch for match control. The commands are grouped into submenus:
-
-Access: Main Menu > Realism Match Menu (admin only)
-
-| Submenu | Contents |
-| :--- | :--- |
-| `Match Control Menu` | Enable/Disable Match, Force Match Live, Countdown To Live, Cancel Live Countdown, Reset Match Live, Restart Round, Suicide All / End Round, Respawn All Dead Players |
-| `Round Settings Menu` | Round Timer, Cancel Round Timer, Set Round Duration, Set Friendly Fire Modifier, Toggle Auto Respawns, Set North/South Reinforcements |
-| `Objectives Menu` | Open/Close Objective, Random Objective (`--obj a,b,c --time 60`), Cancel Random Objective, Set Objective Neutral/North/South, Set All Objectives Neutral/North/South, Set Obj Minimum Capture Time |
-| `Teams and Weapons Menu` | Swap Teams, Swap North to South, Swap South to North, Weapons Hold, Weapons Free |
-| `Scrimmage Admin Help` | Display admin commands help |
-
-Choosing 0 in a submenu returns to the Realism Match Menu. The matching console commands and their options are listed in the MutRealismMatch README.
-
-## Mod Compatibility
-
-**Supported mods:**
-- **WW2 (Black Orchestra)** - Full vehicle and weapon spawning, automatic tank crew role injection with faction-aware tankers (Wehrmacht, Commonwealth, Soviet, US, IJA, etc.), fixes tank entry compatibility
-- **Winter War** - Finnish forces support, automatic Finnish/Soviet tank crew role injection, fixes tank entry compatibility
-- **Green Army Men** - Complete compatibility with custom factions, automatic tank crew role injection
-- Vehicles from all mods can be spawned through Builder Menu
-- Tank crew roles automatically fixed to prevent conflicts with pilot flags
+- **WW2 (Black Orchestra):** vehicles and weapons can be placed and given, tank crews are added, tank entry works.
+- **Winter War:** Finnish and Soviet forces, tank crews added, tank entry works.
+- **GOM (Gameplay Overhaul Mutator):** custom factions work; tank crews are added; its vehicles can be placed.
+- **GreenMen (GM):** its Blue Huey, Green Huey and Green Bushranger helicopters can be placed from the Builder.
+- Vehicles from all of these mods can be placed from the Builder.
 
 ---
 

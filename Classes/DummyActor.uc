@@ -135,21 +135,6 @@ simulated event Tick(float DeltaTime)
     } */
 }
 
-// The intro/commander speech is played locally by ROPlayerController.CheckCommanderSpeech, so it has to be stopped on the client
-reliable client function ClientMuteIntroVoice()
-{
-    SetTimer(0.2, true, 'MuteIntroVoice');
-}
-
-simulated function MuteIntroVoice()
-{
-    local PlayerController PC;
-
-    PC = PlayerController(Owner);
-    if (PC != None && PC.IsTimerActive('CheckCommanderSpeech'))
-        PC.ClearTimer('CheckCommanderSpeech');
-}
-
 // Guidance up to this size goes to the chat and the mini console; anything longer goes to the large console
 const HELP_MAX_SHORT_LINES = 4;
 const HELP_MAX_SHORT_CHARS = 320;
@@ -221,6 +206,13 @@ reliable client function CMenuSetup()
     local int i;
 
     PC = PlayerController(Owner);
+
+    // A repeat call (a new level, a re-login) must not stack a second copy of every menu on top of the first
+    for (i = PC.Interactions.Length - 1; i >= 0; i--)
+    {
+        if (CMenu(PC.Interactions[i]) != None || TankEntryInteraction(PC.Interactions[i]) != None)
+            PC.Interactions.Remove(i, 1);
+    }
 
     pc.Interactions.additem(new(pc) class'CMenuMain');
     pc.Interactions.additem(new(pc) class'CMenuGeneral');
@@ -464,7 +456,7 @@ unreliable server function SpawnVehicle(string VehicleName, vector PlaceLoc, rot
             ROV.Mesh.SetRBCollidesWithChannel(RBCC_BlockingVolume, false);
         }
 
-        if (VehicleName ~= "WinterWar.WWVehicle_Skis_ActualContent")
+        if (VehicleName ~= "WinterWar.WWVehicle_Skis_ActualContent" && ROP != None)
         {
             ROV.TryToDrive(ROP);
         }

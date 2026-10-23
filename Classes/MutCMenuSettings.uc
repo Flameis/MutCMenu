@@ -26,8 +26,8 @@ function InitMutSettings()
 	else { self.SetIntPropertyByName(name(Repl("bNewTankPhys", ".", "_")), int(MutCMenu(myMut).bNewTankPhys)); }
 
 	// Match settings
-	if (self.myMut == None) { self.SetIntPropertyByName(name(Repl("bAllowIntroVO", ".", "_")), int(class'MutCMenu'.default.bAllowIntroVO)); }
-	else { self.SetIntPropertyByName(name(Repl("bAllowIntroVO", ".", "_")), int(MutCMenu(myMut).bAllowIntroVO)); }
+	if (self.myMut == None) { self.SetIntPropertyByName(name(Repl("bDebugStandalone", ".", "_")), int(class'MutCMenu'.default.bDebugStandalone)); }
+	else { self.SetIntPropertyByName(name(Repl("bDebugStandalone", ".", "_")), int(MutCMenu(myMut).bDebugStandalone)); }
 
 	if (self.myMut == None) { self.SetIntPropertyByName(name(Repl("bFSPlayersCanCall", ".", "_")), int(class'MutCMenu'.default.bFSPlayersCanCall)); }
 	else { self.SetIntPropertyByName(name(Repl("bFSPlayersCanCall", ".", "_")), int(MutCMenu(myMut).bFSPlayersCanCall)); }
@@ -73,8 +73,8 @@ function SaveMutSettings()
 	else { self.GetIntPropertyByName(name(Repl("bNewTankPhys", ".", "_")), tempValue); MutCMenu(self.myMut).bNewTankPhys = (self.tempValue != 0); }
 
 	// Match settings
-	if (self.myMut == None) { self.GetIntPropertyByName(name(Repl("bAllowIntroVO", ".", "_")), tempValue); class'MutCMenu'.default.bAllowIntroVO = (self.tempValue != 0); }
-	else { self.GetIntPropertyByName(name(Repl("bAllowIntroVO", ".", "_")), tempValue); MutCMenu(self.myMut).bAllowIntroVO = (self.tempValue != 0); }
+	if (self.myMut == None) { self.GetIntPropertyByName(name(Repl("bDebugStandalone", ".", "_")), tempValue); class'MutCMenu'.default.bDebugStandalone = (self.tempValue != 0); }
+	else { self.GetIntPropertyByName(name(Repl("bDebugStandalone", ".", "_")), tempValue); MutCMenu(self.myMut).bDebugStandalone = (self.tempValue != 0); }
 
 	if (self.myMut == None) { self.GetIntPropertyByName(name(Repl("bFSPlayersCanCall", ".", "_")), tempValue); class'MutCMenu'.default.bFSPlayersCanCall = (self.tempValue != 0); }
 	else { self.GetIntPropertyByName(name(Repl("bFSPlayersCanCall", ".", "_")), tempValue); MutCMenu(self.myMut).bFSPlayersCanCall = (self.tempValue != 0); }
@@ -124,8 +124,8 @@ defaultproperties
 	Properties.Add((PropertyId=608, Data=(Type=SDT_Int32, Value1=0)))
 	PropertyMappings.Add((Id=608, Name="bNewTankPhys"))
 
-	Properties.Add((PropertyId=609, Data=(Type=SDT_Int32, Value1=0)))
-	PropertyMappings.Add((Id=609, Name="bAllowIntroVO"))
+	Properties.Add((PropertyId=616, Data=(Type=SDT_Int32, Value1=0)))
+	PropertyMappings.Add((Id=616, Name="bDebugStandalone"))
 
 	Properties.Add((PropertyId=610, Data=(Type=SDT_Int32, Value1=0)))
 	PropertyMappings.Add((Id=610, Name="bFSPlayersCanCall"))

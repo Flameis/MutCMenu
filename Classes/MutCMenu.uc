@@ -16,6 +16,8 @@ var array<string>               LoggedInMutatorAdmins; // list of the names of a
 var int                         NumObjs;
 
 var config bool                 bLoadExtras, bLoadGOM3, bLoadGOM4, bLoadWW, bLoadWW2, bNewTankPhys;
+var config bool                 bDebugStandalone;   // In a standalone (single player) game, load every mod's content, for testing
+var bool                        bForceModLoads;     // bDebugStandalone is on and this is a standalone game: every bLoad option counts as on (not saved to the ini)
 var config array<string>        MutatorAdmins; // A list of all mutator admins and their passwords
 var config array<string>        ExtrasToLoad, GOM3ToLoad, GOM4ToLoad, WWToLoad, WW2ToLoad; // Lists of all the objects to load
 
@@ -30,7 +32,7 @@ var config array<WeaponMapping> WeaponMappings;
 // Fire support settings (see the Fire Support section)
 struct FSProfile
 {
-    var string StrikeType;  // MORTAR, ARTILLERY, AIRBURST, ROCKET or WP
+    var string StrikeType;  // MORTAR, ARTILLERY, AIRBURST, ROCKET, WP or MIXED
     var int Salvos;         // Number of salvos
     var int Shells;         // Shells per salvo
     var int Spread;         // Radius in unreal units (50 = 1 meter) that shells scatter within; commands and messages use meters
@@ -49,7 +51,6 @@ var config array<FSProfile>     FSProfiles;
 var config bool                 bFSPlayersCanCall;  // Non-admin players may use the fire support menu
 var config bool                 bFSFriendlyFire;    // Strikes can damage the caller's own team
 var config bool                 bFSSilent;          // Set true to not broadcast strike calls to everyone
-var config bool                 bAllowIntroVO;      // Set true to keep the round-start commander speech (muted by default)
 var config int                  FSPlayerCooldown;   // Per-team seconds between player-called strikes, 0 = none (admins ignore it)
 var config int                  FSBomberCount;      // Aircraft per Canberra bombing run (1-2), 0 uses 2
 var config int                  FSGunshipDuration;  // Seconds the gunship orbits, 0 uses the map's value
@@ -67,6 +68,14 @@ struct FSPendingStrike
     var float FireTime;
 };
 
+// A barrage or aircraft this mod started, so it can be cancelled later
+struct FSTrackedStrike
+{
+    var Actor Strike;
+    var int Team;
+};
+
+var array<FSTrackedStrike>      FSTrackedStrikes;
 var array<FSActiveStrike>       FSActiveStrikes;
 var array<FSPendingStrike>      FSPendingStrikes;
 var string                      CurrentMutateString; // The command being processed, so argument errors can put it back in the console for editing
@@ -82,6 +91,11 @@ function PreBeginPlay()
 
     ApplyMapModLoads();
     InitFireSupportConfig();
+
+    // Not written into bLoadExtras and the rest, so the saved settings stay as they were
+    bForceModLoads = ShouldForceModLoads();
+    if (bForceModLoads)
+        `log("[MutCMenu] bDebugStandalone: standalone game, every mod's content is loaded");
 
     // Clean up duplicate MutCMenu instances
     for (mut = ROGameInfo(WorldInfo.Game).BaseMutator; mut != none; mut = mut.NextMutator)
@@ -103,6 +117,12 @@ function PreBeginPlay()
         ROGameInfo(WorldInfo.Game).GameReplicationInfoClass = class'CMGameReplicationInfo';
     }
 
+}
+
+// bDebugStandalone only counts in a standalone (single player) game, never on a server
+function bool ShouldForceModLoads()
+{
+    return bDebugStandalone && WorldInfo.NetMode == NM_Standalone;
 }
 
 function ApplyMapModLoads()
@@ -137,16 +157,14 @@ simulated function NotifyLogin(Controller NewPlayer)
 
     DA.MyMut = self;
     DA.bNewTankPhys = bNewTankPhys;
-    DA.bLoadExtras = bLoadExtras;
-    DA.bLoadGOM3 = bLoadGOM3;
-    DA.bLoadGOM4 = bLoadGOM4;
-    DA.bLoadWW = bLoadWW;
-    DA.bLoadWW2 = bLoadWW2;
+    DA.bLoadExtras = bLoadExtras || bForceModLoads;
+    DA.bLoadGOM3 = bLoadGOM3 || bForceModLoads;
+    DA.bLoadGOM4 = bLoadGOM4 || bForceModLoads;
+    DA.bLoadWW = bLoadWW || bForceModLoads;
+    DA.bLoadWW2 = bLoadWW2 || bForceModLoads;
     DA.bFSPlayersCanCall = bFSPlayersCanCall;
 
     DA.CMenuSetup();
-    if (!bAllowIntroVO)
-        DA.ClientMuteIntroVoice();
 
 
     super.NotifyLogin(NewPlayer);
@@ -341,6 +359,10 @@ simulated function Mutate(string mutateString, PlayerController sender)
 
         case "FIRESUPPORTHELP":
             FireSupportHelp(sender);
+            break;
+
+        case "CANCELFIRESUPPORT":
+            CancelFireSupportCommand(sender, params);
             break;
 
         case "CLEAROBJS":
@@ -805,27 +827,27 @@ function bool DoGiveWeapon(PlayerController PC, ROInventoryManager InvManager, s
     if (InStr(WeaponName, "Weap") != -1 || InStr(WeaponName, "Item") != -1)
     {
         // Check for specific mod content requirements
-        if (InStr(WeaponName, "WinterWar") != -1 && !bLoadWW)
+        if (InStr(WeaponName, "WinterWar") != -1 && !(bLoadWW || bForceModLoads))
         {
             PrivateMessage(PC, "bLoadWinterWar must be enabled in the WebAdmin mutators settings for you to spawn this weapon!");
             return false;
         }
-        else if (InStr(WeaponName, "GOM4") != -1 && !bLoadGOM4)
+        else if (InStr(WeaponName, "GOM4") != -1 && !(bLoadGOM4 || bForceModLoads))
         {
             PrivateMessage(PC, "bLoadGOM4 must be enabled in the WebAdmin mutators settings for you to spawn this weapon!");
             return false;
         }
-        else if (InStr(WeaponName, "GOM3") != -1 && !bLoadGOM3)
+        else if (InStr(WeaponName, "GOM3") != -1 && !(bLoadGOM3 || bForceModLoads))
         {
             PrivateMessage(PC, "bLoadGOM3 must be enabled in the WebAdmin mutators settings for you to spawn this weapon!");
             return false;
         }
-        else if (InStr(WeaponName, "WW2") != -1 && !bLoadWW2)
+        else if (InStr(WeaponName, "WW2") != -1 && !(bLoadWW2 || bForceModLoads))
         {
             PrivateMessage(PC, "bLoadWW2 must be enabled in the WebAdmin mutators settings for you to spawn this weapon!");
             return false;
         }
-        else if (InStr(WeaponName, "AC") != -1 && !bLoadExtras)
+        else if (InStr(WeaponName, "AC") != -1 && !(bLoadExtras || bForceModLoads))
         {
             PrivateMessage(PC, "bLoadExtras must be enabled in the WebAdmin mutators settings for you to spawn this weapon!");
             return false;
@@ -896,21 +918,34 @@ function ClearWeapons(PlayerController PC, bool ClearAll, optional int TeamIndex
 // =================================================================
 // Fire Support
 // =================================================================
-// Usage: mutate FIRESUPPORT --type <MORTAR|ARTILLERY|AIRBURST|ROCKET|WP|NAPALM|CANBERRA|SPOOKY> --grid <grid> (or --mark)
+// Usage: mutate FIRESUPPORT --type <MORTAR|ARTILLERY|AIRBURST|ROCKET|WP|MIXED|NAPALM|CANBERRA|SPOOKY> --grid <grid> (or --mark)
 // Short options: -t -g -m. The older "FIRESUPPORT <type> <grid | MARK>" form still works.
 // Grid format matches the paradrop commands (e.g. "E 5 kp 5", "E5"); MARK uses the team's base game arty marker.
 // Shell strikes are tuned per type through FSProfiles in MutCMenu_Server.ini.
 function InitFireSupportConfig()
 {
-    if (FSProfiles.Length > 0)
-        return;
+    local int Before;
 
-    AddFSProfile("MORTAR", 4, 4, 600, 6, 5);
-    AddFSProfile("ARTILLERY", 3, 3, 1250, 10, 8);
-    AddFSProfile("AIRBURST", 3, 3, 1250, 10, 8);
-    AddFSProfile("ROCKET", 3, 6, 1500, 8, 6);
-    AddFSProfile("WP", 2, 3, 500, 6, 4);
-    SaveConfig();
+    Before = FSProfiles.Length;
+
+    AddMissingFSProfile("MORTAR", 4, 4, 600, 6, 5);
+    AddMissingFSProfile("ARTILLERY", 3, 3, 1250, 10, 8);
+    AddMissingFSProfile("AIRBURST", 3, 3, 1250, 10, 8);
+    AddMissingFSProfile("ROCKET", 3, 6, 1500, 8, 6);
+    AddMissingFSProfile("WP", 2, 3, 500, 6, 4);
+    AddMissingFSProfile("MIXED", 3, 6, 1250, 8, 6);
+
+    // Servers that already have a profile list pick up types added later, without touching their own values
+    if (FSProfiles.Length != Before)
+        SaveConfig();
+}
+
+function AddMissingFSProfile(string InType, int InSalvos, int InShells, int InSpread, int InInterval, int InDelay)
+{
+    local FSProfile Existing;
+
+    if (!FindFSProfile(InType, Existing))
+        AddFSProfile(InType, InSalvos, InShells, InSpread, InInterval, InDelay);
 }
 
 function AddFSProfile(string InType, int InSalvos, int InShells, int InSpread, int InInterval, int InDelay)
@@ -950,6 +985,7 @@ function bool IsValidFSType(string StrikeType)
         case "AIRBURST":
         case "ROCKET":
         case "WP":
+        case "MIXED":
         case "NAPALM":
         case "CANBERRA":
         case "SPOOKY":
@@ -967,6 +1003,7 @@ function string FSDisplayName(string StrikeType)
         case "AIRBURST":  return "airburst artillery barrage";
         case "ROCKET":    return "rocket barrage";
         case "WP":        return "white phosphorus barrage";
+        case "MIXED":     return "mixed barrage";
         case "NAPALM":    return "napalm strike";
         case "CANBERRA":  return "bombing run";
         case "SPOOKY":    return "AC-47 gunship strike";
@@ -985,6 +1022,28 @@ function class<ROArtilleryShell> GetFSShellClass(string StrikeType)
         case "WP":        return class'ROMortarShellWP';
     }
     return None;
+}
+
+// Every shell a barrage type fires. MIXED is the NLF barrage: each shell is picked at random from heavy artillery,
+// rockets, mortars and white phosphorus (what ROArtillerySpawner gives the NLF)
+function bool GetFSShellClasses(string StrikeType, out array<class<ROArtilleryShell> > Classes)
+{
+    Classes.Length = 0;
+
+    if (StrikeType == "MIXED")
+    {
+        Classes.AddItem(class'ROArtilleryShell');
+        Classes.AddItem(class'RORocketShell');
+        Classes.AddItem(class'ROMortarShell');
+        Classes.AddItem(class'ROMortarShellWP');
+        return true;
+    }
+
+    if (GetFSShellClass(StrikeType) == None)
+        return false;
+
+    Classes.AddItem(GetFSShellClass(StrikeType));
+    return true;
 }
 
 function DummyActor FindDummyActor(PlayerController PC)
@@ -1026,15 +1085,17 @@ function FireSupportHelp(PlayerController PC)
     local string Help;
 
     Help = "[CMenu] Fire support: mutate firesupport --type <type> --grid <grid>   (short: -t -g)";
-    Help = Help$"|Types: Mortar, Artillery, Airburst, Rocket, WP, Napalm, Canberra, Spooky";
+    Help = Help$"|Types: Mortar, Artillery, Airburst, Rocket, WP, Mixed (random mix of artillery, rocket, mortar and WP shells), Napalm, Canberra, Spooky";
     Help = Help$"|Target: --grid E 5 kp 5 (or E5) for a grid square; --mark (-m) for your mark";
     Help = Help$"|Marks: with --mark a squad leader uses their own squad mark and the commander uses the mark selected on their map; anyone else uses the team's";
     Help = Help$"|    --mark SL3 (or --SL 3, -l 3) picks squad 3's mark, --mark CMD the commander's. Squad leaders can only pick their own squad, admins and the commander any";
     Help = Help$"|Napalm/Canberra heading: --direction -b <N, NE, ESE, ... or a 0-360 bearing> = the way the aircraft flies, e.g. --direction SW or -b 225";
-    Help = Help$"|Admins: --delay -d <10-300 seconds> waits that long before the first strike (all types)";
-    Help = Help$"|Admins, barrages (mortar/artillery/airburst/rocket/wp): --salvos -s, --shells -n, --spread -r (meters), --interval -i. Add --persist -p to save them as the new profile";
-    Help = Help$"|Admins: --suppress -q skips the server-wide announcement for this call";
-    Help = Help$"|Admins: strikes can land inside no-artillery zones, including outside the combat area";
+    Help = Help$"|--delay -d <10-300 seconds> waits that long before the first strike (all types)";
+    Help = Help$"|Barrages (mortar/artillery/airburst/rocket/wp/mixed): --salvos -s, --shells -n, --spread -r (meters), --interval -i = seconds between salvos. Admins can add --persist -p to save them as the new profile";
+    Help = Help$"|Napalm/Canberra/Spooky: --salvos -s <1-10> repeats the strike that many times in all, --interval -i <1-300 seconds> is the time between each strike after the first (30 if left out)";
+    Help = Help$"|--suppress -q skips the server-wide announcement for this call";
+    Help = Help$"|mutate cancelfiresupport stops your team's fire support (barrages, shells in the air, aircraft and strikes still waiting). Admins can add --all (-a) to stop every team's";
+    Help = Help$"|Admins: strikes can land inside no-artillery zones, including outside the combat area, and ignore the player cooldown";
 
     if (!ShowHelpToPlayer(PC, Help, "mutate firesupport "))
         PrivateMessage(PC, Repl(Help, "|", " "));
@@ -1270,7 +1331,8 @@ function bool GetDirectedSpawnLoc(vector Target, float Bearing, float HeightOffs
 }
 
 // Applies --salvos/-s, --shells/-n, --spread/-r and --interval/-i (and any --delay already put in the profile) on top of the strike type's profile for this
-// call, and with --persist/-p stores the result as the saved profile. Returns false (after telling the caller) if the call must stop.
+// call, and with --persist/-p (admins only, it rewrites the server's saved profile) stores the result as the saved profile. Returns false (after telling
+// the caller) if the call must stop. Aircraft have no profile: their --salvos and --interval are read by ParseAircraftRepeat.
 function bool ApplyProfileOverrides(PlayerController Caller, bool bAdmin, bool bShellType, string StrikeType, array<string> Tokens, out FSProfile Profile)
 {
     local bool bSalvos, bShells, bSpread, bInterval, bPersist;
@@ -1286,14 +1348,18 @@ function bool ApplyProfileOverrides(PlayerController Caller, bool bAdmin, bool b
     if (!(bSalvos || bShells || bSpread || bInterval || bPersist))
         return true;
 
-    if (!bAdmin)
-    {
-        PrivateMessage(Caller, "[CMenu] Only admins can change fire support settings.");
-        return false;
-    }
     if (!bShellType)
     {
-        PrivateMessage(Caller, "[CMenu] Salvos, shells, spread, interval and persist only apply to mortar, artillery, airburst, rocket and wp.");
+        if (bShells || bSpread || bPersist)
+        {
+            PrivateMessage(Caller, "[CMenu] Shells, spread and persist only apply to mortar, artillery, airburst, rocket, wp and mixed.");
+            return false;
+        }
+        return true;
+    }
+    if (bPersist && !bAdmin)
+    {
+        PrivateMessage(Caller, "[CMenu] Only admins can save a fire support profile with --persist.");
         return false;
     }
 
@@ -1339,13 +1405,56 @@ function bool ApplyProfileOverrides(PlayerController Caller, bool bAdmin, bool b
     return true;
 }
 
+// Napalm, Canberra and gunship runs can be repeated: --salvos/-s is how many strikes in all (1-10) and --interval/-i the
+// seconds between each strike after the first (1-300, 30 when only --salvos is given)
+function bool ParseAircraftRepeat(PlayerController Caller, array<string> Tokens, out int Strikes, out int RepeatInterval)
+{
+    local string Value;
+    local bool bInterval;
+
+    Strikes = 1;
+    RepeatInterval = 0;
+
+    if (class'CmdOptions'.static.Has(Tokens, "salvos", "s"))
+    {
+        Value = class'CmdOptions'.static.Get(Tokens, "salvos", "s");
+        if (!IsNumeric(Value))
+        {
+            ArgError(Caller, "--salvos must be a whole number of strikes (1-10)");
+            return false;
+        }
+        Strikes = Clamp(int(Value), 1, 10);
+    }
+
+    bInterval = class'CmdOptions'.static.Has(Tokens, "interval", "i");
+    if (bInterval)
+    {
+        Value = class'CmdOptions'.static.Get(Tokens, "interval", "i");
+        if (!IsNumeric(Value))
+        {
+            ArgError(Caller, "--interval must be a whole number of seconds (1-300)");
+            return false;
+        }
+        RepeatInterval = Clamp(int(Value), 1, 300);
+        if (Strikes == 1)
+            PrivateMessage(Caller, "[CMenu] --interval only matters with --salvos 2 or more, so this is a single strike.");
+    }
+    else if (Strikes > 1)
+    {
+        RepeatInterval = 30;
+    }
+
+    return true;
+}
+
 // ArgText is "<type> <grid | MARK>"; Tokens is the whole command, searched for the barrage setting options
 function FireSupportCommand(PlayerController Caller, string ArgText, array<string> Tokens)
 {
     local array<string> Args;
     local bool bAdmin, bUseMark, bShellType, bDirection, bSuppress;
+    local array<class<ROArtilleryShell> > ShellClasses;
     local string StrikeType, GridText, Where, DirText, Value;
-    local int Team, i, FirstDelay;
+    local int Team, i, FirstDelay, Strikes, RepeatInterval;
     local float Remaining, Bearing;
     local vector Target;
     local vector2D StrikeDir;
@@ -1376,7 +1485,7 @@ function FireSupportCommand(PlayerController Caller, string ArgText, array<strin
         return;
     }
 
-    bShellType = (GetFSShellClass(StrikeType) != None);
+    bShellType = GetFSShellClasses(StrikeType, ShellClasses);
     if (bShellType && !FindFSProfile(StrikeType, Profile))
     {
         PrivateMessage(Caller, "[CMenu] No fire support profile configured for "$StrikeType$".");
@@ -1384,11 +1493,6 @@ function FireSupportCommand(PlayerController Caller, string ArgText, array<strin
     }
 
     bSuppress = class'CmdOptions'.static.Has(Tokens, "suppress", "q");
-    if (bSuppress && !bAdmin)
-    {
-        PrivateMessage(Caller, "[CMenu] Only admins can suppress the fire support announcement.");
-        return;
-    }
 
     bDirection = class'CmdOptions'.static.Has(Tokens, "direction", "b") || class'CmdOptions'.static.Has(Tokens, "dir");
     if (bDirection)
@@ -1412,12 +1516,6 @@ function FireSupportCommand(PlayerController Caller, string ArgText, array<strin
     // First strike delay: barrages hold their first salvo back, aircraft wait before taking off
     if (class'CmdOptions'.static.Has(Tokens, "delay", "d"))
     {
-        if (!bAdmin)
-        {
-            PrivateMessage(Caller, "[CMenu] Only admins can set a first strike delay.");
-            return;
-        }
-
         Value = class'CmdOptions'.static.Get(Tokens, "delay", "d");
         if (!IsNumeric(Value))
         {
@@ -1433,6 +1531,10 @@ function FireSupportCommand(PlayerController Caller, string ArgText, array<strin
     }
 
     if (!ApplyProfileOverrides(Caller, bAdmin, bShellType, StrikeType, Tokens, Profile))
+        return;
+
+    Strikes = 1;
+    if (!bShellType && !ParseAircraftRepeat(Caller, Tokens, Strikes, RepeatInterval))
         return;
 
     Team = Caller.GetTeamNum();
@@ -1500,7 +1602,14 @@ function FireSupportCommand(PlayerController Caller, string ArgText, array<strin
         {
             bFired = LaunchAircraftStrike(Caller, StrikeType, Target, StrikeDir, bDirection, Bearing, bAdmin);
         }
-        RegisterFSStrike(Caller, Team, 120.0 + FirstDelay + (StrikeType == "SPOOKY" ? FSGunshipDuration : 0));
+
+        // Every strike after the first waits its turn behind the first strike delay
+        if (bFired)
+        {
+            for (i = 1; i < Strikes; i++)
+                QueueAircraftStrike(Caller, StrikeType, Target, StrikeDir, bDirection, Bearing, bAdmin, FirstDelay + i * RepeatInterval);
+        }
+        RegisterFSStrike(Caller, Team, 120.0 + FirstDelay + (Strikes - 1) * RepeatInterval + (StrikeType == "SPOOKY" ? FSGunshipDuration : 0));
     }
 
     if (!bFired)
@@ -1516,6 +1625,8 @@ function FireSupportCommand(PlayerController Caller, string ArgText, array<strin
         Where = Where$", flying on a heading of "$TenthsText(Round(Bearing * 10.0))$" degrees";
     if (FirstDelay > 0)
         Where = Where$", first strike in "$FirstDelay$" seconds";
+    if (Strikes > 1)
+        Where = Where$", "$Strikes$" strikes "$RepeatInterval$" seconds apart";
 
     if (!bFSSilent && !bSuppress)
         WorldInfo.Game.Broadcast(self, "[CMenu] "$Caller.PlayerReplicationInfo.PlayerName$" called in a "$FSDisplayName(StrikeType)$" at "$Where);
@@ -1523,15 +1634,141 @@ function FireSupportCommand(PlayerController Caller, string ArgText, array<strin
         PrivateMessage(Caller, "[CMenu] Called in a "$FSDisplayName(StrikeType)$" at "$Where);
 }
 
+// Remembers a strike so CancelFireSupport can stop it
+function TrackFSStrike(Actor Strike, int Team)
+{
+    local FSTrackedStrike Entry;
+    local int i;
+
+    for (i = FSTrackedStrikes.Length - 1; i >= 0; i--)
+    {
+        if (FSTrackedStrikes[i].Strike == None || FSTrackedStrikes[i].Strike.bDeleteMe)
+            FSTrackedStrikes.Remove(i, 1);
+    }
+
+    Entry.Strike = Strike;
+    Entry.Team = Team;
+    FSTrackedStrikes.AddItem(Entry);
+}
+
+// Stops this mod's fire support: the barrages and shells already in the air, the aircraft and the strikes still waiting
+// for their delay. Only one team's, or every team's with bAll. Returns how many strikes were stopped.
+function int CancelFireSupport(int Team, bool bAll)
+{
+    local int i, Count;
+    local ROArtillerySpawner Spawner;
+    local ROSupportAircraft Aircraft;
+    local ROArtilleryShell Shell;
+    local Actor Strike;
+
+    for (i = FSPendingStrikes.Length - 1; i >= 0; i--)
+    {
+        if (bAll || FSPendingStrikes[i].Caller == None || FSPendingStrikes[i].Caller.GetTeamNum() == Team)
+        {
+            FSPendingStrikes.Remove(i, 1);
+            Count++;
+        }
+    }
+    if (FSPendingStrikes.Length == 0)
+        ClearTimer('ProcessPendingStrikes');
+
+    for (i = FSTrackedStrikes.Length - 1; i >= 0; i--)
+    {
+        Strike = FSTrackedStrikes[i].Strike;
+        if (Strike == None || Strike.bDeleteMe)
+        {
+            FSTrackedStrikes.Remove(i, 1);
+            continue;
+        }
+        if (!bAll && FSTrackedStrikes[i].Team != Team)
+            continue;
+
+        Spawner = ROArtillerySpawner(Strike);
+        if (Spawner != None)
+        {
+            foreach DynamicActors(class'ROArtilleryShell', Shell)
+            {
+                if (Shell.MyArtySpawner == Spawner)
+                    Shell.Destroy();
+            }
+            if (Spawner.AvoidMarker != None)
+                Spawner.AvoidMarker.Destroy();
+            Spawner.Destroy();
+        }
+        else
+        {
+            Aircraft = ROSupportAircraft(Strike);
+            if (Aircraft != None)
+            {
+                // Not refunded: the commander's own ability timers are not ours to change
+                Aircraft.CallOffStrike(false);
+                Aircraft.Destroy();
+            }
+        }
+
+        FSTrackedStrikes.Remove(i, 1);
+        Count++;
+    }
+
+    for (i = FSActiveStrikes.Length - 1; i >= 0; i--)
+    {
+        if (bAll || FSActiveStrikes[i].Team == Team)
+            FSActiveStrikes.Remove(i, 1);
+    }
+
+    return Count;
+}
+
+// mutate cancelfiresupport: stops your team's fire support. With --all (-a, admins only) stops every team's.
+function CancelFireSupportCommand(PlayerController Caller, array<string> Tokens)
+{
+    local bool bAdmin, bAll;
+    local int Team, Count;
+    local string Who;
+
+    bAdmin = IsAuthorized(Caller);
+    if (!bAdmin && !bFSPlayersCanCall)
+    {
+        PrivateMessage(Caller, "[CMenu] Fire support is not enabled for players.");
+        return;
+    }
+
+    bAll = class'CmdOptions'.static.Has(Tokens, "all", "a");
+    if (bAll && !bAdmin)
+    {
+        PrivateMessage(Caller, "[CMenu] Only admins can cancel every team's fire support.");
+        return;
+    }
+
+    Team = Caller.GetTeamNum();
+    if (!bAll && Team != `AXIS_TEAM_INDEX && Team != `ALLIES_TEAM_INDEX)
+    {
+        PrivateMessage(Caller, "[CMenu] Join a team to cancel your team's fire support.");
+        return;
+    }
+
+    Count = CancelFireSupport(Team, bAll);
+    if (Count == 0)
+    {
+        PrivateMessage(Caller, bAll ? "[CMenu] There is no fire support in progress." : "[CMenu] Your team has no fire support in progress.");
+        return;
+    }
+
+    Who = bAll ? "every team's" : "their team's";
+    if (!bFSSilent)
+        WorldInfo.Game.Broadcast(self, "[CMenu] "$Caller.PlayerReplicationInfo.PlayerName$" cancelled "$Who$" fire support ("$Count$" stopped)");
+    else
+        PrivateMessage(Caller, "[CMenu] Cancelled "$Who$" fire support ("$Count$" stopped)");
+}
+
 function bool SpawnShellStrike(PlayerController Caller, string StrikeType, vector Target, FSProfile Profile)
 {
     local ROArtillerySpawner Spawner;
-    local class<ROArtilleryShell> ShellClass;
+    local array<class<ROArtilleryShell> > ShellClasses;
     local vector SpawnLoc, MyGravity;
-    local int Team;
+    local int Team, i;
 
-    ShellClass = GetFSShellClass(StrikeType);
-    if (ShellClass == None)
+    if (!GetFSShellClasses(StrikeType, ShellClasses))
         return false;
 
     Team = Caller.GetTeamNum();
@@ -1561,11 +1798,15 @@ function bool SpawnShellStrike(PlayerController Caller, string StrikeType, vecto
 
     Spawner.ArtilleryShellClassesAvailNorth.Length = 0;
     Spawner.ArtilleryShellClassesAvailSouth.Length = 0;
-    if (Team == `AXIS_TEAM_INDEX)
-        Spawner.ArtilleryShellClassesAvailNorth.AddItem(ShellClass);
-    else
-        Spawner.ArtilleryShellClassesAvailSouth.AddItem(ShellClass);
+    for (i = 0; i < ShellClasses.Length; i++)
+    {
+        if (Team == `AXIS_TEAM_INDEX)
+            Spawner.ArtilleryShellClassesAvailNorth.AddItem(ShellClasses[i]);
+        else
+            Spawner.ArtilleryShellClassesAvailSouth.AddItem(ShellClasses[i]);
+    }
 
+    TrackFSStrike(Spawner, Team);
     Spawner.StartBarrage();
     return true;
 }
@@ -1704,6 +1945,7 @@ function bool SpawnNapalmStrike(ROPlayerController Caller, vector Target, vector
     Aircraft.TargetLocation = Target;
     Aircraft.CachedAirSupportTime = ROGRI.NextAbilityThreeTime[Team]; // Keeps the commander's ability timer unchanged if the strike is aborted
     Aircraft.SetDropPoint();
+    TrackFSStrike(Aircraft, Team);
     return true;
 }
 
@@ -1743,6 +1985,7 @@ function bool SpawnBombingRun(ROPlayerController Caller, vector Target, vector2D
             Aircraft.InboundDelay += 1;
         Aircraft.SetDropPoint();
         Aircraft.SetOffset(i);
+        TrackFSStrike(Aircraft, Team);
     }
     return true;
 }
@@ -1770,6 +2013,7 @@ function bool SpawnGunshipStrike(ROPlayerController Caller, vector Target)
     Aircraft.CalculateOrbit();
     if (FSGunshipDuration > 0)
         Aircraft.OrbitDuration = FSGunshipDuration;
+    TrackFSStrike(Aircraft, Caller.GetTeamNum());
     return true;
 }
 
@@ -1952,7 +2196,7 @@ function LoadObjects()
     ROMI.SharedContentReferences.AddItem(class<Settings>(DynamicLoadObject("MutCMenu.MutCMenuSettings", class'Class')));
 
     // Load extra content if enabled
-    if (bLoadExtras)
+    if (bLoadExtras || bForceModLoads)
     {
         foreach ExtrasToLoad(WeaponName)
         {
@@ -1966,7 +2210,7 @@ function LoadObjects()
         }
     }
     // Load GOM3 content if enabled
-    if (bLoadGOM3)
+    if (bLoadGOM3 || bForceModLoads)
     {
         foreach GOM3ToLoad(WeaponName)
         {
@@ -1980,7 +2224,7 @@ function LoadObjects()
         }
     }
     // Load GOM4 content if enabled
-    if (bLoadGOM4)
+    if (bLoadGOM4 || bForceModLoads)
     {
         foreach GOM4ToLoad(WeaponName)
         {
@@ -1994,7 +2238,7 @@ function LoadObjects()
         }
     }
     // Load Winter War content if enabled
-    if (bLoadWW)
+    if (bLoadWW || bForceModLoads)
     {
         foreach WWToLoad(WeaponName)
         {
@@ -2008,7 +2252,7 @@ function LoadObjects()
         }
     }
     // Load WW2 content if enabled
-    if (bLoadWW2)
+    if (bLoadWW2 || bForceModLoads)
     {
         foreach WW2ToLoad(WeaponName)
         {
