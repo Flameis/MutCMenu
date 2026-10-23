@@ -7,6 +7,7 @@ var array<SkeletalMesh> 			ReferenceSkeletalMesh;
 var MaterialInstanceConstant    	PreviewMeshMIC;
 var LinearColor		            	GoodPlacementColour;
 var bool                        	bShowPreviewMesh, bPreviewIsSkeletal;
+var Pawn							PreviewPawn; // The pawn the preview components are currently attached to
 
 var Vector  				    	PlaceLoc, ModifyLoc;
 var	rotator					    	PlaceRot, ModifyRot;
@@ -208,7 +209,20 @@ function DoPlace() //Override in child class
 
 simulated event Tick(float DeltaTime)
 {
-	CanPhysicallyPlace();
+	// If the player died or respawned, the preview is attached to a dead pawn and input would still be swallowed.
+	// Drop the preview and close the menu so respawning works normally.
+	if (PC == None || PC.Pawn == None || PC.Pawn.Health <= 0 || (bShowPreviewMesh && PreviewPawn != PC.Pawn))
+	{
+		HidePreviewMesh();
+		if (IsInState('MenuVisible'))
+			GoToState('');
+
+		Super.Tick(DeltaTime);
+		return;
+	}
+
+	if (IsInState('MenuVisible')) // Also true for the ReadyToPlace sub-state
+		CanPhysicallyPlace();
 
 	if (IsInState('ReadyToPlace'))
 	{
@@ -263,6 +277,7 @@ simulated function ShowPreviewMesh()
 		}
 	}
 
+	PreviewPawn = PC.Pawn;
 	bShowPreviewMesh = true;
 }
 
@@ -273,12 +288,14 @@ simulated function HidePreviewMesh()
 
 	if (bShowPreviewMesh)
 	{
+		// Detach from the pawn the preview was attached to, which may no longer be the player's current pawn
 		if ( bPreviewIsSkeletal )
 		{
 			foreach PreviewSkeletalMesh(PSkM)
 			{
 				PSkM.SetHidden(true);
-				PC.Pawn.DetachComponent(PSkM);
+				if (PreviewPawn != None)
+					PreviewPawn.DetachComponent(PSkM);
 			}
 		}
 		else 
@@ -286,9 +303,11 @@ simulated function HidePreviewMesh()
 			foreach PreviewStaticMesh(PSM)
 			{
 				PSM.SetHidden(true);
-				PC.Pawn.DetachComponent(PSM);
+				if (PreviewPawn != None)
+					PreviewPawn.DetachComponent(PSM);
 			}
 		}
+		PreviewPawn = None;
 		bShowPreviewMesh = false;
 	}
 }

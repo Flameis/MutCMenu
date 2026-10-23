@@ -15,8 +15,8 @@ function Initialize()
 
     if (bIsAuthorized)
     {
-        MenuText.InsertItem(2, "Clear All Vehicles");
-        MenuCommand.InsertItem(2, "CLEARVICS");
+        MenuText.InsertItem(1, "Clear All Vehicles");
+        MenuCommand.InsertItem(1, "CLEARVICS");
     }
 
     AddModOptions();
@@ -42,18 +42,8 @@ function bool CheckExceptions(string Command)
     switch (Command)
     {
         case "CUSTOM":
-            LocalPlayer(PC.Player).ViewportClient.ViewportConsole.TypedStr="mutate CMENU CMenuBVehicles to ";
-            LocalPlayer(PC.Player).ViewportClient.ViewportConsole.TypedStrPos=Len(LocalPlayer(PC.Player).ViewportClient.ViewportConsole.TypedStr); // set the value high in case name is quite long
-            LocalPlayer(PC.Player).ViewportClient.ViewportConsole.GoToState('Typing');
-            LocalPlayer(PC.Player).ViewportClient.ClearProgressMessages();
-            LocalPlayer(PC.Player).ViewportClient.SetProgressTime(6);
-            MessageSelf("Please Type Your Desired Vehicle (Example: ROGameContent.ROHeli_AH1G_Content)");
+            PromptForText("Please Type Your Desired Vehicle (Example: ROGameContent.ROHeli_AH1G_Content)", "mutate CMENU CMenuBVehicles to ");
             GoToState('ReadyToPlace',, true);
-            return true;
-
-        case "ENTERVEHICLE":
-            MyDA.EnterVehicle();
-            MessageSelf("You have entered the vehicle.");
             return true;
 
         case "DELETEVEHICLE":
@@ -194,7 +184,6 @@ defaultproperties
 {
     MenuName="VEHICLES"
 
-    MenuText.add("Enter Vehicle")
     MenuText.add("Delete Vehicle")
     MenuText.add("Custom")
     MenuText.add("Cobra")
@@ -206,7 +195,6 @@ defaultproperties
     MenuText.add("GreenHuey")
     MenuText.add("GreenBushranger")
 
-    MenuCommand.add("ENTERVEHICLE")
     MenuCommand.add("DELETEVEHICLE")
     MenuCommand.add("CUSTOM")
     MenuCommand.add("ROGameContent.ROHeli_AH1G_Content")

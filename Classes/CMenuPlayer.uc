@@ -43,7 +43,7 @@ function UpdatePlayerList()
 
     for (i = 0; i < MenuText.Length; i++)
     {
-        MenuCommand[i] = "CMENUPCMANAGER "$PlayerList[i];
+        MenuCommand[i] = "CMENUPCMANAGER --player "$PlayerList[i];
     }
 }
 

@@ -24,6 +24,28 @@ function InitMutSettings()
 
 	if (self.myMut == None) { self.SetIntPropertyByName(name(Repl("bNewTankPhys", ".", "_")), int(class'MutCMenu'.default.bNewTankPhys)); }
 	else { self.SetIntPropertyByName(name(Repl("bNewTankPhys", ".", "_")), int(MutCMenu(myMut).bNewTankPhys)); }
+
+	// Match settings
+	if (self.myMut == None) { self.SetIntPropertyByName(name(Repl("bAllowIntroVO", ".", "_")), int(class'MutCMenu'.default.bAllowIntroVO)); }
+	else { self.SetIntPropertyByName(name(Repl("bAllowIntroVO", ".", "_")), int(MutCMenu(myMut).bAllowIntroVO)); }
+
+	if (self.myMut == None) { self.SetIntPropertyByName(name(Repl("bFSPlayersCanCall", ".", "_")), int(class'MutCMenu'.default.bFSPlayersCanCall)); }
+	else { self.SetIntPropertyByName(name(Repl("bFSPlayersCanCall", ".", "_")), int(MutCMenu(myMut).bFSPlayersCanCall)); }
+
+	if (self.myMut == None) { self.SetIntPropertyByName(name(Repl("bFSFriendlyFire", ".", "_")), int(class'MutCMenu'.default.bFSFriendlyFire)); }
+	else { self.SetIntPropertyByName(name(Repl("bFSFriendlyFire", ".", "_")), int(MutCMenu(myMut).bFSFriendlyFire)); }
+
+	if (self.myMut == None) { self.SetIntPropertyByName(name(Repl("bFSSilent", ".", "_")), int(class'MutCMenu'.default.bFSSilent)); }
+	else { self.SetIntPropertyByName(name(Repl("bFSSilent", ".", "_")), int(MutCMenu(myMut).bFSSilent)); }
+
+	if (self.myMut == None) { self.SetIntPropertyByName(name(Repl("FSPlayerCooldown", ".", "_")), class'MutCMenu'.default.FSPlayerCooldown); }
+	else { self.SetIntPropertyByName(name(Repl("FSPlayerCooldown", ".", "_")), MutCMenu(myMut).FSPlayerCooldown); }
+
+	if (self.myMut == None) { self.SetIntPropertyByName(name(Repl("FSBomberCount", ".", "_")), class'MutCMenu'.default.FSBomberCount); }
+	else { self.SetIntPropertyByName(name(Repl("FSBomberCount", ".", "_")), MutCMenu(myMut).FSBomberCount); }
+
+	if (self.myMut == None) { self.SetIntPropertyByName(name(Repl("FSGunshipDuration", ".", "_")), class'MutCMenu'.default.FSGunshipDuration); }
+	else { self.SetIntPropertyByName(name(Repl("FSGunshipDuration", ".", "_")), MutCMenu(myMut).FSGunshipDuration); }
 }
 
 /**
@@ -49,7 +71,29 @@ function SaveMutSettings()
 
 	if (self.myMut == None) { self.GetIntPropertyByName(name(Repl("bNewTankPhys", ".", "_")), tempValue); class'MutCMenu'.default.bNewTankPhys = (self.tempValue != 0); }
 	else { self.GetIntPropertyByName(name(Repl("bNewTankPhys", ".", "_")), tempValue); MutCMenu(self.myMut).bNewTankPhys = (self.tempValue != 0); }
-	
+
+	// Match settings
+	if (self.myMut == None) { self.GetIntPropertyByName(name(Repl("bAllowIntroVO", ".", "_")), tempValue); class'MutCMenu'.default.bAllowIntroVO = (self.tempValue != 0); }
+	else { self.GetIntPropertyByName(name(Repl("bAllowIntroVO", ".", "_")), tempValue); MutCMenu(self.myMut).bAllowIntroVO = (self.tempValue != 0); }
+
+	if (self.myMut == None) { self.GetIntPropertyByName(name(Repl("bFSPlayersCanCall", ".", "_")), tempValue); class'MutCMenu'.default.bFSPlayersCanCall = (self.tempValue != 0); }
+	else { self.GetIntPropertyByName(name(Repl("bFSPlayersCanCall", ".", "_")), tempValue); MutCMenu(self.myMut).bFSPlayersCanCall = (self.tempValue != 0); }
+
+	if (self.myMut == None) { self.GetIntPropertyByName(name(Repl("bFSFriendlyFire", ".", "_")), tempValue); class'MutCMenu'.default.bFSFriendlyFire = (self.tempValue != 0); }
+	else { self.GetIntPropertyByName(name(Repl("bFSFriendlyFire", ".", "_")), tempValue); MutCMenu(self.myMut).bFSFriendlyFire = (self.tempValue != 0); }
+
+	if (self.myMut == None) { self.GetIntPropertyByName(name(Repl("bFSSilent", ".", "_")), tempValue); class'MutCMenu'.default.bFSSilent = (self.tempValue != 0); }
+	else { self.GetIntPropertyByName(name(Repl("bFSSilent", ".", "_")), tempValue); MutCMenu(self.myMut).bFSSilent = (self.tempValue != 0); }
+
+	if (self.myMut == None) { self.GetIntPropertyByName(name(Repl("FSPlayerCooldown", ".", "_")), tempValue); class'MutCMenu'.default.FSPlayerCooldown = self.tempValue; }
+	else { self.GetIntPropertyByName(name(Repl("FSPlayerCooldown", ".", "_")), tempValue); MutCMenu(self.myMut).FSPlayerCooldown = self.tempValue; }
+
+	if (self.myMut == None) { self.GetIntPropertyByName(name(Repl("FSBomberCount", ".", "_")), tempValue); class'MutCMenu'.default.FSBomberCount = self.tempValue; }
+	else { self.GetIntPropertyByName(name(Repl("FSBomberCount", ".", "_")), tempValue); MutCMenu(self.myMut).FSBomberCount = self.tempValue; }
+
+	if (self.myMut == None) { self.GetIntPropertyByName(name(Repl("FSGunshipDuration", ".", "_")), tempValue); class'MutCMenu'.default.FSGunshipDuration = self.tempValue; }
+	else { self.GetIntPropertyByName(name(Repl("FSGunshipDuration", ".", "_")), tempValue); MutCMenu(self.myMut).FSGunshipDuration = self.tempValue; }
+
 
     if (self.myMut != None)
 		self.myMut.SaveConfig();
@@ -79,4 +123,25 @@ defaultproperties
 
 	Properties.Add((PropertyId=608, Data=(Type=SDT_Int32, Value1=0)))
 	PropertyMappings.Add((Id=608, Name="bNewTankPhys"))
+
+	Properties.Add((PropertyId=609, Data=(Type=SDT_Int32, Value1=0)))
+	PropertyMappings.Add((Id=609, Name="bAllowIntroVO"))
+
+	Properties.Add((PropertyId=610, Data=(Type=SDT_Int32, Value1=0)))
+	PropertyMappings.Add((Id=610, Name="bFSPlayersCanCall"))
+
+	Properties.Add((PropertyId=611, Data=(Type=SDT_Int32, Value1=0)))
+	PropertyMappings.Add((Id=611, Name="bFSFriendlyFire"))
+
+	Properties.Add((PropertyId=612, Data=(Type=SDT_Int32, Value1=0)))
+	PropertyMappings.Add((Id=612, Name="bFSSilent"))
+
+	Properties.Add((PropertyId=613, Data=(Type=SDT_Int32, Value1=0)))
+	PropertyMappings.Add((Id=613, Name="FSPlayerCooldown"))
+
+	Properties.Add((PropertyId=614, Data=(Type=SDT_Int32, Value1=0)))
+	PropertyMappings.Add((Id=614, Name="FSBomberCount"))
+
+	Properties.Add((PropertyId=615, Data=(Type=SDT_Int32, Value1=0)))
+	PropertyMappings.Add((Id=615, Name="FSGunshipDuration"))
 }

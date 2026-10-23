@@ -2,8 +2,12 @@ class DummyActor extends actor;
 
 var MutCMenu                     MyMut;
 
-var bool bIsAuthorized, bNewTankPhys, bLoadExtras, bLoadGOM3, bLoadGOM4, bLoadWW, bLoadWW2;
+var bool bIsAuthorized, bNewTankPhys, bLoadExtras, bLoadGOM3, bLoadGOM4, bLoadWW, bLoadWW2, bFSPlayersCanCall;
+var bool bClickModeActive;
 var string TargetName;
+
+// var CMenuTextEntryScene TextEntryScene; // text-entry dialog disabled for now
+var CMenuClickOverlayScene ClickOverlay;
 
 var array<vector2d>				Corners;
 
@@ -15,7 +19,7 @@ var float WW2TankCheckTimer;
 replication
 {
     if (bNetDirty)
-        bIsAuthorized, bNewTankPhys, bLoadExtras, bLoadGOM3, bLoadGOM4, bLoadWW, bLoadWW2, OriginalClassIndex, bInWW2TankEntryCheck;
+        bIsAuthorized, bNewTankPhys, bLoadExtras, bLoadGOM3, bLoadGOM4, bLoadWW, bLoadWW2, bFSPlayersCanCall, OriginalClassIndex, bInWW2TankEntryCheck;
 }
 
 simulated event Tick(float DeltaTime)
@@ -131,9 +135,89 @@ simulated event Tick(float DeltaTime)
     } */
 }
 
+// The intro/commander speech is played locally by ROPlayerController.CheckCommanderSpeech, so it has to be stopped on the client
+reliable client function ClientMuteIntroVoice()
+{
+    SetTimer(0.2, true, 'MuteIntroVoice');
+}
+
+simulated function MuteIntroVoice()
+{
+    local PlayerController PC;
+
+    PC = PlayerController(Owner);
+    if (PC != None && PC.IsTimerActive('CheckCommanderSpeech'))
+        PC.ClearTimer('CheckCommanderSpeech');
+}
+
+// Guidance up to this size goes to the chat and the mini console; anything longer goes to the large console
+const HELP_MAX_SHORT_LINES = 4;
+const HELP_MAX_SHORT_CHARS = 320;
+
+// Shows guidance for a command and pre-types the command. Prompt lines are separated by "|".
+// Short guidance: private chat messages (they also land in the console history) and the one-line mini console.
+// Long guidance: written to the console history and shown in the large console, where it can be scrolled while typing.
+simulated function ShowHelp(string Prompt, string Prefix, string Suffix, string LinePrefix)
+{
+    local PlayerController PC;
+    local array<string> Lines;
+    local GameViewportClient VC;
+    local Console ViewConsole;
+    local int i;
+
+    PC = PlayerController(Owner);
+    if (PC == None)
+        return;
+
+    Lines = SplitString(Prompt, "|", true);
+
+    if (LocalPlayer(PC.Player) != None)
+        VC = LocalPlayer(PC.Player).ViewportClient;
+    if (VC != None)
+        ViewConsole = VC.ViewportConsole;
+
+    if (ViewConsole == None)
+    {
+        // No console to drive: fall back to chat lines
+        for (i = 0; i < Lines.Length; i++)
+            PC.ClientMessage(i == 0 ? LinePrefix$Lines[i] : Lines[i]);
+        if (Prefix != "")
+            PC.ClientMessage("Type in the console (~):  "$Prefix$Suffix);
+        return;
+    }
+
+    if (Lines.Length > HELP_MAX_SHORT_LINES || Len(Prompt) > HELP_MAX_SHORT_CHARS)
+    {
+        ViewConsole.OutputText("");
+        for (i = 0; i < Lines.Length; i++)
+            ViewConsole.OutputText(i == 0 ? LinePrefix$Lines[i] : "    "$Lines[i]);
+
+        // The same state the console key opens (the large console, with history)
+        ViewConsole.GotoState('Open');
+    }
+    else
+    {
+        for (i = 0; i < Lines.Length; i++)
+            PC.ClientMessage(i == 0 ? LinePrefix$Lines[i] : Lines[i]);
+
+        // The one-line typing bar
+        ViewConsole.GotoState('Typing');
+    }
+
+    ViewConsole.SetInputText(Prefix$Suffix);
+    ViewConsole.SetCursorPos(Len(Prefix));
+}
+
+// Server to client: used for help from the mutators, so they don't have to flood the chat
+reliable client function ClientShowHelp(string Prompt, string Prefix, string Suffix, string LinePrefix)
+{
+    ShowHelp(Prompt, Prefix, Suffix, LinePrefix);
+}
+
 reliable client function CMenuSetup()
 {
     local PlayerController PC;
+    local TankEntryInteraction TankEntry;
     local int i;
 
     PC = PlayerController(Owner);
@@ -144,6 +228,10 @@ reliable client function CMenuSetup()
 
     pc.Interactions.additem(new(pc) class'CMenuParadrops');
     pc.Interactions.additem(new(pc) class'CMenuRealismMatch');
+    pc.Interactions.additem(new(pc) class'CMenuRMControl');
+    pc.Interactions.additem(new(pc) class'CMenuRMRound');
+    pc.Interactions.additem(new(pc) class'CMenuRMObjectives');
+    pc.Interactions.additem(new(pc) class'CMenuRMTeams');
     pc.Interactions.additem(new(pc) class'CMenuPlayer');
     pc.Interactions.additem(new(pc) class'CMenuPCManager');
     pc.Interactions.additem(new(pc) class'CMenuFireSupport');
@@ -157,17 +245,48 @@ reliable client function CMenuSetup()
 
     pc.Interactions.additem(new(pc) class'CMenuWeapons');
 
+    TankEntry = new(pc) class'TankEntryInteraction';
+    TankEntry.PC = PC;
+    TankEntry.MyDA = self;
+    pc.Interactions.additem(TankEntry);
+
     pc.Interactions[pc.Interactions.Length] = pc.Interactions[0];
     pc.Interactions.remove(0, 1);
-    
+
+    EnsureUIScenesCreated(PC);
+
     for (i = 0; i < PC.Interactions.Length; i++)
     {
         if (InStr(PC.Interactions[i].name, "CMenu",,true) != -1)
         {
             CMenu(PC.Interactions[i]).PC = PC;
             CMenu(PC.Interactions[i]).MyDA = self;
+            // CMenu(PC.Interactions[i]).TextEntryScene = TextEntryScene; // text-entry dialog disabled for now
+            CMenu(PC.Interactions[i]).ClickOverlay = ClickOverlay;
         }
     }
+}
+
+// Creates the shared, code-only UIScene used for mouse click selection, once per player
+// (the text-entry dialog scene is disabled for now: commands are typed into the console)
+function EnsureUIScenesCreated(PlayerController PC)
+{
+    local LocalPlayer LP;
+    local GameUISceneClient SceneClient;
+
+    if (ClickOverlay != None)
+        return;
+
+    LP = LocalPlayer(PC.Player);
+    if (LP == None || LP.ViewportClient == None || LP.ViewportClient.UIController == None)
+        return;
+
+    SceneClient = LP.ViewportClient.UIController.SceneClient;
+    if (SceneClient == None)
+        return;
+
+    // TextEntryScene = SceneClient.CreateScene(class'CMenuTextEntryScene', 'CMenuTextEntry');
+    ClickOverlay = SceneClient.CreateScene(class'CMenuClickOverlayScene', 'CMenuClickOverlay');
 }
 
 reliable client function ToggleCMenuVisiblity(string CMenu, bool bAuthorized, string TName)
@@ -352,53 +471,28 @@ unreliable server function SpawnVehicle(string VehicleName, vector PlaceLoc, rot
     }
 }
 
-unreliable server function EnterVehicle()
+// Server side of the tank entry prompt (TankEntryInteraction). Bypasses vanilla's bInfantryCanUse gate on tanks
+// but keeps the normal TryToDrive checks (free seat, no enemies aboard, not prone, etc.)
+reliable server function EnterVehicle(ROVehicle ROV)
 {
-    local ROVehicle                 ROV;
-    local PlayerController          PC;
-    local Pawn                      P;
-    local vector                    ViewDirection, StartTrace, EndTrace, HitLocation, HitNormal;
-    local rotator                   PRot;
-    local actor                     TracedActor;
-    local bool                      bEnteredVehicle;
-    local float                     TraceLength;
+    local ROPlayerController        ROPC;
+    local ROPawn                    ROP;
 
-    PC = PlayerController(Owner);
-
-    PC.GetPlayerViewPoint(StartTrace, PRot);
-    ViewDirection = Vector(PC.Pawn.GetViewRotation());
-    TraceLength = 2000;
-    EndTrace = StartTrace + ViewDirection * TraceLength;
-
-    P = PC.Pawn;
-
-    // Trace for nearest vehicle
-	TracedActor = PC.trace(HitLocation, HitNormal, EndTrace, StartTrace, true);
-
-    ROV = ROVehicle(TracedActor);
-
-    if (ROV == none)
-    {
+    ROPC = ROPlayerController(Owner);
+    ROP = ROPC != none ? ROPawn(ROPC.Pawn) : none;
+    if (ROP == none || ROP.Health <= 0 || ROP.bIsProning || ROP.IsProneTransitioning())
         return;
+
+    // The client picks the tank, so re-validate everything here
+    if (ROV == none || ROV.bDeadVehicle || ROV.Team != ROPC.GetTeamNum() || VSize(ROV.Location - ROP.Location) > 1000
+        || VSizeSq(ROV.Velocity) >= class'ROVehicle'.const.MAX_SPEED_FOR_ENTRY_SQ)
+        return;
+
+    if (ROV.TryToDrive(ROP))
+    {
+        ROPC.ClientStartExitVehicleFadeOut();
+        ROPC.SetTimer(0.25, false, 'ClientStartExitVehicleFadeIn');
     }
-
-    if (!ROV.bIsDisabled && (!ROV.bTeamLocked || !WorldInfo.Game.bTeamGame || WorldInfo.GRI.OnSameTeam(self, P)))
-	{
-
-		if( !ROV.AnySeatAvailable() )
-		{
-			return;
-		}
-
-		bEnteredVehicle = (ROV.Driver == None) ? ROV.DriverEnter(P) : ROV.PassengerEnter(P, ROV.GetFirstAvailableSeat());
-
-		if( bEnteredVehicle )
-		{
-			ROV.SetTexturesToBeResident( true );
-		}
-
-		return;
-	}
 }
 
 reliable server function ClearAllVehicles()

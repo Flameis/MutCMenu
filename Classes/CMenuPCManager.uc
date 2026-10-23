@@ -15,7 +15,7 @@ function Initialize()
 
     for (i = 0; i < MenuCommand.Length; i++)
     {
-        MenuCommand[i] = default.menucommand[i]@TargetName;
+        MenuCommand[i] = default.menucommand[i]$" --player "$TargetName;
         if(bCMenuDebug) `log(MenuCommand[i]);
     }
 
@@ -29,52 +29,27 @@ function bool CheckExceptions(string Command)
     switch (Caps(Params[0]))
     {
         case "FORCECHANGENAME":
-            LocalPlayer(PC.Player).ViewportClient.ViewportConsole.TypedStr="mutate "$Command$" to ";
-            LocalPlayer(PC.Player).ViewportClient.ViewportConsole.TypedStrPos=Len(LocalPlayer(PC.Player).ViewportClient.ViewportConsole.TypedStr); // set the value high in case name is quite long
-            LocalPlayer(PC.Player).ViewportClient.ViewportConsole.GoToState('Typing');
-            LocalPlayer(PC.Player).ViewportClient.ClearProgressMessages();
-            LocalPlayer(PC.Player).ViewportClient.SetProgressTime(6);
-            MessageSelf("Please Type Your Desired Name (Example: T/5 Scovel [29ID])");
+            PromptForText("Force Name Change|Type the new name for this player, e.g. T/5 Scovel [29ID]|Full syntax: mutate forcechangename --player Old Name --name New Name|Short: -p -n   (older form: forcechangename Old Name to New Name)", "mutate "$Command$" --name ");
             return true;
 
         case "FDAO":
             if(bCMenuDebug) `Log("DropAtObj");
-            LocalPlayer(PC.Player).ViewportClient.ViewportConsole.TypedStr="mutate "$Command$" to ";
-            LocalPlayer(PC.Player).ViewportClient.ViewportConsole.TypedStrPos=Len(LocalPlayer(PC.Player).ViewportClient.ViewportConsole.TypedStr); // set the value high in case name is quite long
-            LocalPlayer(PC.Player).ViewportClient.ViewportConsole.GoToState('Typing');
-            LocalPlayer(PC.Player).ViewportClient.ClearProgressMessages();
-            LocalPlayer(PC.Player).ViewportClient.SetProgressTime(6);
-            MessageSelf("Please Specify an Objective (Example: A)");
+            PromptForText("Drop Player At Objective|Type the objective letter, e.g. A|Full syntax: mutate fdao --player Name --obj A   (short: -p -o)", "mutate "$Command$" --obj ");
             return true;
 
         case "FDAG":
             if(bCMenuDebug) `Log("DropAtGrid");
-            LocalPlayer(PC.Player).ViewportClient.ViewportConsole.TypedStr="mutate "$Command$" to ";
-            LocalPlayer(PC.Player).ViewportClient.ViewportConsole.TypedStrPos=Len(LocalPlayer(PC.Player).ViewportClient.ViewportConsole.TypedStr); // set the value high in case name is quite long
-            LocalPlayer(PC.Player).ViewportClient.ViewportConsole.GoToState('Typing');
-            LocalPlayer(PC.Player).ViewportClient.ClearProgressMessages();
-            LocalPlayer(PC.Player).ViewportClient.SetProgressTime(6);
-            MessageSelf("Please Specify a Grid Location (Example: E 5 kp 5)");
+            PromptForText("Drop Player At Grid|Type a grid, e.g. E 5 kp 5|Full syntax: mutate fdag --player Name --grid E 5 kp 5   (short: -p -g)", "mutate "$Command$" --grid ");
             return true;
 
         case "FORCEUNITPATCH":
             if(bCMenuDebug) `Log("ForceUnitPatch");
-            LocalPlayer(PC.Player).ViewportClient.ViewportConsole.TypedStr="mutate "$Command$" to ";
-            LocalPlayer(PC.Player).ViewportClient.ViewportConsole.TypedStrPos=Len(LocalPlayer(PC.Player).ViewportClient.ViewportConsole.TypedStr); // set the value high in case name is quite long
-            LocalPlayer(PC.Player).ViewportClient.ViewportConsole.GoToState('Typing');
-            LocalPlayer(PC.Player).ViewportClient.ClearProgressMessages();
-            LocalPlayer(PC.Player).ViewportClient.SetProgressTime(6);
-            MessageSelf("Please Specify a Unit (Example: DP2S4)");
+            PromptForText("Change Unit Patch|Type a unit, e.g. DP2S4|Full syntax: mutate forceunitpatch --player Name --unit DP2S4   (short: -p -u)", "mutate "$Command$" --unit ");
             return true;
 
         case "FORCERANKPATCH":
             if(bCMenuDebug) `Log("ForceRankPatch");
-            LocalPlayer(PC.Player).ViewportClient.ViewportConsole.TypedStr="mutate "$Command$" to ";
-            LocalPlayer(PC.Player).ViewportClient.ViewportConsole.TypedStrPos=Len(LocalPlayer(PC.Player).ViewportClient.ViewportConsole.TypedStr); // set the value high in case name is quite long
-            LocalPlayer(PC.Player).ViewportClient.ViewportConsole.GoToState('Typing');
-            LocalPlayer(PC.Player).ViewportClient.ClearProgressMessages();
-            LocalPlayer(PC.Player).ViewportClient.SetProgressTime(6);
-            MessageSelf("Please Specify a Rank (Example: sgtmaj)");
+            PromptForText("Change Rank Patch|Type a rank, e.g. sgtmaj|Full syntax: mutate forcerankpatch --player Name --rank sgtmaj   (short: -p -r)", "mutate "$Command$" --rank ");
             return true;
 
         default:
