@@ -6,7 +6,7 @@ var bool bIsAuthorized, bNewTankPhys, bLoadExtras, bLoadGOM3, bLoadGOM4, bLoadWW
 var bool bClickModeActive;
 var string TargetName;
 
-var CMenuTextEntryScene TextEntryScene;
+// var CMenuTextEntryScene TextEntryScene; // text-entry dialog disabled for now
 var CMenuClickOverlayScene ClickOverlay;
 
 var array<vector2d>				Corners;
@@ -135,6 +135,85 @@ simulated event Tick(float DeltaTime)
     } */
 }
 
+// The intro/commander speech is played locally by ROPlayerController.CheckCommanderSpeech, so it has to be stopped on the client
+reliable client function ClientMuteIntroVoice()
+{
+    SetTimer(0.2, true, 'MuteIntroVoice');
+}
+
+simulated function MuteIntroVoice()
+{
+    local PlayerController PC;
+
+    PC = PlayerController(Owner);
+    if (PC != None && PC.IsTimerActive('CheckCommanderSpeech'))
+        PC.ClearTimer('CheckCommanderSpeech');
+}
+
+// Guidance up to this size goes to the chat and the mini console; anything longer goes to the large console
+const HELP_MAX_SHORT_LINES = 4;
+const HELP_MAX_SHORT_CHARS = 320;
+
+// Shows guidance for a command and pre-types the command. Prompt lines are separated by "|".
+// Short guidance: private chat messages (they also land in the console history) and the one-line mini console.
+// Long guidance: written to the console history and shown in the large console, where it can be scrolled while typing.
+simulated function ShowHelp(string Prompt, string Prefix, string Suffix, string LinePrefix)
+{
+    local PlayerController PC;
+    local array<string> Lines;
+    local GameViewportClient VC;
+    local Console ViewConsole;
+    local int i;
+
+    PC = PlayerController(Owner);
+    if (PC == None)
+        return;
+
+    Lines = SplitString(Prompt, "|", true);
+
+    if (LocalPlayer(PC.Player) != None)
+        VC = LocalPlayer(PC.Player).ViewportClient;
+    if (VC != None)
+        ViewConsole = VC.ViewportConsole;
+
+    if (ViewConsole == None)
+    {
+        // No console to drive: fall back to chat lines
+        for (i = 0; i < Lines.Length; i++)
+            PC.ClientMessage(i == 0 ? LinePrefix$Lines[i] : Lines[i]);
+        if (Prefix != "")
+            PC.ClientMessage("Type in the console (~):  "$Prefix$Suffix);
+        return;
+    }
+
+    if (Lines.Length > HELP_MAX_SHORT_LINES || Len(Prompt) > HELP_MAX_SHORT_CHARS)
+    {
+        ViewConsole.OutputText("");
+        for (i = 0; i < Lines.Length; i++)
+            ViewConsole.OutputText(i == 0 ? LinePrefix$Lines[i] : "    "$Lines[i]);
+
+        // The same state the console key opens (the large console, with history)
+        ViewConsole.GotoState('Open');
+    }
+    else
+    {
+        for (i = 0; i < Lines.Length; i++)
+            PC.ClientMessage(i == 0 ? LinePrefix$Lines[i] : Lines[i]);
+
+        // The one-line typing bar
+        ViewConsole.GotoState('Typing');
+    }
+
+    ViewConsole.SetInputText(Prefix$Suffix);
+    ViewConsole.SetCursorPos(Len(Prefix));
+}
+
+// Server to client: used for help from the mutators, so they don't have to flood the chat
+reliable client function ClientShowHelp(string Prompt, string Prefix, string Suffix, string LinePrefix)
+{
+    ShowHelp(Prompt, Prefix, Suffix, LinePrefix);
+}
+
 reliable client function CMenuSetup()
 {
     local PlayerController PC;
@@ -182,19 +261,20 @@ reliable client function CMenuSetup()
         {
             CMenu(PC.Interactions[i]).PC = PC;
             CMenu(PC.Interactions[i]).MyDA = self;
-            CMenu(PC.Interactions[i]).TextEntryScene = TextEntryScene;
+            // CMenu(PC.Interactions[i]).TextEntryScene = TextEntryScene; // text-entry dialog disabled for now
             CMenu(PC.Interactions[i]).ClickOverlay = ClickOverlay;
         }
     }
 }
 
-// Creates the shared, code-only UIScenes used for text input and mouse click selection, once per player
+// Creates the shared, code-only UIScene used for mouse click selection, once per player
+// (the text-entry dialog scene is disabled for now: commands are typed into the console)
 function EnsureUIScenesCreated(PlayerController PC)
 {
     local LocalPlayer LP;
     local GameUISceneClient SceneClient;
 
-    if (TextEntryScene != None && ClickOverlay != None)
+    if (ClickOverlay != None)
         return;
 
     LP = LocalPlayer(PC.Player);
@@ -205,7 +285,7 @@ function EnsureUIScenesCreated(PlayerController PC)
     if (SceneClient == None)
         return;
 
-    TextEntryScene = SceneClient.CreateScene(class'CMenuTextEntryScene', 'CMenuTextEntry');
+    // TextEntryScene = SceneClient.CreateScene(class'CMenuTextEntryScene', 'CMenuTextEntry');
     ClickOverlay = SceneClient.CreateScene(class'CMenuClickOverlayScene', 'CMenuClickOverlay');
 }
 

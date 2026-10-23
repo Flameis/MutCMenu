@@ -3,7 +3,8 @@ class CMenu extends Interaction
 
 var PlayerController PC;
 var DummyActor MyDA;
-var CMenuTextEntryScene TextEntryScene;
+// Text-entry dialog (GameUIScene) disabled for now: commands are typed into the console instead
+// var CMenuTextEntryScene TextEntryScene;
 var CMenuClickOverlayScene ClickOverlay;
 var Texture2D DefaultTexture_Black, DefaultTexture_White;
 var string PendingCmdPrefix, PendingCmdSuffix;
@@ -236,6 +237,23 @@ function GameUISceneClient GetCMenuSceneClient()
 	return LP.ViewportClient.UIController.SceneClient;
 }
 
+// Pre-types CommandPrefix in the console and shows the guidance for the command that needs a value.
+// Prompt lines are separated by "|". The player finishes the command (CommandPrefix$<value>$CommandSuffix) and presses enter.
+// The guidance is written into the console history and the large console is opened, because it is far longer than the chat
+// window can show and stays readable (scrollable) while typing.
+function PromptForText(string Prompt, string CommandPrefix, optional string CommandSuffix)
+{
+	PendingCmdPrefix = CommandPrefix;
+	PendingCmdSuffix = CommandSuffix;
+
+	// Short guidance goes to the chat and the mini console, long guidance to the large console (see DummyActor.ShowHelp)
+	if (MyDA != None)
+		MyDA.ShowHelp(Prompt, CommandPrefix, CommandSuffix, "[CMenu] ");
+}
+
+/* Text-entry dialog (GameUIScene), disabled for now. Re-enable together with CMenuTextEntryScene.uc,
+// the TextEntryScene vars here and in DummyActor, and EnsureUIScenesCreated in DummyActor.
+
 // Opens the shared text-entry dialog; on submit, runs Prefix$EnteredText$Suffix as a console command
 function PromptForText(string Prompt, string CommandPrefix, optional string CommandSuffix)
 {
@@ -265,6 +283,7 @@ function bool OnPromptSubmitted(string EnteredText, bool bCancelled)
 
 	return true;
 }
+*/
 
 // Mirrors the currently visible page as mouse-clickable hit-regions; no-op unless click mode is active
 function RebuildClickOverlay()
