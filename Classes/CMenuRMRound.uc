@@ -1,4 +1,4 @@
-// Realism Match: round timer, round duration, friendly fire, reinforcements and respawns
+// Realism Match: round timer, friendly fire, reinforcements and respawns. (The round length is a mutator setting in WebAdmin, not a menu entry.)
 class CMenuRMRound extends CMenuRMBase;
 
 function SetTeamDisplayNames()
@@ -6,8 +6,8 @@ function SetTeamDisplayNames()
     local string NorthName, SouthName;
 
     GetTeamNames(NorthName, SouthName);
-    MenuText[6] = "Set "$NorthName$" Reinforcements";
-    MenuText[7] = "Set "$SouthName$" Reinforcements";
+    MenuText[5] = "Set "$NorthName$" Reinforcements";
+    MenuText[6] = "Set "$SouthName$" Reinforcements";
 }
 
 function bool CheckExceptions(string Command)
@@ -16,10 +16,6 @@ function bool CheckExceptions(string Command)
     {
         case "ROUNDTIMER":
             PromptForText("Round Timer|--time / -t : minutes after LIVE until the match resets to the briefing (0 disables it)|Example: --time 20   (or just 20)", "Mutate "$Command$" ");
-            return true;
-
-        case "SETROUNDDURATION":
-            PromptForText("Round Duration|--time / -t : round length in minutes, also applied to the round in progress|Example: --time 60   (or just 60)", "Mutate "$Command$" ");
             return true;
 
         case "SETRESPAWNTIME":
@@ -46,7 +42,6 @@ defaultproperties
 
     MenuText.add("Round Timer")
     MenuText.add("Cancel Round Timer")
-    MenuText.add("Set Round Duration")
     MenuText.add("Set Respawn Deployment Time")
     MenuText.add("Set Friendly Fire Modifier")
     MenuText.add("Toggle Auto Respawns")
@@ -55,7 +50,6 @@ defaultproperties
 
     MenuCommand.add("ROUNDTIMER")
     MenuCommand.add("CANCELROUNDTIMER")
-    MenuCommand.add("SETROUNDDURATION")
     MenuCommand.add("SETRESPAWNTIME")
     MenuCommand.add("SETFF")
     MenuCommand.add("TOGGLEAUTORESPAWNS")
