@@ -138,6 +138,7 @@ simulated event Tick(float DeltaTime)
 reliable client function CMenuSetup()
 {
     local PlayerController PC;
+    local TankEntryInteraction TankEntry;
     local int i;
 
     PC = PlayerController(Owner);
@@ -160,6 +161,11 @@ reliable client function CMenuSetup()
     pc.Interactions.additem(new(pc) class'CMenuBPickups');
 
     pc.Interactions.additem(new(pc) class'CMenuWeapons');
+
+    TankEntry = new(pc) class'TankEntryInteraction';
+    TankEntry.PC = PC;
+    TankEntry.MyDA = self;
+    pc.Interactions.additem(TankEntry);
 
     pc.Interactions[pc.Interactions.Length] = pc.Interactions[0];
     pc.Interactions.remove(0, 1);
@@ -381,53 +387,28 @@ unreliable server function SpawnVehicle(string VehicleName, vector PlaceLoc, rot
     }
 }
 
-unreliable server function EnterVehicle()
+// Server side of the tank entry prompt (TankEntryInteraction). Bypasses vanilla's bInfantryCanUse gate on tanks
+// but keeps the normal TryToDrive checks (free seat, no enemies aboard, not prone, etc.)
+reliable server function EnterVehicle(ROVehicle ROV)
 {
-    local ROVehicle                 ROV;
-    local PlayerController          PC;
-    local Pawn                      P;
-    local vector                    ViewDirection, StartTrace, EndTrace, HitLocation, HitNormal;
-    local rotator                   PRot;
-    local actor                     TracedActor;
-    local bool                      bEnteredVehicle;
-    local float                     TraceLength;
+    local ROPlayerController        ROPC;
+    local ROPawn                    ROP;
 
-    PC = PlayerController(Owner);
-
-    PC.GetPlayerViewPoint(StartTrace, PRot);
-    ViewDirection = Vector(PC.Pawn.GetViewRotation());
-    TraceLength = 2000;
-    EndTrace = StartTrace + ViewDirection * TraceLength;
-
-    P = PC.Pawn;
-
-    // Trace for nearest vehicle
-	TracedActor = PC.trace(HitLocation, HitNormal, EndTrace, StartTrace, true);
-
-    ROV = ROVehicle(TracedActor);
-
-    if (ROV == none)
-    {
+    ROPC = ROPlayerController(Owner);
+    ROP = ROPC != none ? ROPawn(ROPC.Pawn) : none;
+    if (ROP == none || ROP.Health <= 0 || ROP.bIsProning || ROP.IsProneTransitioning())
         return;
+
+    // The client picks the tank, so re-validate everything here
+    if (ROV == none || ROV.bDeadVehicle || ROV.Team != ROPC.GetTeamNum() || VSize(ROV.Location - ROP.Location) > 1000
+        || VSizeSq(ROV.Velocity) >= class'ROVehicle'.const.MAX_SPEED_FOR_ENTRY_SQ)
+        return;
+
+    if (ROV.TryToDrive(ROP))
+    {
+        ROPC.ClientStartExitVehicleFadeOut();
+        ROPC.SetTimer(0.25, false, 'ClientStartExitVehicleFadeIn');
     }
-
-    if (!ROV.bIsDisabled && (!ROV.bTeamLocked || !WorldInfo.Game.bTeamGame || WorldInfo.GRI.OnSameTeam(self, P)))
-	{
-
-		if( !ROV.AnySeatAvailable() )
-		{
-			return;
-		}
-
-		bEnteredVehicle = (ROV.Driver == None) ? ROV.DriverEnter(P) : ROV.PassengerEnter(P, ROV.GetFirstAvailableSeat());
-
-		if( bEnteredVehicle )
-		{
-			ROV.SetTexturesToBeResident( true );
-		}
-
-		return;
-	}
 }
 
 reliable server function ClearAllVehicles()
