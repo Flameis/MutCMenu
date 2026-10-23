@@ -12,6 +12,7 @@ var Actor							PreviewHost; // What the preview components are attached to: the
 var Vector  				    	PlaceLoc, ModifyLoc;
 var	rotator					    	PlaceRot, ModifyRot;
 var Vector							ModifyScale;
+var bool							bCanScale;	// Things can be made bigger or smaller with the mouse wheel; vehicles cannot
 var int 							ModifyTime;	
 var bool 							SwitchRotDir;
 var Actor							TracedActor;
@@ -134,11 +135,21 @@ simulated state ReadyToPlace extends MenuVisible
 					return true;
 
 				case 'MouseScrollUp':
+					if (!bCanScale)
+					{
+						MessageSelf("This cannot be scaled.");
+						return true;
+					}
             	    ModifyScale += vect(0.1,0.1,0.1);
 					MessageSelf("Scale: " $ string(ModifyScale));
 					return true;
 
 				case 'MouseScrollDown':
+					if (!bCanScale)
+					{
+						MessageSelf("This cannot be scaled.");
+						return true;
+					}
 				 	if (ModifyScale.x > 0.15)
 					{
             	    	ModifyScale -= vect(0.1,0.1,0.1);;
@@ -350,6 +361,7 @@ simulated function HidePreviewMesh()
 
 defaultproperties
 {
+	bCanScale=true
 	ModifyTime=10
 	ModifyScale=(X=1.000000,Y=1.000000,Z=1.000000)
     GoodPlacementColour=(R=0.3,G=0.3,B=0.3,A=1.0)
