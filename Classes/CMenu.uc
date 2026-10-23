@@ -189,6 +189,10 @@ function OpenParentMenu()
 		case "PARADROPS": ParentMenu = "CMENUMAIN"; break;
 		case "PLAYERS": ParentMenu = "CMENUMAIN"; break;
 		case "FIRE SUPPORT": ParentMenu = "CMENUMAIN"; break;
+		case "MATCH CONTROL": ParentMenu = "CMENUREALISMMATCH"; break;
+		case "ROUND SETTINGS": ParentMenu = "CMENUREALISMMATCH"; break;
+		case "OBJECTIVES": ParentMenu = "CMENUREALISMMATCH"; break;
+		case "TEAMS AND WEAPONS": ParentMenu = "CMENUREALISMMATCH"; break;
 		case "ACTORS": ParentMenu = "CMENUBMAIN"; break;
 		case "STATIC MESHES": ParentMenu = "CMENUBMAIN"; break;
 		case "STRUCTURES": ParentMenu = "CMENUBMAIN"; break;

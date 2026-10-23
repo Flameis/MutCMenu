@@ -149,6 +149,10 @@ reliable client function CMenuSetup()
 
     pc.Interactions.additem(new(pc) class'CMenuParadrops');
     pc.Interactions.additem(new(pc) class'CMenuRealismMatch');
+    pc.Interactions.additem(new(pc) class'CMenuRMControl');
+    pc.Interactions.additem(new(pc) class'CMenuRMRound');
+    pc.Interactions.additem(new(pc) class'CMenuRMObjectives');
+    pc.Interactions.additem(new(pc) class'CMenuRMTeams');
     pc.Interactions.additem(new(pc) class'CMenuPlayer');
     pc.Interactions.additem(new(pc) class'CMenuPCManager');
     pc.Interactions.additem(new(pc) class'CMenuFireSupport');
