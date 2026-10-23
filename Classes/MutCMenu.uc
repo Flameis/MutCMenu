@@ -45,6 +45,7 @@ struct FSActiveStrike
     var Controller Caller;
     var int Team;
     var float ExpireTime;
+    var bool bNoOwner;      // The strike was started without the caller as its owner (a spectator's, or for the other team), so its damage has no instigator
 };
 
 var config array<FSProfile>     FSProfiles;
@@ -66,6 +67,7 @@ struct FSPendingStrike
     var float Bearing;
     var bool bIgnoreNoArty;
     var float FireTime;
+    var int Team;           // The team the strike is for (a spectator has none of their own)
 };
 
 // A barrage or aircraft this mod started, so it can be cancelled later
@@ -76,6 +78,19 @@ struct FSTrackedStrike
 };
 
 var array<FSTrackedStrike>      FSTrackedStrikes;
+
+// A strike shown on the overhead map the way the game shows the commander's: the target, the salvos left and the aircraft
+struct FSMapStrike
+{
+    var Actor Strike;
+    var int Team;
+    var bool bBothTeams;    // A spectator called it, so both teams see it
+    var vector Target;
+    var vector2D Dir;
+};
+
+var array<FSMapStrike>          FSMapStrikes;
+var vector                      FSMapShown[2];  // The location this mod last put on each team's map
 var array<FSActiveStrike>       FSActiveStrikes;
 var array<FSPendingStrike>      FSPendingStrikes;
 var string                      CurrentMutateString; // The command being processed, so argument errors can put it back in the console for editing
@@ -1094,6 +1109,7 @@ function FireSupportHelp(PlayerController PC)
     Help = Help$"|Barrages (mortar/artillery/airburst/rocket/wp/mixed): --salvos -s, --shells -n, --spread -r (meters), --interval -i = seconds between salvos. Admins can add --persist -p to save them as the new profile";
     Help = Help$"|Napalm/Canberra/Spooky: --salvos -s <1-10> repeats the strike that many times in all, --interval -i <1-300 seconds> is the time between each strike after the first (30 if left out)";
     Help = Help$"|--suppress -q skips the server-wide announcement for this call";
+    Help = Help$"|--look -k targets the spot you are looking at (a spectator's camera too). Spectators, and admins calling for the other team, add --team north or --team south";
     Help = Help$"|mutate cancelfiresupport stops your team's fire support (barrages, shells in the air, aircraft and strikes still waiting). Admins can add --all (-a) to stop every team's";
     Help = Help$"|Admins: strikes can land inside no-artillery zones, including outside the combat area, and ignore the player cooldown";
 
@@ -1447,11 +1463,76 @@ function bool ParseAircraftRepeat(PlayerController Caller, array<string> Tokens,
     return true;
 }
 
+// The caller as the owner of a strike, when it is for their own team. A spectator, or an admin calling for the other team,
+// has no team of their own on the strike, so it is started without an owner (no kill credit, and nothing in the commander's
+// ability tracking).
+function Actor StrikeOwner(PlayerController Caller, int Team)
+{
+    if (Caller != None && Caller.GetTeamNum() == Team)
+        return Caller;
+    return None;
+}
+
+// Which team a call is for: the caller's own, or --team north / south. Spectators have no team, so they must say which one.
+// Admins can call for either team. Returns false (after telling the caller) when the call has to stop.
+function bool ResolveStrikeTeam(PlayerController Caller, bool bAdmin, array<string> Tokens, out int Team)
+{
+    local string Text;
+    local int Parsed, Own;
+
+    Own = Caller.GetTeamNum();
+    Team = Own;
+
+    if (class'CmdOptions'.static.Has(Tokens, "team"))
+    {
+        Text = class'CmdOptions'.static.Get(Tokens, "team");
+        Parsed = class'CmdOptions'.static.ParseTeam(Text);
+        if (Parsed != `AXIS_TEAM_INDEX && Parsed != `ALLIES_TEAM_INDEX)
+        {
+            ArgError(Caller, "--team must be north or south");
+            return false;
+        }
+        if (Own == `AXIS_TEAM_INDEX || Own == `ALLIES_TEAM_INDEX)
+        {
+            if (Parsed != Own && !bAdmin)
+            {
+                PrivateMessage(Caller, "[CMenu] Only admins can use fire support for the other team.");
+                return false;
+            }
+        }
+        Team = Parsed;
+        return true;
+    }
+
+    if (Own != `AXIS_TEAM_INDEX && Own != `ALLIES_TEAM_INDEX)
+    {
+        PrivateMessage(Caller, "[CMenu] Spectators pick a side: add --team north or --team south.");
+        return false;
+    }
+    return true;
+}
+
+// Where the caller is looking: a spectator's camera, or a player's view. The spot the view line first hits.
+function bool GetLookTarget(PlayerController Caller, out vector Target)
+{
+    local vector ViewLoc, HitLoc, HitNormal;
+    local rotator ViewRot;
+    local Actor Hit;
+
+    Caller.GetPlayerViewPoint(ViewLoc, ViewRot);
+    Hit = Trace(HitLoc, HitNormal, ViewLoc + vector(ViewRot) * 100000.0, ViewLoc, true);
+    if (Hit == None)
+        return false;
+
+    Target = HitLoc;
+    return true;
+}
+
 // ArgText is "<type> <grid | MARK>"; Tokens is the whole command, searched for the barrage setting options
 function FireSupportCommand(PlayerController Caller, string ArgText, array<string> Tokens)
 {
     local array<string> Args;
-    local bool bAdmin, bUseMark, bShellType, bDirection, bSuppress;
+    local bool bAdmin, bUseMark, bShellType, bDirection, bSuppress, bLook;
     local array<class<ROArtilleryShell> > ShellClasses;
     local string StrikeType, GridText, Where, DirText, Value;
     local int Team, i, FirstDelay, Strikes, RepeatInterval;
@@ -1537,14 +1618,15 @@ function FireSupportCommand(PlayerController Caller, string ArgText, array<strin
     if (!bShellType && !ParseAircraftRepeat(Caller, Tokens, Strikes, RepeatInterval))
         return;
 
-    Team = Caller.GetTeamNum();
-    ROGI = ROGameInfo(WorldInfo.Game);
-    if (Team == `AXIS_TEAM_INDEX || Team == `ALLIES_TEAM_INDEX)
-        ROTI = ROTeamInfo(WorldInfo.GRI.Teams[Team]);
+    if (!ResolveStrikeTeam(Caller, bAdmin, Tokens, Team))
+        return;
 
-    if (ROTI == None || ROGI == None || !ROGI.bRoundActive || ROPlayerController(Caller) == None)
+    // Fire support does not wait for a round: it works between rounds, in the briefing and for spectators
+    ROGI = ROGameInfo(WorldInfo.Game);
+    ROTI = ROTeamInfo(WorldInfo.GRI.Teams[Team]);
+    if (ROTI == None || ROGI == None || ROPlayerController(Caller) == None)
     {
-        PrivateMessage(Caller, "[CMenu] Fire support is only available to a team while a round is active.");
+        PrivateMessage(Caller, "[CMenu] Fire support is not available right now.");
         return;
     }
 
@@ -1563,8 +1645,18 @@ function FireSupportCommand(PlayerController Caller, string ArgText, array<strin
             GridText = GridText$" "$Args[i];
     }
 
-    bUseMark = (GridText == "" || IsMarkSelector(GridText));
-    if (bUseMark)
+    bLook = class'CmdOptions'.static.Has(Tokens, "look", "k");
+    bUseMark = !bLook && (GridText == "" || IsMarkSelector(GridText));
+    if (bLook)
+    {
+        if (!GetLookTarget(Caller, Target))
+        {
+            PrivateMessage(Caller, "[CMenu] There is nothing in view to target. Look at the ground, or give a grid.");
+            return;
+        }
+        Where = "the spot "$Caller.PlayerReplicationInfo.PlayerName$" is looking at";
+    }
+    else if (bUseMark)
     {
         if (!ResolveMarkTarget(Caller, bAdmin, ROTI, MarkSelectorText(GridText), Target, StrikeDir, Where))
             return;
@@ -1588,26 +1680,26 @@ function FireSupportCommand(PlayerController Caller, string ArgText, array<strin
     // Admin strikes ignore the no-artillery zones, which also fence off the area outside the combat area
     if (bShellType)
     {
-        bFired = SpawnShellStrike(Caller, StrikeType, Target, Profile);
+        bFired = SpawnShellStrike(Caller, StrikeType, Target, Profile, Team);
         RegisterFSStrike(Caller, Team, Profile.Delay + (Profile.Salvos * (Profile.Interval + Profile.Shells)) + 30.0);
     }
     else
     {
         if (FirstDelay > 0)
         {
-            QueueAircraftStrike(Caller, StrikeType, Target, StrikeDir, bDirection, Bearing, bAdmin, FirstDelay);
+            QueueAircraftStrike(Caller, StrikeType, Target, StrikeDir, bDirection, Bearing, bAdmin, FirstDelay, Team);
             bFired = (ROPlayerController(Caller) != None);
         }
         else
         {
-            bFired = LaunchAircraftStrike(Caller, StrikeType, Target, StrikeDir, bDirection, Bearing, bAdmin);
+            bFired = LaunchAircraftStrike(Caller, StrikeType, Target, StrikeDir, bDirection, Bearing, bAdmin, Team);
         }
 
         // Every strike after the first waits its turn behind the first strike delay
         if (bFired)
         {
             for (i = 1; i < Strikes; i++)
-                QueueAircraftStrike(Caller, StrikeType, Target, StrikeDir, bDirection, Bearing, bAdmin, FirstDelay + i * RepeatInterval);
+                QueueAircraftStrike(Caller, StrikeType, Target, StrikeDir, bDirection, Bearing, bAdmin, FirstDelay + i * RepeatInterval, Team);
         }
         RegisterFSStrike(Caller, Team, 120.0 + FirstDelay + (Strikes - 1) * RepeatInterval + (StrikeType == "SPOOKY" ? FSGunshipDuration : 0));
     }
@@ -1628,10 +1720,138 @@ function FireSupportCommand(PlayerController Caller, string ArgText, array<strin
     if (Strikes > 1)
         Where = Where$", "$Strikes$" strikes "$RepeatInterval$" seconds apart";
 
+    if (Caller.GetTeamNum() != Team)
+    {
+        if (Team == `AXIS_TEAM_INDEX)
+            Where = Where$" for the North";
+        else
+            Where = Where$" for the South";
+    }
+
     if (!bFSSilent && !bSuppress)
         WorldInfo.Game.Broadcast(self, "[CMenu] "$Caller.PlayerReplicationInfo.PlayerName$" called in a "$FSDisplayName(StrikeType)$" at "$Where);
     else
         PrivateMessage(Caller, "[CMenu] Called in a "$FSDisplayName(StrikeType)$" at "$Where);
+}
+
+// Puts a strike on the map of the team it is for, or of both teams when a spectator called it. The game draws the target
+// (with the salvos left and the heading) and the aircraft from the team's info, so this fills it in the way a commander's
+// call does, and UpdateFSMap keeps it up to date and clears it when the strike is over.
+function ShowOnMap(Actor Strike, int Team, PlayerController Caller, vector Target, vector2D Dir)
+{
+    local FSMapStrike Entry;
+    local int Own;
+
+    Own = 255;
+    if (Caller != None)
+        Own = Caller.GetTeamNum();
+
+    Entry.Strike = Strike;
+    Entry.Team = Team;
+    Entry.bBothTeams = (Own != `AXIS_TEAM_INDEX && Own != `ALLIES_TEAM_INDEX);
+    Entry.Target = Target;
+    Entry.Dir = Dir;
+    FSMapStrikes.AddItem(Entry);
+
+    if (!IsTimerActive('UpdateFSMap'))
+        SetTimer(1.0, true, 'UpdateFSMap');
+    UpdateFSMap();
+}
+
+function bool IsNoStrikeLocation(vector V)
+{
+    return V == vect(-999999.0,-999999.0,-999999.0);
+}
+
+// Takes a strike off a team's map, unless the commander's own strike has taken the spot
+function ClearMapFor(FSMapStrike Entry, int T)
+{
+    local ROTeamInfo ROTI;
+
+    ROTI = ROTeamInfo(WorldInfo.GRI.Teams[T]);
+    if (ROTI == None)
+        return;
+
+    if (ROTI.ArtyStrikeLocation == FSMapShown[T] && !IsNoStrikeLocation(FSMapShown[T]))
+    {
+        ROTI.ArtyStrikeLocation = vect(-999999.0,-999999.0,-999999.0);
+        ROTI.StrikeDirection = vect2D(0,0);
+        FSMapShown[T] = ROTI.ArtyStrikeLocation;
+    }
+
+    if (ROSupportAircraft(Entry.Strike) != None)
+    {
+        if (ROTI.ActiveSupportAircraft == ROSupportAircraft(Entry.Strike))
+        {
+            ROTI.ActiveSupportAircraft = ROTI.SecondarySupportAircraft;
+            ROTI.SecondarySupportAircraft = None;
+        }
+        else if (ROTI.SecondarySupportAircraft == ROSupportAircraft(Entry.Strike))
+            ROTI.SecondarySupportAircraft = None;
+    }
+}
+
+function ApplyMapFor(FSMapStrike Entry, int T)
+{
+    local ROTeamInfo ROTI;
+    local ROArtillerySpawner Spawner;
+    local ROSupportAircraft Aircraft;
+
+    ROTI = ROTeamInfo(WorldInfo.GRI.Teams[T]);
+    if (ROTI == None)
+        return;
+
+    // The spot is free, or it is the one this mod put there; a commander's own strike is left alone
+    if (IsNoStrikeLocation(ROTI.ArtyStrikeLocation) || ROTI.ArtyStrikeLocation == FSMapShown[T])
+    {
+        ROTI.ArtyStrikeLocation = Entry.Target;
+        ROTI.StrikeDirection = Entry.Dir;
+        FSMapShown[T] = Entry.Target;
+
+        Spawner = ROArtillerySpawner(Entry.Strike);
+        if (Spawner != None)
+            ROTI.RemainingSalvos = Max(Spawner.SalvoAmount - Spawner.SalvoCounter, 0) + 1;
+    }
+
+    // Aircraft started without an owner are not tracked by the game, so show them here
+    Aircraft = ROSupportAircraft(Entry.Strike);
+    if (Aircraft != None && Aircraft.bNoGameTracking && ROTI.ActiveSupportAircraft != Aircraft && ROTI.SecondarySupportAircraft != Aircraft)
+    {
+        if (ROTI.ActiveSupportAircraft == None || ROTI.ActiveSupportAircraft.bDeleteMe)
+            ROTI.ActiveSupportAircraft = Aircraft;
+        else if (ROTI.SecondarySupportAircraft == None)
+            ROTI.SecondarySupportAircraft = Aircraft;
+    }
+}
+
+function UpdateFSMap()
+{
+    local int i, t;
+
+    for (i = FSMapStrikes.Length - 1; i >= 0; i--)
+    {
+        if (FSMapStrikes[i].Strike == None || FSMapStrikes[i].Strike.bDeleteMe)
+        {
+            for (t = 0; t < 2; t++)
+            {
+                if (FSMapStrikes[i].bBothTeams || FSMapStrikes[i].Team == t)
+                    ClearMapFor(FSMapStrikes[i], t);
+            }
+            FSMapStrikes.Remove(i, 1);
+        }
+    }
+
+    for (i = 0; i < FSMapStrikes.Length; i++)
+    {
+        for (t = 0; t < 2; t++)
+        {
+            if (FSMapStrikes[i].bBothTeams || FSMapStrikes[i].Team == t)
+                ApplyMapFor(FSMapStrikes[i], t);
+        }
+    }
+
+    if (FSMapStrikes.Length == 0)
+        ClearTimer('UpdateFSMap');
 }
 
 // Remembers a strike so CancelFireSupport can stop it
@@ -1663,7 +1883,7 @@ function int CancelFireSupport(int Team, bool bAll)
 
     for (i = FSPendingStrikes.Length - 1; i >= 0; i--)
     {
-        if (bAll || FSPendingStrikes[i].Caller == None || FSPendingStrikes[i].Caller.GetTeamNum() == Team)
+        if (bAll || FSPendingStrikes[i].Caller == None || FSPendingStrikes[i].Team == Team)
         {
             FSPendingStrikes.Remove(i, 1);
             Count++;
@@ -1716,6 +1936,7 @@ function int CancelFireSupport(int Team, bool bAll)
             FSActiveStrikes.Remove(i, 1);
     }
 
+    UpdateFSMap();
     return Count;
 }
 
@@ -1740,12 +1961,8 @@ function CancelFireSupportCommand(PlayerController Caller, array<string> Tokens)
         return;
     }
 
-    Team = Caller.GetTeamNum();
-    if (!bAll && Team != `AXIS_TEAM_INDEX && Team != `ALLIES_TEAM_INDEX)
-    {
-        PrivateMessage(Caller, "[CMenu] Join a team to cancel your team's fire support.");
+    if (!bAll && !ResolveStrikeTeam(Caller, bAdmin, Tokens, Team))
         return;
-    }
 
     Count = CancelFireSupport(Team, bAll);
     if (Count == 0)
@@ -1761,17 +1978,16 @@ function CancelFireSupportCommand(PlayerController Caller, array<string> Tokens)
         PrivateMessage(Caller, "[CMenu] Cancelled "$Who$" fire support ("$Count$" stopped)");
 }
 
-function bool SpawnShellStrike(PlayerController Caller, string StrikeType, vector Target, FSProfile Profile)
+function bool SpawnShellStrike(PlayerController Caller, string StrikeType, vector Target, FSProfile Profile, int Team)
 {
     local ROArtillerySpawner Spawner;
     local array<class<ROArtilleryShell> > ShellClasses;
     local vector SpawnLoc, MyGravity;
-    local int Team, i;
+    local int i;
 
     if (!GetFSShellClasses(StrikeType, ShellClasses))
         return false;
 
-    Team = Caller.GetTeamNum();
     MyGravity.Z = WorldInfo.WorldGravityZ;
 
     SpawnLoc = Target;
@@ -1780,13 +1996,13 @@ function bool SpawnShellStrike(PlayerController Caller, string StrikeType, vecto
         SpawnLoc.Z = Target.Z + 5000;
 
     // Spawned without an owner so the base game doesn't track it against the team commander's strike
-    Spawner = Spawn(class'ROArtillerySpawner',,, SpawnLoc, rotator(MyGravity));
+    Spawner = Spawn(class'CMArtillerySpawner',,, SpawnLoc, rotator(MyGravity));
     if (Spawner == None)
         return false;
 
     Spawner.ClearTimer();
     Spawner.bValuesPreConfigured = true;
-    Spawner.InstigatorController = Caller;
+    Spawner.InstigatorController = Controller(StrikeOwner(Caller, Team));
     Spawner.OwningTeam = Team;
     Spawner.SpawnTeam = Team;
     Spawner.OriginalArtyLocation = Target;
@@ -1808,6 +2024,7 @@ function bool SpawnShellStrike(PlayerController Caller, string StrikeType, vecto
 
     TrackFSStrike(Spawner, Team);
     Spawner.StartBarrage();
+    ShowOnMap(Spawner, Team, Caller, Target, vect2D(0, 0));
     return true;
 }
 
@@ -1829,7 +2046,7 @@ function string MarkSelectorText(string Text)
 }
 
 // Takes the aircraft off now; false if it couldn't be spawned
-function bool LaunchAircraftStrike(PlayerController Caller, string StrikeType, vector Target, vector2D StrikeDir, bool bForceBearing, float Bearing, bool bIgnoreNoArty)
+function bool LaunchAircraftStrike(PlayerController Caller, string StrikeType, vector Target, vector2D StrikeDir, bool bForceBearing, float Bearing, bool bIgnoreNoArty, int Team)
 {
     local ROPlayerController ROPC;
 
@@ -1840,17 +2057,17 @@ function bool LaunchAircraftStrike(PlayerController Caller, string StrikeType, v
     switch (StrikeType)
     {
         case "NAPALM":
-            return SpawnNapalmStrike(ROPC, Target, StrikeDir, bForceBearing, Bearing, bIgnoreNoArty);
+            return SpawnNapalmStrike(ROPC, Target, StrikeDir, bForceBearing, Bearing, bIgnoreNoArty, Team);
         case "CANBERRA":
-            return SpawnBombingRun(ROPC, Target, StrikeDir, bForceBearing, Bearing, bIgnoreNoArty);
+            return SpawnBombingRun(ROPC, Target, StrikeDir, bForceBearing, Bearing, bIgnoreNoArty, Team);
         case "SPOOKY":
-            return SpawnGunshipStrike(ROPC, Target);
+            return SpawnGunshipStrike(ROPC, Target, Team);
     }
     return false;
 }
 
 // Holds an aircraft strike back for the first strike delay
-function QueueAircraftStrike(PlayerController Caller, string StrikeType, vector Target, vector2D StrikeDir, bool bForceBearing, float Bearing, bool bIgnoreNoArty, int Delay)
+function QueueAircraftStrike(PlayerController Caller, string StrikeType, vector Target, vector2D StrikeDir, bool bForceBearing, float Bearing, bool bIgnoreNoArty, int Delay, int Team)
 {
     local FSPendingStrike Pending;
 
@@ -1862,6 +2079,7 @@ function QueueAircraftStrike(PlayerController Caller, string StrikeType, vector 
     Pending.Bearing = Bearing;
     Pending.bIgnoreNoArty = bIgnoreNoArty;
     Pending.FireTime = WorldInfo.TimeSeconds + Delay;
+    Pending.Team = Team;
     FSPendingStrikes.AddItem(Pending);
 
     if (!IsTimerActive('ProcessPendingStrikes'))
@@ -1884,11 +2102,11 @@ function ProcessPendingStrikes()
         Pending = FSPendingStrikes[i];
         FSPendingStrikes.Remove(i, 1);
 
-        // The caller left or the round ended while the strike was waiting
-        if (Pending.Caller == None || ROGI == None || !ROGI.bRoundActive)
+        // The caller left while the strike was waiting
+        if (Pending.Caller == None || ROGI == None)
             continue;
 
-        if (!LaunchAircraftStrike(Pending.Caller, Pending.StrikeType, Pending.Target, Pending.StrikeDir, Pending.bForceBearing, Pending.Bearing, Pending.bIgnoreNoArty))
+        if (!LaunchAircraftStrike(Pending.Caller, Pending.StrikeType, Pending.Target, Pending.StrikeDir, Pending.bForceBearing, Pending.Bearing, Pending.bIgnoreNoArty, Pending.Team))
             PrivateMessage(Pending.Caller, "[CMenu] Fire support failed to spawn.");
     }
 
@@ -1909,18 +2127,16 @@ function WidenAircraftLimits(ROSupportAircraft Aircraft, vector Target)
     Aircraft.WorldMaxY = FMax(Aircraft.WorldMaxY, Target.Y + Margin);
 }
 
-function bool SpawnNapalmStrike(ROPlayerController Caller, vector Target, vector2D StrikeDir, bool bForceBearing, float Bearing, bool bIgnoreNoArty)
+function bool SpawnNapalmStrike(ROPlayerController Caller, vector Target, vector2D StrikeDir, bool bForceBearing, float Bearing, bool bIgnoreNoArty, int Team)
 {
     local ROMapInfo ROMI;
     local ROGameReplicationInfo ROGRI;
     local class<RONapalmStrikeAircraft> AircraftClass;
     local RONapalmStrikeAircraft Aircraft;
     local vector SpawnLoc, AimTarget;
-    local int Team;
 
     ROMI = ROMapInfo(WorldInfo.GetMapInfo());
     ROGRI = ROGameReplicationInfo(WorldInfo.GRI);
-    Team = Caller.GetTeamNum();
 
     if (ROMI != None && ROMI.SouthernForce == SFOR_ARVN)
         AircraftClass = class'CMNapalmStrikeAircraftARVN';
@@ -1932,9 +2148,10 @@ function bool SpawnNapalmStrike(ROPlayerController Caller, vector Target, vector
     AimTarget = Target;
     AimTarget.Z = SpawnLoc.Z;
 
-    Aircraft = Spawn(AircraftClass, Caller,, SpawnLoc, rotator(AimTarget - SpawnLoc));
+    Aircraft = Spawn(AircraftClass, StrikeOwner(Caller, Team),, SpawnLoc, rotator(AimTarget - SpawnLoc));
     if (Aircraft == None)
         return false;
+    Aircraft.OwningTeam = Team;
 
     if (CMNapalmStrikeAircraft(Aircraft) != None)
         CMNapalmStrikeAircraft(Aircraft).bIgnoreNoArty = bIgnoreNoArty;
@@ -1946,21 +2163,21 @@ function bool SpawnNapalmStrike(ROPlayerController Caller, vector Target, vector
     Aircraft.CachedAirSupportTime = ROGRI.NextAbilityThreeTime[Team]; // Keeps the commander's ability timer unchanged if the strike is aborted
     Aircraft.SetDropPoint();
     TrackFSStrike(Aircraft, Team);
+    ShowOnMap(Aircraft, Team, Caller, Target, StrikeDir);
     return true;
 }
 
-function bool SpawnBombingRun(ROPlayerController Caller, vector Target, vector2D StrikeDir, bool bForceBearing, float Bearing, bool bIgnoreNoArty)
+function bool SpawnBombingRun(ROPlayerController Caller, vector Target, vector2D StrikeDir, bool bForceBearing, float Bearing, bool bIgnoreNoArty, int Team)
 {
     local ROMapInfo ROMI;
     local ROGameReplicationInfo ROGRI;
     local CMCarpetBomberAircraft Aircraft;
     local vector SpawnLoc, AimTarget;
     local float HeightOffset;
-    local int Team, i, NumBombers;
+    local int i, NumBombers;
 
     ROMI = ROMapInfo(WorldInfo.GetMapInfo());
     ROGRI = ROGameReplicationInfo(WorldInfo.GRI);
-    Team = Caller.GetTeamNum();
     NumBombers = (FSBomberCount <= 0) ? 2 : Clamp(FSBomberCount, 1, 2);
 
     HeightOffset = ROMI.bUseNapalmHeightOffsetForAll ? ROMI.NapalmStrikeHeightOffset : ROMI.CarpetBomberHeightOffset;
@@ -1972,9 +2189,11 @@ function bool SpawnBombingRun(ROPlayerController Caller, vector Target, vector2D
 
     for (i = 1; i <= NumBombers; i++)
     {
-        Aircraft = Spawn(class'CMCarpetBomberAircraft', Caller,, SpawnLoc, rotator(AimTarget - SpawnLoc));
+        Aircraft = Spawn(class'CMCarpetBomberAircraft', StrikeOwner(Caller, Team),, SpawnLoc, rotator(AimTarget - SpawnLoc));
         if (Aircraft == None)
             return (i > 1);
+
+        Aircraft.OwningTeam = Team;
 
         Aircraft.bIgnoreNoArty = bIgnoreNoArty;
         WidenAircraftLimits(Aircraft, Target);
@@ -1986,11 +2205,12 @@ function bool SpawnBombingRun(ROPlayerController Caller, vector Target, vector2D
         Aircraft.SetDropPoint();
         Aircraft.SetOffset(i);
         TrackFSStrike(Aircraft, Team);
+        ShowOnMap(Aircraft, Team, Caller, Target, StrikeDir);
     }
     return true;
 }
 
-function bool SpawnGunshipStrike(ROPlayerController Caller, vector Target)
+function bool SpawnGunshipStrike(ROPlayerController Caller, vector Target, int Team)
 {
     local ROGameReplicationInfo ROGRI;
     local ROGunshipAircraft Aircraft;
@@ -2002,18 +2222,20 @@ function bool SpawnGunshipStrike(ROPlayerController Caller, vector Target)
     AimTarget = Target;
     AimTarget.Z = SpawnLoc.Z;
 
-    Aircraft = Spawn(class'ROGunshipAircraft', Caller,, SpawnLoc, rotator(AimTarget - SpawnLoc));
+    Aircraft = Spawn(class'ROGunshipAircraft', StrikeOwner(Caller, Team),, SpawnLoc, rotator(AimTarget - SpawnLoc));
     if (Aircraft == None)
         return false;
+    Aircraft.OwningTeam = Team;
 
     WidenAircraftLimits(Aircraft, Target);
 
     Aircraft.TargetLocation = Target;
-    Aircraft.CachedAirSupportTime = ROGRI.NextAbilityOneTime[Caller.GetTeamNum()];
+    Aircraft.CachedAirSupportTime = ROGRI.NextAbilityOneTime[Team];
     Aircraft.CalculateOrbit();
     if (FSGunshipDuration > 0)
         Aircraft.OrbitDuration = FSGunshipDuration;
-    TrackFSStrike(Aircraft, Caller.GetTeamNum());
+    TrackFSStrike(Aircraft, Team);
+    ShowOnMap(Aircraft, Team, Caller, Target, vect2D(0, 0));
     return true;
 }
 
@@ -2031,6 +2253,7 @@ function RegisterFSStrike(PlayerController Caller, int Team, float Duration)
 
     Entry.Caller = Caller;
     Entry.Team = Team;
+    Entry.bNoOwner = (StrikeOwner(Caller, Team) == None);
     Entry.ExpireTime = WorldInfo.TimeSeconds + Duration;
     FSActiveStrikes.AddItem(Entry);
 }
@@ -2047,11 +2270,11 @@ function NetDamage(int OriginalDamage, out int Damage, Pawn Injured, Controller 
     local int i;
 
     // Runs before the base game applies friendly fire punishment, so zeroed damage can't get the caller kicked
-    if (!bFSFriendlyFire && Damage > 0 && InstigatedBy != None && Injured != None && IsFSStrikeDamage(DamageType))
+    if (!bFSFriendlyFire && Damage > 0 && Injured != None && IsFSStrikeDamage(DamageType))
     {
         for (i = 0; i < FSActiveStrikes.Length; i++)
         {
-            if (FSActiveStrikes[i].Caller == InstigatedBy
+            if (((FSActiveStrikes[i].bNoOwner && InstigatedBy == None) || (InstigatedBy != None && FSActiveStrikes[i].Caller == InstigatedBy))
                 && FSActiveStrikes[i].ExpireTime >= WorldInfo.TimeSeconds
                 && Injured.GetTeamNum() == FSActiveStrikes[i].Team)
             {

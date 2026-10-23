@@ -87,7 +87,7 @@ Controls the match system from the menu. It splits into:
 | Submenu | What is in it |
 | :--- | :--- |
 | Match Control | Enable or disable match mode, go live, countdown to live, cancel the countdown, reset live, restart the round, end the round, respawn all dead players |
-| Round Settings | Round timer, round length, **respawn deployment time**, friendly fire, automatic respawns, reinforcement tickets for each team |
+| Round Settings | Round timer, **respawn deployment time**, friendly fire, automatic respawns, reinforcement tickets for each team. (The round length is not here: it is the `RoundDuration` mutator setting in WebAdmin, and `mutate setroundduration` still works for admins.) |
 | Objectives | Open or close an objective, open one **at random**, set who owns an objective (or all), set minimum capture time |
 | Teams and Weapons | Swap the teams, swap just one team, weapons hold (safeties on) and weapons free (safeties off) |
 | Scrimmage Admin Help | Shows the list of admin commands |
@@ -115,7 +115,7 @@ Fire support lets an admin (or any player, if the server allows it) call in arti
 | Cancel Fire Support (My Team) | Stops your team's fire support (see below) |
 | Cancel All Fire Support | (Admin) stops every team's fire support |
 
-**Choosing the target:** a map grid square such as `E 5 kp 5` (or `E5`), or a **mark**. With `--mark` a squad leader's call uses their own squad's mark and the commander's call uses the mark they selected on their map. `--mark SL3` (or `--SL 3`) picks squad 3's mark and `--mark CMD` picks the commander's. Squad leaders can only pick their own squad; admins and the commander can pick any.
+**Choosing the target:** a map grid square such as `E 5 kp 5` (or `E5`), the spot you are **looking at** (`--look`), or a **mark**. With `--mark` a squad leader's call uses their own squad's mark and the commander's call uses the mark they selected on their map. `--mark SL3` (or `--SL 3`) picks squad 3's mark and `--mark CMD` picks the commander's. Squad leaders can only pick their own squad; admins and the commander can pick any.
 
 **Options** (everyone who can call fire support can use all of these, except `--persist`):
 
@@ -128,6 +128,8 @@ Fire support lets an admin (or any player, if the server allows it) call in arti
 | `--delay` | `-d` | Waits 10-300 seconds before the first strike |
 | `--direction` | `-b` | Napalm and Canberra only: the way the aircraft flies, as a compass point (`N`, `SW`, `ESE`...) or a bearing from 0 to 360 |
 | `--suppress` | `-q` | Skips the server-wide announcement for this call. You still get a private confirmation |
+| `--look` | `-k` | Targets the spot you are looking at, instead of a grid or mark. This is how a spectator marks a target |
+| `--team` | | Which side the call is for: `--team north` or `--team south`. Spectators have no side, so they must give one. Admins can use it to call for the other team. Everyone else's call is for their own team |
 | `--persist` | `-p` | **Admins only.** Saves the settings you used as the new default for that barrage type |
 
 Examples:
@@ -140,6 +142,11 @@ Examples:
 - `mutate cancelfiresupport --all` (short `-a`) stops **every team's** fire support. Admins only. The menu has **Cancel All Fire Support** for admins.
 - It only stops fire support started with this command. A commander's own strike from the game is left alone, and the commander's ability timers are not changed.
 - The cancel is announced to everyone (unless the server is set to silent), and tells you if there was nothing to cancel.
+
+**Spectators and map**
+- **Spectators can call fire support:** when the server allows players to (`bFSPlayersCanCall`) or for admins. A spectator picks the side with `--team` and the target with `--grid` or `--look`, for example `mutate firesupport --type mortar --look --team north`. Their strikes have no owner, so nobody gets kill credit.
+- **It shows on the map like the commander's:** the target, the salvos left, the heading and the aircraft appear on the overhead map of the team the strike is for, or of **both teams** when a spectator called it. It disappears when the strike is over or cancelled. A commander's own strike is never overwritten.
+- **Always available:** fire support works at any time, including between rounds and in the briefing. (The game's own artillery is thrown away when no round is active; CMenu uses its own version that is not.)
 
 **Rules**
 - Players can only call fire support if the server turns it on (`bFSPlayersCanCall`). When they can, they can use every option above except `--persist`.
@@ -172,6 +179,7 @@ Admins also get "Clear All Vehicles / Meshes / Pickups / Actors" entries to wipe
 - **Spawn points from the Builder:** custom spawn points are respected when players spawn.
 - **Its own game modes:** CMenu adds its own Territories and Supremacy game mode entries (needed for custom objectives and spawn points to work properly). A server has to pick them as its game mode.
 - **Experimental tank physics:** an optional setting (`bNewTankPhys`).
+- **Vehicles keep their size:** the mouse wheel still scales walls and objects in the Builder, but not vehicles, which are always placed at their own size.
 - **Spectators can build:** the Builder works for spectators, who have no character. The preview and the placing follow the spectator camera. (Copying a held weapon needs a weapon, so it is refused for a spectator.)
 - **No duplicate menu entries:** a menu used to keep the admin entries it had added and add them again every time it opened, so "Clear All Vehicles" could appear several times (and menu entries could go missing) after opening the menu repeatedly or logging in as scrim admin more than once. Every menu now starts from its own list each time it opens. Setting the menus up a second time no longer stacks a second copy of every menu either.
 - **Fixes:** the Builder no longer breaks after you respawn, and the tank entry prompt is fixed.
@@ -188,7 +196,7 @@ Commands can be typed in the console as `mutate <command> --option value` (short
 | `setcmenucolor` | Menu colours | `--text/-t R G B A`, `--background/-b R G B A`, `--border/-o R G B A` |
 | `firesupport` | Calls fire support (see section 4) | `--type/-t`, `--grid/-g`, `--mark/-m`, `--SL/-l`, and the options in section 4 |
 | `firesupporthelp` | Shows the fire support help | none |
-| `cancelfiresupport` | Stops your team's fire support, or every team's with `--all` (admins) | `--all/-a` |
+| `cancelfiresupport` | Stops your team's fire support, or every team's with `--all` (admins) | `--all/-a`, `--team` (spectators and admins) |
 | `killplayer`, `teleporttome`, `forceswitchteam`, `forcerespawn`, `forcesafetyon`, `forcesafetyoff`, `tempadminlogin`, `tempadminlogout` | Admin actions on a player | `--player/-p` |
 | `fdao` | Move a player to an objective | `--player/-p`, `--obj/-o` |
 | `fdag` | Move a player to a grid square | `--player/-p`, `--grid/-g` |

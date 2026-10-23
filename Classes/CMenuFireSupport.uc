@@ -24,7 +24,7 @@ function bool CheckExceptions(string Command)
     if (InStr(Caps(Command), "FIRESUPPORT ") == 0)
     {
         if (bCMenuDebug) `Log("FireSupport");
-        PromptForText("Fire Support|--grid / -g : the grid to hit, e.g. E 5 kp 5 (or E5)   --mark / -m : your team's marked arty position|Example: E 5 kp 5   or   MARK|Admin barrage settings: --salvos -s, --shells -n, --spread -r (meters), --interval -i, --delay -d, --persist -p (saves them)|Napalm/Canberra: --direction -b <N, NE, ... or 0-360> = the way they fly   Admins: --suppress -q hides the announcement|Example: E5 --salvos 5 --shells 8 --spread 8   or   napalm E5 --direction SW", "Mutate "$Command$" ");
+        PromptForText("Fire Support|--grid / -g : the grid to hit, e.g. E 5 kp 5 (or E5)   --mark / -m : your team's marked arty position|Example: E 5 kp 5   or   MARK|Admin barrage settings: --salvos -s, --shells -n, --spread -r (meters), --interval -i, --delay -d, --persist -p (saves them)|Napalm/Canberra: --direction -b <N, NE, ... or 0-360> = the way they fly   Admins: --suppress -q hides the announcement|--look -k : the spot you are looking at (spectators too, with --team north or --team south)|Example: E5 --salvos 5 --shells 8 --spread 8   or   napalm E5 --direction SW   or   --look --team south", "Mutate "$Command$" ");
         return true;
     }
 
