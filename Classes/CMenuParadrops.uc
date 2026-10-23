@@ -8,14 +8,14 @@ function bool CheckExceptions(string Command)
         case "DROPNORTHATGRID":
         case "DROPSOUTHATGRID":
             if(bCMenuDebug) `Log("DropAtGrid");
-            PromptForText("Please Specify a Grid Location (Example: E 5 kp 5)", "Mutate "$Command$" ");
+            PromptForText("Drop At Grid|Grid letter A-J, number 1-10 and an optional keypad 1-9|Example: E 5 kp 5   (or: --grid E 5 kp 5, short -g)", "Mutate "$Command$" ");
             return true;
             
         case "DROPALLATOBJ":
         case "DROPNORTHATOBJ":
         case "DROPSOUTHATOBJ":
             if(bCMenuDebug) `Log("DropAtObj");
-            PromptForText("Please Specify an Objective (Example: A)", "Mutate "$Command$" ");
+            PromptForText("Drop At Objective|The objective letter|Example: A   (or: --obj A, short -o)", "Mutate "$Command$" ");
             return true;
 
         default:

@@ -12,12 +12,12 @@ function Initialize()
         MenuText.additem("Clear Weapons NORTH");
         MenuText.additem("Clear Weapons SOUTH");
         MenuText.additem("Clear Weapons All");
-        MenuCommand.additem("GIVEWEAPONNORTH");
-        MenuCommand.additem("GIVEWEAPONSOUTH");
-        MenuCommand.additem("GIVEWEAPONALL");
-        MenuCommand.additem("CLEARWEAPONSNORTH");
-        MenuCommand.additem("CLEARWEAPONSSOUTH");
-        MenuCommand.additem("CLEARWEAPONSALL");
+        MenuCommand.additem("GIVEWEAPON --team north --weapon");
+        MenuCommand.additem("GIVEWEAPON --team south --weapon");
+        MenuCommand.additem("GIVEWEAPON --team all --weapon");
+        MenuCommand.additem("CLEARWEAPONS --team north");
+        MenuCommand.additem("CLEARWEAPONS --team south");
+        MenuCommand.additem("CLEARWEAPONS --team all");
     }
     Super.Initialize();
 }
@@ -25,15 +25,14 @@ function Initialize()
 function bool CheckExceptions(string Command)
 {
     local string WeaponPath;
+    local array<string> Params;
 
-    switch (Caps(Command))
+    Params = SplitString(Command, " ", true);
+    switch (Caps(Params[0]))
     {
         case "GIVEWEAPON":
-        case "GIVEWEAPONNORTH":
-        case "GIVEWEAPONSOUTH":
-        case "GIVEWEAPONALL":
             if(bCMenuDebug) `Log("GIVEWEAPON");
-            PromptForText("Please Specify a Weapon (Example: L1A1)", "Mutate "$Command$" ");
+            PromptForText("Give Weapon|Type the weapon name, e.g. L1A1 (or a full class path)|Full syntax: mutate giveweapon --weapon L1A1 --team north / south / all|Short: -w -t. Leave --team out to give it to yourself", "Mutate "$Command$" ");
             return true;
 
         case "COPY":
@@ -55,6 +54,6 @@ defaultproperties
     MenuText.add("Clear Weapons SELF")
 
     MenuCommand.add("COPY")
-    MenuCommand.add("GIVEWEAPON")
+    MenuCommand.add("GIVEWEAPON --weapon")
     MenuCommand.add("CLEARWEAPONS")
 }

@@ -17,17 +17,17 @@ function bool CheckExceptions(string Command)
     {
         case "DROPATGRID":
             if(bCMenuDebug) `Log("DropAtGrid");
-            PromptForText("Please Specify a Grid Location (Example: E 5 kp 5)", "Mutate "$Command$" ");
+            PromptForText("Drop At Grid|Grid letter A-J, number 1-10 and an optional keypad 1-9|Example: E 5 kp 5   (or: --grid E 5 kp 5, short -g)", "Mutate "$Command$" ");
             return true;
             
         case "DROPATOBJ":
             if(bCMenuDebug) `Log("DropAtObj");
-            PromptForText("Please Specify an Objective (Example: A)", "Mutate "$Command$" ");
+            PromptForText("Drop At Objective|The objective letter|Example: A   (or: --obj A, short -o)", "Mutate "$Command$" ");
             return true;
 
         case "CHANGENAME":
             if(bCMenuDebug) `Log("CHANGENAME");
-            PromptForText("Please Type Your Desired Name (Example: T/5 Scovel [29ID])", "Mutate "$Command$" ");
+            PromptForText("Change Name|Type your desired name|Example: T/4 Scovel [29ID]   (or: --name T/4 Scovel [29ID], short -n)", "Mutate "$Command$" ");
             return true;
 
         case "SUICIDE":

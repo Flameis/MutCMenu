@@ -2,13 +2,14 @@ class CMenuSettings extends CMenu;
 
 function bool CheckExceptions(string Command)
 {
-    switch (Caps(Command))
+    local array<string> Params;
+
+    Params = SplitString(Command, " ", true);
+    switch (Caps(Params[0]))
     {
-        case "SETCMENUTEXTCOLOR":
-        case "SETCMENUBGCOLOR":
-        case "SETCMENUBORDERCOLOR":
-            if(bCMenuDebug) `Log("DropAtGrid");
-            PromptForText("Please Specify a Color in RGBA Format (Example: 255 128 0 255(Optional Transparency) for Orange)", "Mutate "$Command$" ");
+        case "SETCMENUCOLOR":
+            if(bCMenuDebug) `Log("SetCMenuColor");
+            PromptForText("CMenu Color|Type the color as R G B A (alpha is optional), e.g. 255 128 0 255 for orange|Full syntax: mutate setcmenucolor --text R G B A --background R G B A --border R G B A|Short: -t -b -o", "Mutate "$Command$" ");
             return true;
 
         case "TOGGLECMENUBACKGROUND":
@@ -34,9 +35,9 @@ defaultproperties
     MenuText.add("Toggle CMenu Background")
     MenuText.add("Toggle CMenu Stay")
     
-    MenuCommand.add("SETCMENUTEXTCOLOR")
-    MenuCommand.add("SETCMENUBGCOLOR")
-    MenuCommand.add("SETCMENUBORDERCOLOR")
+    MenuCommand.add("SETCMENUCOLOR --text")
+    MenuCommand.add("SETCMENUCOLOR --background")
+    MenuCommand.add("SETCMENUCOLOR --border")
     MenuCommand.add("TOGGLECMENUBACKGROUND")
     MenuCommand.add("TOGGLECMENUSTAY")
 }

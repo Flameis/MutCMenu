@@ -162,21 +162,32 @@ simulated function Mutate(string mutateString, PlayerController sender)
     // `log("mutateString = "$mutateString);
 
     // Parse the mutate string into command and parameters
-    params = SplitString(mutateString, " to ", false);
-    tertiaryparam = params[1];
-    params = SplitString(params[0], " ", true);
+    params = SplitString(mutateString, " ", true);
     command = Caps(params[0]);
 
-    // Reconstruct secondary parameter from remaining parts
-    for(i = 1; i < params.Length; i++)
+    if (class'CmdOptions'.static.AnyOptions(params))
     {
-        if(i == 1)
+        // "--option value" / "-o value" syntax
+        ResolveOptionArgs(sender, command, params, secondaryparam, tertiaryparam);
+    }
+    else
+    {
+        // Legacy syntax: "command value" and "command value to value"
+        params = SplitString(mutateString, " to ", false);
+        tertiaryparam = params[1];
+        params = SplitString(params[0], " ", true);
+
+        // Reconstruct secondary parameter from remaining parts
+        for(i = 1; i < params.Length; i++)
         {
-            secondaryparam = params[i];
-        }
-        else
-        {
-            secondaryparam = secondaryparam$" "$params[i];
+            if(i == 1)
+            {
+                secondaryparam = params[i];
+            }
+            else
+            {
+                secondaryparam = secondaryparam$" "$params[i];
+            }
         }
     }
 
@@ -196,19 +207,19 @@ simulated function Mutate(string mutateString, PlayerController sender)
     switch (command) // Commands that do not need admin
     {
         case "GIVEWEAPON":
-            GiveWeapon(sender, params[1], false, 100);
+            GiveWeapon(sender, secondaryparam, false, 100);
             break;
 
         case "GIVEWEAPONALL":
-            GiveWeapon(sender, params[1], true, 100);
+            GiveWeapon(sender, secondaryparam, true, 100);
             break;
 
         case "GIVEWEAPONNORTH":
-            GiveWeapon(sender, params[1], false, `AXIS_TEAM_INDEX);
+            GiveWeapon(sender, secondaryparam, false, `AXIS_TEAM_INDEX);
             break;
 
         case "GIVEWEAPONSOUTH":
-            GiveWeapon(sender, params[1], false, `ALLIES_TEAM_INDEX);
+            GiveWeapon(sender, secondaryparam, false, `ALLIES_TEAM_INDEX);
             break;
 
         case "CLEARWEAPONS":
@@ -240,6 +251,10 @@ simulated function Mutate(string mutateString, PlayerController sender)
 
         case "SETCMENUBORDERCOLOR":
             DASender.SetCMenuColor(secondaryparam, "Border");
+            break;
+
+        case "SETCMENUCOLOR":
+            SetCMenuColors(sender, DASender, params);
             break;
 
         case "CMENU":
@@ -342,6 +357,10 @@ simulated function Mutate(string mutateString, PlayerController sender)
                 DAFound.ClientCMConsoleCommand("mutate safetyon");
                 break;
 
+            case "FORCESAFETYOFF":
+                DAFound.ClientCMConsoleCommand("mutate safetyoff");
+                break;
+
             case "FORCEUNITPATCH":
                 DAFound.ClientCMConsoleCommand("mutate changeunit "$tertiaryparam);
                 break;
@@ -364,6 +383,154 @@ simulated function Mutate(string mutateString, PlayerController sender)
         }
     }
     super.Mutate(MutateString, sender);
+}
+
+// =================================================================
+// Option syntax ("--option value" / "-o value")
+// =================================================================
+// Maps the options of a command onto the primary/secondary arguments the command handlers use, so
+// "killplayer --player Name" and the older "killplayer Name" behave the same. Team options on the weapon
+// commands turn into the matching legacy command (giveweapon --team north -> GIVEWEAPONNORTH).
+function ResolveOptionArgs(PlayerController Sender, out string Command, array<string> Tokens, out string Primary, out string Secondary)
+{
+    local string TeamText, Rest, Grid;
+    local array<string> TeamParts;
+    local int TeamIndex;
+
+    switch (Command)
+    {
+        case "CMENU":
+            Primary = class'CmdOptions'.static.GetOrPositional(Tokens, "menu", "m");
+            Secondary = class'CmdOptions'.static.Get(Tokens, "player", "p");
+            break;
+
+        case "GIVEWEAPON":
+        case "CLEARWEAPONS":
+            Primary = class'CmdOptions'.static.Get(Tokens, "weapon", "w");
+            if (Primary == "")
+                Primary = class'CmdOptions'.static.Positional(Tokens);
+
+            if (class'CmdOptions'.static.Has(Tokens, "team", "t"))
+            {
+                // "--team north L1A1": the first word is the team, anything after it can still be the weapon
+                TeamText = class'CmdOptions'.static.Get(Tokens, "team", "t");
+                TeamParts = SplitString(TeamText, " ", true);
+                Rest = (TeamParts.Length > 1) ? Mid(TeamText, Len(TeamParts[0]) + 1) : "";
+                if (Primary == "")
+                    Primary = Rest;
+
+                TeamIndex = class'CmdOptions'.static.ParseTeam(TeamParts.Length > 0 ? TeamParts[0] : "");
+                switch (TeamIndex)
+                {
+                    case 0:
+                        Command = Command$"NORTH";
+                        break;
+                    case 1:
+                        Command = Command$"SOUTH";
+                        break;
+                    case 100:
+                        Command = Command$"ALL";
+                        break;
+                    default:
+                        PrivateMessage(Sender, "[CMenu] --team must be north, south or all");
+                        Command = "";
+                        break;
+                }
+            }
+            break;
+
+        case "FIRESUPPORT":
+            Primary = class'CmdOptions'.static.Get(Tokens, "type", "t");
+            if (Primary == "")
+                Primary = class'CmdOptions'.static.Positional(Tokens);
+
+            if (class'CmdOptions'.static.Has(Tokens, "mark", "m"))
+            {
+                // "--mark" alone is the caller's own/selected mark, "--mark SL3" picks squad 3's mark
+                Grid = "MARK "$class'CmdOptions'.static.Get(Tokens, "mark", "m");
+            }
+            else if (class'CmdOptions'.static.Has(Tokens, "sl", "l"))
+            {
+                // "--SL" is the caller's own squad mark, "--SL 3" is squad 3's
+                Grid = Caps(class'CmdOptions'.static.Get(Tokens, "sl", "l"));
+                if (Left(Grid, 2) == "SL")
+                    Grid = Mid(Grid, 2);
+                Grid = "MARK SL"$Grid;
+            }
+            else
+                Grid = class'CmdOptions'.static.Get(Tokens, "grid", "g");
+
+            Primary = Primary@Grid;
+            break;
+
+        case "FDAO":
+            Primary = class'CmdOptions'.static.GetOrPositional(Tokens, "player", "p");
+            Secondary = class'CmdOptions'.static.Get(Tokens, "obj", "o");
+            break;
+
+        case "FDAG":
+            Primary = class'CmdOptions'.static.GetOrPositional(Tokens, "player", "p");
+            Secondary = class'CmdOptions'.static.Get(Tokens, "grid", "g");
+            break;
+
+        case "FORCEUNITPATCH":
+            Primary = class'CmdOptions'.static.GetOrPositional(Tokens, "player", "p");
+            Secondary = class'CmdOptions'.static.Get(Tokens, "unit", "u");
+            break;
+
+        case "FORCERANKPATCH":
+            Primary = class'CmdOptions'.static.GetOrPositional(Tokens, "player", "p");
+            Secondary = class'CmdOptions'.static.Get(Tokens, "rank", "r");
+            break;
+
+        case "SCRIMADMINLOGIN":
+            Primary = class'CmdOptions'.static.Get(Tokens, "user", "u")@class'CmdOptions'.static.Get(Tokens, "password", "p");
+            break;
+
+        case "CMENUPCMANAGER":
+        case "KILLPLAYER":
+        case "TELEPORTTOME":
+        case "FORCESWITCHTEAM":
+        case "TEMPADMINLOGIN":
+        case "TEMPADMINLOGOUT":
+        case "FORCERESPAWN":
+        case "FORCESAFETYON":
+        case "FORCESAFETYOFF":
+            Primary = class'CmdOptions'.static.GetOrPositional(Tokens, "player", "p");
+            break;
+
+        default:
+            Primary = class'CmdOptions'.static.Positional(Tokens);
+            break;
+    }
+}
+
+// mutate setcmenucolor --text 255 128 0 255 --background 0 0 0 200 --border 255 255 255 255 (-t -b -o)
+function SetCMenuColors(PlayerController Sender, DummyActor DASender, array<string> Tokens)
+{
+    local bool bAny;
+
+    if (DASender == None)
+        return;
+
+    if (class'CmdOptions'.static.Has(Tokens, "text", "t"))
+    {
+        DASender.SetCMenuColor(class'CmdOptions'.static.Get(Tokens, "text", "t"), "Text");
+        bAny = true;
+    }
+    if (class'CmdOptions'.static.Has(Tokens, "background", "b"))
+    {
+        DASender.SetCMenuColor(class'CmdOptions'.static.Get(Tokens, "background", "b"), "Background");
+        bAny = true;
+    }
+    if (class'CmdOptions'.static.Has(Tokens, "border", "o"))
+    {
+        DASender.SetCMenuColor(class'CmdOptions'.static.Get(Tokens, "border", "o"), "Border");
+        bAny = true;
+    }
+
+    if (!bAny)
+        PrivateMessage(Sender, "[CMenu] Usage: mutate setcmenucolor --text R G B A --background R G B A --border R G B A (-t -b -o)");
 }
 
 // =================================================================

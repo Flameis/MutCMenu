@@ -15,7 +15,7 @@ function Initialize()
 
     for (i = 0; i < MenuCommand.Length; i++)
     {
-        MenuCommand[i] = default.menucommand[i]@TargetName;
+        MenuCommand[i] = default.menucommand[i]$" --player "$TargetName;
         if(bCMenuDebug) `log(MenuCommand[i]);
     }
 
@@ -29,27 +29,27 @@ function bool CheckExceptions(string Command)
     switch (Caps(Params[0]))
     {
         case "FORCECHANGENAME":
-            PromptForText("Please Type Your Desired Name (Example: T/5 Scovel [29ID])", "mutate "$Command$" to ");
+            PromptForText("Force Name Change|Type the new name for this player, e.g. T/5 Scovel [29ID]|Full syntax: mutate forcechangename --player Old Name --name New Name|Short: -p -n   (older form: forcechangename Old Name to New Name)", "mutate "$Command$" --name ");
             return true;
 
         case "FDAO":
             if(bCMenuDebug) `Log("DropAtObj");
-            PromptForText("Please Specify an Objective (Example: A)", "mutate "$Command$" to ");
+            PromptForText("Drop Player At Objective|Type the objective letter, e.g. A|Full syntax: mutate fdao --player Name --obj A   (short: -p -o)", "mutate "$Command$" --obj ");
             return true;
 
         case "FDAG":
             if(bCMenuDebug) `Log("DropAtGrid");
-            PromptForText("Please Specify a Grid Location (Example: E 5 kp 5)", "mutate "$Command$" to ");
+            PromptForText("Drop Player At Grid|Type a grid, e.g. E 5 kp 5|Full syntax: mutate fdag --player Name --grid E 5 kp 5   (short: -p -g)", "mutate "$Command$" --grid ");
             return true;
 
         case "FORCEUNITPATCH":
             if(bCMenuDebug) `Log("ForceUnitPatch");
-            PromptForText("Please Specify a Unit (Example: DP2S4)", "mutate "$Command$" to ");
+            PromptForText("Change Unit Patch|Type a unit, e.g. DP2S4|Full syntax: mutate forceunitpatch --player Name --unit DP2S4   (short: -p -u)", "mutate "$Command$" --unit ");
             return true;
 
         case "FORCERANKPATCH":
             if(bCMenuDebug) `Log("ForceRankPatch");
-            PromptForText("Please Specify a Rank (Example: sgtmaj)", "mutate "$Command$" to ");
+            PromptForText("Change Rank Patch|Type a rank, e.g. sgtmaj|Full syntax: mutate forcerankpatch --player Name --rank sgtmaj   (short: -p -r)", "mutate "$Command$" --rank ");
             return true;
 
         default:
