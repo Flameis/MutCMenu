@@ -24,6 +24,7 @@ simulated state MenuVisible
 {
 	function BeginState(name PreviousStateName)
 	{
+		RestoreDefaultEntries(); // Whatever a previous opening added (admin entries, mod vehicles) is not carried over
 		Initialize();
 		RebuildClickOverlay();
 	}
@@ -51,14 +52,17 @@ simulated state MenuVisible
 			ClickOverlay.EnsureClosed(GetCMenuSceneClient());
 
 		if (NextStateName != 'ReadyToPlace')
-		{
-			if (MenuCommand.Length > default.MenuCommand.Length)
-			{
-        		MenuText.Remove(default.MenuCommand.Length, MenuText.Length-default.MenuCommand.Length);
-				MenuCommand.Remove(default.MenuCommand.Length, MenuCommand.Length-default.MenuCommand.Length);
-			}
-		}
+			RestoreDefaultEntries();
 	}
+}
+
+// Puts the menu's lines back to the ones it is defined with. Initialize adds the lines that depend on who is looking
+// (admin entries, mod content), so they have to be cleared whenever the menu opens or closes or they pile up.
+// Trimming the end of the list is not enough: an entry inserted in the middle stays behind.
+function RestoreDefaultEntries()
+{
+	MenuText = default.MenuText;
+	MenuCommand = default.MenuCommand;
 }
 
 function Initialize()

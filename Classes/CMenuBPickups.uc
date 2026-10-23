@@ -30,6 +30,12 @@ function bool CheckExceptions(string Command)
             return true;
 
         case "COPY":
+            if (PC.Pawn == None || PC.Pawn.Weapon == None)
+            {
+                MessageSelf("You need to be holding a weapon to copy it.");
+                return true;
+            }
+
             if (InStr(string(PC.Pawn.Weapon), "RO",,true) != -1)
             {
                 WeaponPackage = "ROGameContent.";

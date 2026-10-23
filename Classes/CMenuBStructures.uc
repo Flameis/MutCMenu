@@ -120,11 +120,15 @@ function DoPlace()
 function GarbageCollection()
 {
     local StaticMeshComponent PSM;
+    local Actor Host;
+
+    Host = (PreviewHost != None) ? PreviewHost : GetPreviewHost();
 
     foreach PreviewStaticMesh(PSM)
     {
         PSM.SetHidden(true);
-        PC.Pawn.DetachComponent(PSM);
+        if (Host != None)
+            Host.DetachComponent(PSM);
     }
     PreviewStaticMesh.Remove(0, PreviewStaticMesh.Length);
     VecArray.Remove(0, VecArray.Length);

@@ -7,7 +7,7 @@ var array<SkeletalMesh> 			ReferenceSkeletalMesh;
 var MaterialInstanceConstant    	PreviewMeshMIC;
 var LinearColor		            	GoodPlacementColour;
 var bool                        	bShowPreviewMesh, bPreviewIsSkeletal;
-var Pawn							PreviewPawn; // The pawn the preview components are currently attached to
+var Actor							PreviewHost; // What the preview components are attached to: the player's pawn, or the DummyActor for a spectator
 
 var Vector  				    	PlaceLoc, ModifyLoc;
 var	rotator					    	PlaceRot, ModifyRot;
@@ -124,12 +124,12 @@ simulated state ReadyToPlace extends MenuVisible
 					return true;
 
 				case 'Left':
-				    ModifyLoc = ModifyLoc - (Vector(PC.Pawn.GetViewRotation()) >> rot(0, 16384, 0)) * LOC_MODIFIER;
+				    ModifyLoc = ModifyLoc - (Vector(GetAimRotation()) >> rot(0, 16384, 0)) * LOC_MODIFIER;
 					MessageSelf("Left: " $ string(ModifyLoc));
 					return true;
 
 				case 'Right':
-				    ModifyLoc = ModifyLoc + (Vector(PC.Pawn.GetViewRotation()) >> rot(0, 16384, 0)) * LOC_MODIFIER;
+				    ModifyLoc = ModifyLoc + (Vector(GetAimRotation()) >> rot(0, 16384, 0)) * LOC_MODIFIER;
 					MessageSelf("Right: " $ string(ModifyLoc));
 					return true;
 
@@ -170,6 +170,37 @@ simulated state ReadyToPlace extends MenuVisible
 	}
 }
 
+// A spectator has no pawn: the builder aims from their camera and hangs the preview off their DummyActor
+function bool IsPawnlessSpectator()
+{
+	return PC != None && PC.Pawn == None && PC.PlayerReplicationInfo != None && PC.PlayerReplicationInfo.bOnlySpectator && MyDA != None;
+}
+
+// What the preview is attached to, or none when the menu cannot be used right now (a dead or respawning player)
+function Actor GetPreviewHost()
+{
+	if (PC == None)
+		return None;
+	if (PC.Pawn != None)
+		return (PC.Pawn.Health > 0) ? PC.Pawn : None;
+	if (IsPawnlessSpectator())
+		return MyDA;
+	return None;
+}
+
+// Where the player is looking: the pawn's view, or the camera for a spectator
+simulated function rotator GetAimRotation()
+{
+	local vector ViewLoc;
+	local rotator ViewRot;
+
+	if (PC.Pawn != None)
+		return PC.Pawn.GetViewRotation();
+
+	PC.GetPlayerViewPoint(ViewLoc, ViewRot);
+	return ViewRot;
+}
+
 simulated function CanPhysicallyPlace()
 {
     local rotator PRot;
@@ -177,13 +208,13 @@ simulated function CanPhysicallyPlace()
     local float TraceLength;
 
 	PC.GetPlayerViewPoint(StartTrace, PRot);
-    ViewDirection = Vector(PC.Pawn.GetViewRotation());
+    ViewDirection = Vector(GetAimRotation());
     RightVector = ViewDirection >> rot(0, 16384, 0); // Calculate the right vector based on the player's view direction
     TraceLength = 40000;
     EndTrace = StartTrace + ViewDirection * TraceLength;
 	TracedActor = PC.trace(HitLocation, HitNormal, EndTrace, StartTrace, true);
     PlaceLoc = HitLocation + ModifyLoc.X * RightVector + ModifyLoc.Y * ViewDirection + ModifyLoc.Z * vect(0, 0, 1);
-    PlaceRot = PC.Pawn.GetViewRotation();
+    PlaceRot = GetAimRotation();
     PlaceRot.Yaw = PlaceRot.Yaw + ModifyRot.Yaw;
     PlaceRot.Roll = ModifyRot.Roll;
     PlaceRot.Pitch = ModifyRot.Pitch;
@@ -196,7 +227,7 @@ simulated function actor TraceActors()
     local float TraceLength;
 
 	PC.GetPlayerViewPoint(StartTrace, PRot);
-    ViewDirection = Vector(PC.Pawn.GetViewRotation());
+    ViewDirection = Vector(GetAimRotation());
     TraceLength = 40000;
     EndTrace = StartTrace + ViewDirection * TraceLength;
 	TracedActor = PC.trace(HitLocation, HitNormal, EndTrace, StartTrace, true);
@@ -210,8 +241,8 @@ function DoPlace() //Override in child class
 simulated event Tick(float DeltaTime)
 {
 	// If the player died or respawned, the preview is attached to a dead pawn and input would still be swallowed.
-	// Drop the preview and close the menu so respawning works normally.
-	if (PC == None || PC.Pawn == None || PC.Pawn.Health <= 0 || (bShowPreviewMesh && PreviewPawn != PC.Pawn))
+	// Drop the preview and close the menu so respawning works normally. A spectator has no pawn and keeps the menu.
+	if (GetPreviewHost() == None || (bShowPreviewMesh && PreviewHost != GetPreviewHost()))
 	{
 		HidePreviewMesh();
 		if (IsInState('MenuVisible'))
@@ -259,12 +290,17 @@ simulated function ShowPreviewMesh()
 {
 	local StaticMeshComponent PSM;
 	local SkeletalMeshComponent PSkM;
+	local Actor Host;
+
+	Host = GetPreviewHost();
+	if (Host == None)
+		return;
 
 	if (bPreviewIsSkeletal)
 	{
 		foreach PreviewSkeletalMesh(PSkM)
 		{
-			PC.Pawn.AttachComponent(PSkM);
+			Host.AttachComponent(PSkM);
 			PSkM.SetHidden(false);
 		}
 	}
@@ -272,12 +308,12 @@ simulated function ShowPreviewMesh()
 	{
 		foreach PreviewStaticMesh(PSM)
 		{
-			PC.Pawn.AttachComponent(PSM);
+			Host.AttachComponent(PSM);
 			PSM.SetHidden(false);
 		}
 	}
 
-	PreviewPawn = PC.Pawn;
+	PreviewHost = Host;
 	bShowPreviewMesh = true;
 }
 
@@ -294,8 +330,8 @@ simulated function HidePreviewMesh()
 			foreach PreviewSkeletalMesh(PSkM)
 			{
 				PSkM.SetHidden(true);
-				if (PreviewPawn != None)
-					PreviewPawn.DetachComponent(PSkM);
+				if (PreviewHost != None)
+					PreviewHost.DetachComponent(PSkM);
 			}
 		}
 		else 
@@ -303,11 +339,11 @@ simulated function HidePreviewMesh()
 			foreach PreviewStaticMesh(PSM)
 			{
 				PSM.SetHidden(true);
-				if (PreviewPawn != None)
-					PreviewPawn.DetachComponent(PSM);
+				if (PreviewHost != None)
+					PreviewHost.DetachComponent(PSM);
 			}
 		}
-		PreviewPawn = None;
+		PreviewHost = None;
 		bShowPreviewMesh = false;
 	}
 }
