@@ -2,7 +2,7 @@ class DummyActor extends actor;
 
 var MutCMenu                     MyMut;
 
-var bool bIsAuthorized, bNewTankPhys, bLoadExtras, bLoadGOM3, bLoadGOM4, bLoadWW, bLoadWW2;
+var bool bIsAuthorized, bNewTankPhys, bLoadExtras, bLoadGOM3, bLoadGOM4, bLoadWW, bLoadWW2, bFSPlayersCanCall;
 var bool bClickModeActive;
 var string TargetName;
 
@@ -19,7 +19,7 @@ var float WW2TankCheckTimer;
 replication
 {
     if (bNetDirty)
-        bIsAuthorized, bNewTankPhys, bLoadExtras, bLoadGOM3, bLoadGOM4, bLoadWW, bLoadWW2, OriginalClassIndex, bInWW2TankEntryCheck;
+        bIsAuthorized, bNewTankPhys, bLoadExtras, bLoadGOM3, bLoadGOM4, bLoadWW, bLoadWW2, bFSPlayersCanCall, OriginalClassIndex, bInWW2TankEntryCheck;
 }
 
 simulated event Tick(float DeltaTime)

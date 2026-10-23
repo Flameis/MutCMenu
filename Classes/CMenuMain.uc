@@ -14,6 +14,12 @@ function Initialize()
         MenuCommand.additem("CMENU CMENUPLAYER");
     }
 
+    if (bIsAuthorized || (MyDA != None && MyDA.bFSPlayersCanCall))
+    {
+        MenuText.AddItem("Fire Support Menu");
+        MenuCommand.AddItem("CMENU CMENUFIRESUPPORT");
+    }
+
     MenuText.AddItem("CMenu Settings");
     MenuCommand.AddItem("CMENU CMENUSETTINGS");
 
