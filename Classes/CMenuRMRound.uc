@@ -6,8 +6,8 @@ function SetTeamDisplayNames()
     local string NorthName, SouthName;
 
     GetTeamNames(NorthName, SouthName);
-    MenuText[5] = "Set "$NorthName$" Reinforcements";
-    MenuText[6] = "Set "$SouthName$" Reinforcements";
+    MenuText[6] = "Set "$NorthName$" Reinforcements";
+    MenuText[7] = "Set "$SouthName$" Reinforcements";
 }
 
 function bool CheckExceptions(string Command)
@@ -20,6 +20,10 @@ function bool CheckExceptions(string Command)
 
         case "SETROUNDDURATION":
             PromptForText("Round Duration|--time / -t : round length in minutes, also applied to the round in progress|Example: --time 60   (or just 60)", "Mutate "$Command$" ");
+            return true;
+
+        case "SETRESPAWNTIME":
+            PromptForText("Respawn Deployment Time|--time / -t : seconds both teams wait to respawn after dying, 0 to 600 (0 = the map's own times). Applies to deaths from now on|Example: --time 15   (or just 15)", "Mutate "$Command$" ");
             return true;
 
         case "SETFF":
@@ -43,6 +47,7 @@ defaultproperties
     MenuText.add("Round Timer")
     MenuText.add("Cancel Round Timer")
     MenuText.add("Set Round Duration")
+    MenuText.add("Set Respawn Deployment Time")
     MenuText.add("Set Friendly Fire Modifier")
     MenuText.add("Toggle Auto Respawns")
     MenuText.add("Set North Reinforcements")
@@ -51,6 +56,7 @@ defaultproperties
     MenuCommand.add("ROUNDTIMER")
     MenuCommand.add("CANCELROUNDTIMER")
     MenuCommand.add("SETROUNDDURATION")
+    MenuCommand.add("SETRESPAWNTIME")
     MenuCommand.add("SETFF")
     MenuCommand.add("TOGGLEAUTORESPAWNS")
     MenuCommand.add("SETNORTHREINFORCEMENTS")
