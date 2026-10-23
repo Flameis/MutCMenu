@@ -145,6 +145,8 @@ simulated function NotifyLogin(Controller NewPlayer)
     DA.bFSPlayersCanCall = bFSPlayersCanCall;
 
     DA.CMenuSetup();
+    if (!bAllowIntroVO)
+        DA.ClientMuteIntroVoice();
 
 
     super.NotifyLogin(NewPlayer);
