@@ -57,6 +57,8 @@ const MOD_WW = 2;
 struct FlagStyleInfo
 {
     var string MaterialPath;    // Loaded by name on every machine that draws the flag
+    var string TexturePath;     // Optional: this texture is put on a copy of that material (the game's flag material, so
+                                // WW2's own flag material, which doesn't draw on this mesh, isn't needed)
 };
 
 struct FactionInfo
@@ -133,6 +135,8 @@ simulated event ReplicatedEvent(name VarName)
 simulated function ApplyStyle()
 {
     local MaterialInterface M;
+    local MaterialInstanceConstant FlagMIC;
+    local Texture2D FlagTexture;
 
     if (WorldInfo.NetMode == NM_DedicatedServer || FlagStyle >= Styles.Length)
         return;
@@ -140,6 +144,21 @@ simulated function ApplyStyle()
     M = MaterialInterface(DynamicLoadObject(Styles[FlagStyle].MaterialPath, class'MaterialInterface', true));
     if (M == None)
         `log("[CMenu] CTF flag: could not load "$Styles[FlagStyle].MaterialPath$", showing the default flag");
+
+    // A flag that is only a texture: the game's flag material with that texture as its cloth
+    if (M != None && Styles[FlagStyle].TexturePath != "")
+    {
+        FlagTexture = Texture2D(DynamicLoadObject(Styles[FlagStyle].TexturePath, class'Texture2D', true));
+        if (FlagTexture != None)
+        {
+            FlagMIC = new class'MaterialInstanceConstant';
+            FlagMIC.SetParent(M);
+            FlagMIC.SetTextureParameterValue('DiffuseMap', FlagTexture);
+            M = FlagMIC;
+        }
+        else
+            `log("[CMenu] CTF flag: could not load "$Styles[FlagStyle].TexturePath$", showing the US flag");
+    }
     FlagMesh.SetMaterial(0, M); // None puts the mesh's own material back
 }
 
@@ -521,10 +540,10 @@ defaultproperties
     Styles(STYLE_VC)=(MaterialPath="ENV_VN_Flags.Materials.ActiveFlags.M_VN_Flag_VC")
     Styles(STYLE_AUS)=(MaterialPath="ENV_VN_Flags.Materials.ActiveFlags.M_VN_Flag_Aus")
     Styles(STYLE_SOVIET)=(MaterialPath="ENV_VN_Flags.Materials.ActiveFlags.M_VN_Flag_Soviet")
-    Styles(STYLE_WW2_USA)=(MaterialPath="ENV_RS_Japanese_Flag.Materials.M_USFlag_DOT_D_INST")
-    Styles(STYLE_JAPAN)=(MaterialPath="ENV_RS_Japanese_Flag.Materials.M_japFlag_DOT_D_INST")
-    // The regular army: the Iron Cross war flag
-    Styles(STYLE_GERMANY)=(MaterialPath="WFGameCustom.InGame.M_GerFlag_DOT_D_INST")
+    Styles(STYLE_WW2_USA)=(MaterialPath="ENV_VN_Flags.Materials.ActiveFlags.M_VN_Flag_USA",TexturePath="ENV_RS_Japanese_Flag.Textures.T_USflag_D")
+    Styles(STYLE_JAPAN)=(MaterialPath="ENV_VN_Flags.Materials.ActiveFlags.M_VN_Flag_USA",TexturePath="ENV_RS_Japanese_Flag.Textures.T_japflag_DOT_D")
+    // The regular army: the Iron Cross war flag. Like the WW2 US and Japanese flags it is only a texture, put on the game's own flag
+    Styles(STYLE_GERMANY)=(MaterialPath="ENV_VN_Flags.Materials.ActiveFlags.M_VN_Flag_USA",TexturePath="WFGameCustom.InGame.T_GERflag_D")
     Styles(STYLE_BRITAIN)=(MaterialPath="ENV_DF_Flag.MIC.M_DD_Flag_British")
     Styles(STYLE_ITALY)=(MaterialPath="ENV_DF_Apollonia.MIC.M_DF_Flag_Italy")
     // SS and Fallschirmjager: the swastika national flag from the DAK maps. The other swastika flags in ENV_DF_Flag
