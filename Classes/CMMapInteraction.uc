@@ -1,0 +1,1802 @@
+// Client side of everything MutCMenu adds to the overhead map, fed by CMMapInfo. Interactions are drawn after the HUD
+// whatever HUD class the game (or WW2, Winter War, GOM) uses, so no HUD, widget or controller class is replaced:
+//  - Spectator overlay: every living player on the map with the game's own player and vehicle icons in the team
+//    colour; with the map closed, a team coloured triangle just above every player in view, and the player nearest the
+//    crosshair gets their name in their team colour (and their role icon when close). The game's own player names are
+//    switched off while it is on, so the two don't double up.
+//  - Teammates the map leaves out (past 32 on a team): drawn like the game's own friendly icons, squad leaders with
+//    their "SL" label, and for a few seconds after dying.
+//  - CMenu's custom objectives: their borders, in the colour of the team holding them.
+//  - Map drawings and the drawing toolbar (pen, line, arrow, circle, box, markers, text, eraser, ruler, colours, who it
+//    is for, undo and clear). It works with the game's own map cursor (ActualMouseLocation), and only takes a mouse
+//    click for itself when the click is on the toolbar or a drawing tool is picked; with the pointer tool the map works
+//    as normal. With the map cursor hidden, a left click fires (the cursor comes with T, the tactical display key).
+class CMMapInteraction extends Interaction
+    config(MutCMenu_Client);
+
+var CMMapInfo Info;
+
+const TOOL_POINTER = 0;
+const TOOL_PEN = 1;
+const TOOL_LINE = 2;
+const TOOL_ARROW = 3;
+const TOOL_CIRCLE = 4;
+const TOOL_BOX = 5;
+const TOOL_MARKER = 6;
+const TOOL_TEXT = 7;
+const TOOL_ERASER = 8;
+const TOOL_RULER = 9;
+const NUM_TOOLS = 10;
+
+// What a toolbar button does
+const A_PANEL = 0;
+const A_TOOL = 1;
+const A_COLOUR = 2;
+const A_ICON = 3;
+const A_CHANNEL = 4;
+const A_UNDO = 5;
+const A_CLEAR_MINE = 6;
+const A_CLEAR_CHANNEL = 7;
+const A_CLEAR_ALL = 8;
+const A_HIDE = 9;
+
+const LINE_WIDTH = 3.0;     // pixels at 1080p
+const ICON_SIZE = 26.0;     // marker size, pixels at 1080p
+const PICK_RADIUS = 12.0;   // how close (pixels at 1080p) the cursor must be to a drawing to pick it
+const SAMPLE_STEP = 5.0;    // pixels the mouse moves before the pen adds a point
+const SENT_TIMEOUT = 4.0;   // seconds an own drawing is shown before the server has sent it back
+
+// Spectator overlay
+const NAME_SCALE = 1.4;
+const ROLE_ICON_DIST = 2000.0; // how close (unreal units, 40 meters) a looked at player must be to get their role icon
+const NAME_RADIUS = 0.07; // how close to the screen centre (as a part of its width) a player must be to be read as "looked at"
+
+// Left-out teammates: a squad leader's icon is a little smaller than the game's real one (TransportSize) so they stay
+// distinct from a real one while standing out from the others
+const LEFT_OUT_SL_SIZE = 2.5;
+
+struct ToolButton
+{
+    var float X, Y, W, H;
+    var byte Action, Arg;
+    var string Label;
+    var bool bSelected;
+};
+
+// An own drawing on its way to the server, shown until it comes back
+struct SentItem
+{
+    var int Token;
+    var float Time;
+    var CMMapInfo.ClientMapItem Item;
+};
+
+var config bool bToolsHidden; // the player folded the toolbar away
+var config byte SavedColour, SavedIcon;
+
+var byte Tool, Colour, Icon, Channel;
+var bool bChannelPicked;       // the player picked Channel themselves, so it is only changed when no longer allowed
+var bool bHideDrawings;
+var array<ToolButton> Buttons; // laid out every frame; clicks use the last frame's
+var array<SentItem> Sent;
+var int NextToken;
+
+// The map as it was last seen (screen pixels and world units)
+var ROHUDWidgetOverheadMap MapWidget;
+var bool bCursor;
+var float MapLeft, MapTop, MapW, MapH, MinWX, MaxWX, MinWY, MaxWY, ScaleX, ScaleY;
+var float UIScale, TextScale;
+var vector2D Mouse;
+var float PanelX, PanelY, PanelW, PanelH;
+
+var bool bPressOwned; // the left mouse press went to this tool, so its release does too
+var bool bGameFiring; // a click with the map cursor hidden started firing, so its release stops it
+var bool bDragging;
+var array<vector2D> DragPoints;
+var vector2D LastSample;
+
+var bool bTyping, bShift;
+var string TypeText;
+var vector2D TypeAt;
+
+// Spectator overlay
+var bool bNamesHidden;     // the game's own player name display is switched off
+var byte SavedNames;       // the player's own setting for it, put back afterwards
+var byte SavedClassNames;  // the same for the HUD class's default, which the game may read instead
+var byte SavedServerNames; // and the server's setting as this client was told it
+
+// Left-out teammates who have just died: when this client first saw them dead, for the fade
+var array<PlayerReplicationInfo> DeadPRIs;
+var array<float> DeadSince;
+
+// ====================================================
+// The map
+// ====================================================
+
+// The overhead map when it is open on this screen, with its position read into the variables above; none otherwise
+function ROHUDWidgetOverheadMap ReadMap()
+{
+    local PlayerController PC;
+    local ROHUD H;
+    local ROHUDWidgetOverheadMap OM;
+    local ROHUDWidgetComponent MapComp;
+
+    MapWidget = None;
+    PC = PlayerController(Outer);
+    H = (PC != None) ? ROHUD(PC.myHUD) : None;
+    if (Info == None || Info.bDeleteMe || H == None || !H.bShowHud)
+        return None;
+
+    OM = H.OverheadMapWidget;
+    if (OM == None || !OM.IsVisible() || OM.bHiddenTemporarily || OM.HUDComponents.Length <= class'ROHUDWidgetOverheadMap'.const.ROOMT_MousePointer)
+        return None;
+
+    MapComp = OM.HUDComponents[class'ROHUDWidgetOverheadMap'.const.ROOMT_Map];
+    if (MapComp == None || OM.MaxVisibleWorldX <= OM.MinVisibleWorldX || OM.MaxVisibleWorldY <= OM.MinVisibleWorldY)
+        return None;
+
+    // North is up and east is right. Component positions are relative to the widget, which the game adds when it draws them.
+    MapLeft = OM.CurrentX + MapComp.CurX;
+    MapTop = OM.CurrentY + MapComp.CurY;
+    MapW = MapComp.CurWidth;
+    MapH = MapComp.CurHeight;
+    MinWX = OM.MinVisibleWorldX;
+    MaxWX = OM.MaxVisibleWorldX;
+    MinWY = OM.MinVisibleWorldY;
+    MaxWY = OM.MaxVisibleWorldY;
+    ScaleX = MapW / (MaxWY - MinWY);
+    ScaleY = MapH / (MaxWX - MinWX);
+
+    bCursor = !OM.bHideMousePointer;
+    Mouse.X = OM.CurrentX + OM.ActualMouseLocation.X;
+    Mouse.Y = OM.CurrentY + OM.ActualMouseLocation.Y;
+
+    MapWidget = OM;
+    return OM;
+}
+
+function vector2D WorldToScreen(vector2D W)
+{
+    local vector2D S;
+
+    S.X = MapLeft + (W.Y - MinWY) * ScaleX;
+    S.Y = MapTop + MapH - (W.X - MinWX) * ScaleY;
+    return S;
+}
+
+function vector2D ScreenToWorld(vector2D S)
+{
+    local vector2D W;
+
+    W.Y = MinWY + (S.X - MapLeft) / ScaleX;
+    W.X = MinWX + (MapTop + MapH - S.Y) / ScaleY;
+    return W;
+}
+
+function bool InMap(vector2D S)
+{
+    return S.X >= MapLeft && S.X <= MapLeft + MapW && S.Y >= MapTop && S.Y <= MapTop + MapH;
+}
+
+function vector2D ClampToMap(vector2D S)
+{
+    S.X = FClamp(S.X, MapLeft, MapLeft + MapW);
+    S.Y = FClamp(S.Y, MapTop, MapTop + MapH);
+    return S;
+}
+
+function vector2D V2(float X, float Y)
+{
+    local vector2D V;
+
+    V.X = X;
+    V.Y = Y;
+    return V;
+}
+
+function float Dist(vector2D A, vector2D B)
+{
+    return Sqrt(Square(A.X - B.X) + Square(A.Y - B.Y));
+}
+
+function float DistToSegment(vector2D P, vector2D A, vector2D B)
+{
+    local float DX, DY, T, LenSq;
+
+    DX = B.X - A.X;
+    DY = B.Y - A.Y;
+    LenSq = DX * DX + DY * DY;
+    if (LenSq < 0.0001)
+        return Dist(P, A);
+
+    T = FClamp(((P.X - A.X) * DX + (P.Y - A.Y) * DY) / LenSq, 0.0, 1.0);
+    return Dist(P, V2(A.X + T * DX, A.Y + T * DY));
+}
+
+// ====================================================
+// Input
+// ====================================================
+
+// Called by CMMapInputHook before the game sees the key (or, if the hook couldn't be set up, as an Interaction)
+function bool InputKey(int ControllerId, name Key, EInputEvent EventType, optional float AmountDepressed = 1.f, optional bool bGamepad)
+{
+    if (Key == 'LeftShift' || Key == 'RightShift')
+        bShift = EventType != IE_Released;
+
+    // A shot started with the map open ends here wherever the release happens
+    if (bGameFiring && Key == 'LeftMouseButton' && EventType == IE_Released)
+    {
+        StopGameFire();
+        return true;
+    }
+
+    // Map drawing is off on this server: the map works as the game's own
+    if (Info == None || !Info.bDrawingEnabled)
+        return false;
+
+    if (ReadMap() == None)
+    {
+        Cancel();
+        if (bPressOwned && Key == 'LeftMouseButton' && EventType == IE_Released)
+        {
+            bPressOwned = false;
+            return true;
+        }
+        return false;
+    }
+
+    if (Key == 'LeftMouseButton')
+    {
+        if (EventType == IE_Pressed || EventType == IE_DoubleClick)
+        {
+            if (bTyping)
+                FinishTyping();
+            // With the cursor hidden the game's map would take the click to show its cursor. The cursor comes with
+            // the tactical display key (T) instead, so the click fires as it would with the map closed.
+            if (!bCursor)
+                return StartGameFire();
+            return MousePressed();
+        }
+        if (EventType == IE_Released && bPressOwned)
+        {
+            bPressOwned = false;
+            if (bDragging)
+                FinishDrag();
+            return true;
+        }
+        return false;
+    }
+
+    if (bTyping)
+        return TypeKey(Key, EventType);
+
+    if (Key == 'Escape' && bDragging && EventType == IE_Pressed)
+    {
+        Cancel();
+        return true;
+    }
+    return false;
+}
+
+// Does what the left mouse button's Fire binding does (Button bFire | StartFire | OnRelease StopFire). Only when left
+// mouse really is bound to fire; otherwise the click goes to the game as before.
+function bool StartGameFire()
+{
+    local PlayerController PC;
+    local name Key;
+
+    PC = PlayerController(Outer);
+    if (PC == None || PC.PlayerInput == None)
+        return false;
+
+    Key = 'LeftMouseButton';
+    if (InStr(PC.PlayerInput.GetBind(Key), "Fire",, true) == INDEX_NONE)
+        return false;
+
+    bGameFiring = true;
+    PC.bFire = 1;
+    PC.StartFire(0);
+    return true;
+}
+
+function StopGameFire()
+{
+    local PlayerController PC;
+
+    bGameFiring = false;
+    PC = PlayerController(Outer);
+    if (PC == None)
+        return;
+    PC.bFire = 0;
+    PC.StopFire(0);
+}
+
+// The key that shows the map cursor (the tactical display key, T by default), for the hint
+function string CursorKeyName()
+{
+    local PlayerController PC;
+    local string KeyName;
+
+    PC = PlayerController(Outer);
+    if (PC != None && ROPlayerInput(PC.PlayerInput) != None)
+        KeyName = ROPlayerInput(PC.PlayerInput).GetToggledOrHeldKeyFromCommand("OnToggleTacticalDisplay", "ShowTacticalDisplay");
+    return KeyName != "" ? KeyName : "T";
+}
+
+// True when the click was for the toolbar or a drawing tool
+function bool MousePressed()
+{
+    local int B;
+    local vector2D W;
+
+    if (!bCursor)
+        return false;
+
+    B = ButtonAt(Mouse);
+    if (B != INDEX_NONE)
+    {
+        bPressOwned = true;
+        PressButton(Buttons[B]);
+        return true;
+    }
+    if (OverPanel(Mouse))
+    {
+        bPressOwned = true;
+        return true;
+    }
+    if (Tool == TOOL_POINTER || !InMap(Mouse) || !CanDraw())
+        return false;
+
+    bPressOwned = true;
+    W = ScreenToWorld(Mouse);
+    switch (Tool)
+    {
+        case TOOL_MARKER:
+            SendSingle(class'CMMapInfo'.const.KIND_MARKER, W, "");
+            break;
+        case TOOL_TEXT:
+            bTyping = true;
+            TypeText = "";
+            TypeAt = W;
+            break;
+        case TOOL_ERASER:
+            EraseAt(Mouse);
+            break;
+        default:
+            bDragging = true;
+            DragPoints.Length = 0;
+            DragPoints.AddItem(W);
+            if (Tool != TOOL_PEN)
+                DragPoints.AddItem(W);
+            LastSample = Mouse;
+    }
+    return true;
+}
+
+function bool OverPanel(vector2D S)
+{
+    return S.X >= PanelX && S.X <= PanelX + PanelW && S.Y >= PanelY && S.Y <= PanelY + PanelH;
+}
+
+function int ButtonAt(vector2D S)
+{
+    local int i;
+
+    for (i = 0; i < Buttons.Length; i++)
+    {
+        if (S.X >= Buttons[i].X && S.X <= Buttons[i].X + Buttons[i].W && S.Y >= Buttons[i].Y && S.Y <= Buttons[i].Y + Buttons[i].H)
+            return i;
+    }
+    return INDEX_NONE;
+}
+
+function PressButton(ToolButton B)
+{
+    switch (B.Action)
+    {
+        case A_PANEL:
+            bToolsHidden = !bToolsHidden;
+            if (bToolsHidden)
+                SelectTool(TOOL_POINTER);
+            SaveConfig();
+            break;
+        case A_TOOL:
+            SelectTool(B.Arg);
+            break;
+        case A_COLOUR:
+            Colour = B.Arg;
+            SavedColour = Colour;
+            SaveConfig();
+            break;
+        case A_ICON:
+            Icon = B.Arg;
+            SavedIcon = Icon;
+            SaveConfig();
+            break;
+        case A_CHANNEL:
+            CycleChannel();
+            break;
+        case A_UNDO:
+            Info.ServerUndo();
+            break;
+        case A_CLEAR_MINE:
+            Info.ServerClear(0, Channel);
+            break;
+        case A_CLEAR_CHANNEL:
+            Info.ServerClear(1, Channel);
+            break;
+        case A_CLEAR_ALL:
+            Info.ServerClear(2, Channel);
+            break;
+        case A_HIDE:
+            bHideDrawings = !bHideDrawings;
+            break;
+    }
+}
+
+function SelectTool(byte NewTool)
+{
+    Cancel();
+    Tool = NewTool;
+}
+
+// Stops whatever was being drawn or typed, without sending it
+function Cancel()
+{
+    bDragging = false;
+    bTyping = false;
+    DragPoints.Length = 0;
+    TypeText = "";
+}
+
+function bool TypeKey(name Key, EInputEvent EventType)
+{
+    local string Ch;
+
+    // Releases always go through, so a movement key held while the typing started doesn't get stuck
+    if (EventType == IE_Released)
+        return false;
+
+    // Zooming and dragging the map still work
+    if (Key == 'RightMouseButton' || Key == 'MiddleMouseButton' || Key == 'MouseScrollUp' || Key == 'MouseScrollDown')
+        return false;
+
+    if (EventType != IE_Pressed && EventType != IE_Repeat)
+        return true;
+
+    if (Key == 'Enter')
+        FinishTyping();
+    else if (Key == 'Escape')
+        Cancel();
+    else if (Key == 'BackSpace')
+        TypeText = Left(TypeText, Len(TypeText) - 1);
+    else
+    {
+        Ch = KeyChar(Key, bShift);
+        if (Ch != "" && Len(TypeText) < class'CMMapInfo'.const.MAX_TEXT)
+            TypeText $= Ch;
+    }
+    return true;
+}
+
+function FinishTyping()
+{
+    if (bTyping && TypeText != "")
+        SendSingle(class'CMMapInfo'.const.KIND_TEXT, TypeAt, TypeText);
+    Cancel();
+}
+
+// The character a key types (US keyboard), or "" for keys that don't type
+function string KeyChar(name Key, bool bShifted)
+{
+    local string S;
+    local int Digit;
+
+    S = string(Key);
+    if (Len(S) == 1)
+        return bShifted ? Caps(S) : Locs(S);
+
+    Digit = INDEX_NONE;
+    switch (Key)
+    {
+        case 'SpaceBar':    return " ";
+        case 'Period':      return bShifted ? ">" : ".";
+        case 'Comma':       return bShifted ? "<" : ",";
+        case 'Hyphen':      return bShifted ? "_" : "-";
+        case 'Equals':      return bShifted ? "+" : "=";
+        case 'Slash':       return bShifted ? "?" : "/";
+        case 'Semicolon':   return bShifted ? ":" : ";";
+        case 'Apostrophe':  return bShifted ? "\"" : "'";
+        case 'Add':         return "+";
+        case 'Subtract':    return "-";
+        case 'Multiply':    return "*";
+        case 'Divide':      return "/";
+        case 'Decimal':     return ".";
+        case 'Zero':  case 'NumPadZero':  Digit = 0; break;
+        case 'One':   case 'NumPadOne':   Digit = 1; break;
+        case 'Two':   case 'NumPadTwo':   Digit = 2; break;
+        case 'Three': case 'NumPadThree': Digit = 3; break;
+        case 'Four':  case 'NumPadFour':  Digit = 4; break;
+        case 'Five':  case 'NumPadFive':  Digit = 5; break;
+        case 'Six':   case 'NumPadSix':   Digit = 6; break;
+        case 'Seven': case 'NumPadSeven': Digit = 7; break;
+        case 'Eight': case 'NumPadEight': Digit = 8; break;
+        case 'Nine':  case 'NumPadNine':  Digit = 9; break;
+    }
+
+    if (Digit == INDEX_NONE)
+        return "";
+    if (bShifted && InStr(S, "NumPad") == INDEX_NONE)
+        return Mid(")!@#$%^&*(", Digit, 1);
+    return string(Digit);
+}
+
+// ====================================================
+// Sending and erasing
+// ====================================================
+
+function bool CanDraw()
+{
+    local PlayerController PC;
+
+    PC = PlayerController(Outer);
+    return PC != None && class'CMMapInfo'.static.ChannelAllowed(PC.PlayerReplicationInfo, Channel, Info.bScrimAdmin, Info.bDrawingLocked);
+}
+
+function SendSingle(byte Kind, vector2D W, string Text)
+{
+    local array<vector2D> Points;
+
+    Points.AddItem(W);
+    Send(Kind, Points, Text);
+}
+
+function Send(byte Kind, array<vector2D> Points, string Text)
+{
+    local PlayerController PC;
+    local SentItem Entry;
+    local string S;
+    local int i, Chunk;
+
+    PC = PlayerController(Outer);
+    if (Info == None || PC == None || !class'CMMapInfo'.static.PointCountOk(Kind, Points.Length))
+        return;
+
+    for (i = 0; i < Points.Length; i++)
+        S $= class'CMMapInfo'.static.EncodePoint(Points[i]);
+
+    NextToken++;
+    Chunk = class'CMMapInfo'.const.CHUNK_POINTS * class'CMMapInfo'.const.POINT_CHARS;
+    Info.ServerBeginItem(Kind, Colour, Channel, Icon, Text, Left(S, Chunk), NextToken, Len(S) > Chunk);
+    for (i = Chunk; i < Len(S); i += Chunk)
+        Info.ServerAddPoints(Mid(S, i, Chunk), i + Chunk < Len(S));
+
+    // Shown straight away; the server's copy replaces it when it comes back
+    Entry.Token = NextToken;
+    Entry.Time = PC.WorldInfo.RealTimeSeconds;
+    Entry.Item.Kind = Kind;
+    Entry.Item.Colour = Colour;
+    Entry.Item.Icon = Icon;
+    Entry.Item.Text = Text;
+    Entry.Item.Points = Points;
+    Sent.AddItem(Entry);
+}
+
+// The server has sent back the drawing this client sent with Token
+function ConfirmSent(int Token)
+{
+    local int i;
+
+    for (i = Sent.Length - 1; i >= 0; i--)
+    {
+        if (Sent[i].Token == Token)
+            Sent.Remove(i, 1);
+    }
+}
+
+function FinishDrag()
+{
+    local byte Kind;
+
+    bDragging = false;
+    if (Tool == TOOL_PEN)
+    {
+        if (DragPoints.Length >= 2)
+            Send(class'CMMapInfo'.const.KIND_PEN, DragPoints, "");
+    }
+    else if (Tool != TOOL_RULER && DragPoints.Length == 2 && Dist(WorldToScreen(DragPoints[0]), WorldToScreen(DragPoints[1])) >= 4.0 * UIScale)
+    {
+        Kind = Tool - TOOL_PEN; // the drag tools are in the same order as the kinds
+        Send(Kind, DragPoints, "");
+    }
+    DragPoints.Length = 0;
+}
+
+// Follows the mouse while a drag is on
+function UpdateDrag()
+{
+    local vector2D S, Last;
+
+    S = ClampToMap(Mouse);
+    if (Tool != TOOL_PEN)
+    {
+        DragPoints[1] = ScreenToWorld(S);
+        return;
+    }
+
+    if (Dist(S, LastSample) < SAMPLE_STEP * UIScale)
+        return;
+    LastSample = S;
+    DragPoints.AddItem(ScreenToWorld(S));
+
+    // A long line goes in pieces, each starting where the last one ended
+    if (DragPoints.Length >= class'CMMapInfo'.const.MAX_POINTS)
+    {
+        Last = DragPoints[DragPoints.Length - 1];
+        Send(class'CMMapInfo'.const.KIND_PEN, DragPoints, "");
+        DragPoints.Length = 0;
+        DragPoints.AddItem(Last);
+    }
+}
+
+function EraseAt(vector2D S)
+{
+    local int Index;
+
+    Index = PickItem(S, true);
+    if (Index == INDEX_NONE)
+        return;
+
+    Info.ServerErase(Info.Items[Index].ID);
+    Info.Items.Remove(Index, 1);
+}
+
+// The drawing nearest S and close enough to it, optionally only ones the player may erase
+function int PickItem(vector2D S, bool bErasable)
+{
+    local PlayerController PC;
+    local int i, Best;
+    local float D, BestD;
+
+    PC = PlayerController(Outer);
+    if (bHideDrawings || PC == None)
+        return INDEX_NONE;
+
+    Best = INDEX_NONE;
+    BestD = PICK_RADIUS * UIScale;
+    for (i = 0; i < Info.Items.Length; i++)
+    {
+        if (bErasable && !class'CMMapInfo'.static.CanErase(PC.PlayerReplicationInfo, Info.bScrimAdmin, Info.Items[i].Team, Info.Items[i].Squad, Info.Items[i].OwnerID))
+            continue;
+
+        D = DistToItem(Info.Items[i], S);
+        if (D < BestD)
+        {
+            Best = i;
+            BestD = D;
+        }
+    }
+    return Best;
+}
+
+function float DistToItem(CMMapInfo.ClientMapItem Item, vector2D S)
+{
+    local vector2D A, B;
+    local float D, Best, R;
+    local int i;
+
+    if (Item.Points.Length == 0)
+        return 100000.0;
+
+    A = WorldToScreen(Item.Points[0]);
+    switch (Item.Kind)
+    {
+        case class'CMMapInfo'.const.KIND_MARKER:
+            return FMax(0.0, Dist(S, A) - ICON_SIZE * UIScale * 0.4);
+
+        case class'CMMapInfo'.const.KIND_TEXT:
+            return DistToSegment(S, A, V2(A.X + Len(Item.Text) * 8.0 * UIScale, A.Y));
+
+        case class'CMMapInfo'.const.KIND_CIRCLE:
+            if (Item.Points.Length < 2)
+                return 100000.0;
+            R = CircleRadius(Item);
+            return Abs(Dist(S, A) - R);
+
+        case class'CMMapInfo'.const.KIND_BOX:
+            if (Item.Points.Length < 2)
+                return 100000.0;
+            B = WorldToScreen(Item.Points[1]);
+            Best = DistToSegment(S, A, V2(B.X, A.Y));
+            Best = FMin(Best, DistToSegment(S, V2(B.X, A.Y), B));
+            Best = FMin(Best, DistToSegment(S, B, V2(A.X, B.Y)));
+            return FMin(Best, DistToSegment(S, V2(A.X, B.Y), A));
+    }
+
+    // Lines: the nearest segment
+    Best = 100000.0;
+    for (i = 1; i < Item.Points.Length; i++)
+    {
+        B = WorldToScreen(Item.Points[i]);
+        D = DistToSegment(S, A, B);
+        if (D < Best)
+            Best = D;
+        A = B;
+    }
+    return Best;
+}
+
+// Screen radius of a circle (the map is drawn the same scale both ways, near enough)
+function float CircleRadius(out CMMapInfo.ClientMapItem Item)
+{
+    local float WorldR;
+
+    WorldR = Sqrt(Square(Item.Points[1].X - Item.Points[0].X) + Square(Item.Points[1].Y - Item.Points[0].Y));
+    return WorldR * (ScaleX + ScaleY) * 0.5;
+}
+
+// ====================================================
+// Channels
+// ====================================================
+
+// The order the channel button goes round in
+function byte ChannelAt(int i)
+{
+    switch (i)
+    {
+        case 0: return class'CMMapInfo'.const.CH_PERSONAL;
+        case 1: return class'CMMapInfo'.const.CH_SQUAD;
+        case 2: return class'CMMapInfo'.const.CH_TEAM;
+        case 3: return class'CMMapInfo'.const.CH_SPECTATORS;
+        case 4: return class'CMMapInfo'.const.CH_NORTH;
+        case 5: return class'CMMapInfo'.const.CH_SOUTH;
+    }
+    return class'CMMapInfo'.const.CH_EVERYONE;
+}
+
+function CycleChannel()
+{
+    local PlayerController PC;
+    local int i, Start;
+
+    PC = PlayerController(Outer);
+    for (Start = 0; Start < class'CMMapInfo'.const.NUM_CHANNELS; Start++)
+    {
+        if (ChannelAt(Start) == Channel)
+            break;
+    }
+    for (i = 1; i <= class'CMMapInfo'.const.NUM_CHANNELS; i++)
+    {
+        if (class'CMMapInfo'.static.ChannelAllowed(PC.PlayerReplicationInfo, ChannelAt((Start + i) % class'CMMapInfo'.const.NUM_CHANNELS), Info.bScrimAdmin, Info.bDrawingLocked))
+        {
+            Channel = ChannelAt((Start + i) % class'CMMapInfo'.const.NUM_CHANNELS);
+            bChannelPicked = true;
+            return;
+        }
+    }
+}
+
+// Players start on the whole team, spectators on the spectators; when that isn't allowed (no team or squad, or drawing
+// stopped by an admin), whatever is left
+function ValidateChannel(PlayerReplicationInfo PRI)
+{
+    local bool bAdmin, bLocked;
+
+    bAdmin = Info.bScrimAdmin;
+    bLocked = Info.bDrawingLocked;
+    if (bChannelPicked && class'CMMapInfo'.static.ChannelAllowed(PRI, Channel, bAdmin, bLocked))
+        return;
+
+    bChannelPicked = false;
+    if (class'CMMapInfo'.static.ChannelAllowed(PRI, class'CMMapInfo'.const.CH_TEAM, bAdmin, bLocked))
+        Channel = class'CMMapInfo'.const.CH_TEAM;
+    else if (PRI != None && PRI.bOnlySpectator && class'CMMapInfo'.static.ChannelAllowed(PRI, class'CMMapInfo'.const.CH_SPECTATORS, bAdmin, bLocked))
+        Channel = class'CMMapInfo'.const.CH_SPECTATORS;
+    else if (class'CMMapInfo'.static.ChannelAllowed(PRI, class'CMMapInfo'.const.CH_SQUAD, bAdmin, bLocked))
+        Channel = class'CMMapInfo'.const.CH_SQUAD;
+    else
+        Channel = class'CMMapInfo'.const.CH_PERSONAL;
+}
+
+// ====================================================
+// Drawing
+// ====================================================
+
+event PostRender(Canvas C)
+{
+    local PlayerController PC;
+    local ROHUD H;
+    local int i, Hover;
+    local CMMapInfo.ClientMapItem Preview;
+    local ROHUDWidgetComponent CursorComp;
+    local bool bSpectatorView;
+
+    PC = PlayerController(Outer);
+    if (C == None || PC == None || Info == None || Info.bDeleteMe)
+        return;
+    H = ROHUD(PC.myHUD);
+
+    // The spectator overlay is on while the owner spectates and the server sends them everyone
+    bSpectatorView = Info.bSpectating && H != None && PC.PlayerReplicationInfo != None && PC.PlayerReplicationInfo.bOnlySpectator;
+    SetDefaultNames(H, bSpectatorView);
+
+    if (ReadMap() == None)
+    {
+        Cancel();
+        // With the map closed, the spectator's names and triangles (with it open they would only clutter it)
+        if (bSpectatorView && H.bShowHud)
+            DrawWorld(C, PC, H);
+        return;
+    }
+
+    UIScale = FMax(0.75, C.ClipY / 1080.0);
+    C.Font = class'Engine'.static.GetSmallFont();
+
+    DrawObjectiveBorders(C, PC);
+
+    if (Info.bDrawingEnabled)
+    {
+        ValidateChannel(PC.PlayerReplicationInfo);
+
+        for (i = Sent.Length - 1; i >= 0; i--)
+        {
+            if (PC.WorldInfo.RealTimeSeconds - Sent[i].Time > SENT_TIMEOUT)
+                Sent.Remove(i, 1);
+        }
+
+        if (!bHideDrawings)
+        {
+            for (i = 0; i < Info.Items.Length; i++)
+                DrawItem(C, Info.Items[i], false);
+            for (i = 0; i < Sent.Length; i++)
+                DrawItem(C, Sent[i].Item, false);
+        }
+
+        if (bDragging)
+        {
+            UpdateDrag();
+            Preview.Kind = (Tool == TOOL_RULER) ? class'CMMapInfo'.const.KIND_LINE : Tool - TOOL_PEN;
+            Preview.Colour = (Tool == TOOL_RULER) ? 6 : Colour;
+            Preview.Points = DragPoints;
+            DrawItem(C, Preview, false);
+            DrawMeasure(C);
+        }
+
+        if (bTyping)
+            DrawLabel(C, WorldToScreen(TypeAt), TypeText $ "_", class'CMMapInfo'.static.GetColour(Colour), false);
+    }
+
+    // Players over the drawings, so a drawing never hides one
+    DrawSnapshotOnMap(C, H, bSpectatorView);
+
+    if (!Info.bDrawingEnabled)
+        return;
+
+    DrawToolbar(C, PC);
+
+    // Who drew what under the cursor; the eraser also shows what it would take
+    if (bCursor && !bToolsHidden && !bDragging && !OverPanel(Mouse) && InMap(Mouse))
+    {
+        Hover = PickItem(Mouse, Tool == TOOL_ERASER);
+        if (Hover != INDEX_NONE)
+        {
+            if (Tool == TOOL_ERASER)
+                DrawItem(C, Info.Items[Hover], true);
+            DrawLabel(C, V2(Mouse.X + 18 * UIScale, Mouse.Y + 22 * UIScale), Info.Items[Hover].OwnerName $ " ("
+                $ class'CMMapInfo'.static.AudienceName(PC.PlayerReplicationInfo, Info.Items[Hover].Team, Info.Items[Hover].Squad) $ ")",
+                MakeColor(255, 255, 255, 255), true);
+        }
+    }
+
+    // The game drew its cursor before this; draw it again so it stays on top of the toolbar and the drawings
+    CursorComp = MapWidget.HUDComponents[class'ROHUDWidgetOverheadMap'.const.ROOMT_MousePointer];
+    if (bCursor && CursorComp != None)
+        DrawCursor(C, CursorComp);
+}
+
+function DrawCursor(Canvas C, ROHUDWidgetComponent CursorComp)
+{
+    local Texture2D Tex;
+    local float W, H;
+
+    Tex = CursorComp.Tex;
+    if (Tex == None)
+        return;
+
+    // Its size and texture area as the game last drew it, or the texture's own if it hasn't yet
+    W = CursorComp.CurWidth > 0 ? CursorComp.CurWidth : 24 * UIScale;
+    H = CursorComp.CurHeight > 0 ? CursorComp.CurHeight : 24 * UIScale;
+    C.SetDrawColor(CursorComp.DrawColor.R, CursorComp.DrawColor.G, CursorComp.DrawColor.B, 255);
+    C.SetPos(Mouse.X, Mouse.Y);
+    C.DrawTile(Tex, W, H, CursorComp.UOffset, CursorComp.VOffset,
+        CursorComp.TexWidth > 0 ? CursorComp.TexWidth : float(Tex.SizeX), CursorComp.TexHeight > 0 ? CursorComp.TexHeight : float(Tex.SizeY));
+}
+
+// One thick line, cut to the map
+function DrawSegment(Canvas C, vector2D A, vector2D B, float Width, color Col)
+{
+    local rotator Rot;
+    local float Len2D;
+
+    if (!ClipToMap(A, B))
+        return;
+
+    Len2D = Dist(A, B);
+    if (Len2D < 0.5)
+        return;
+
+    Rot.Yaw = Atan2(B.Y - A.Y, B.X - A.X) * 32768.0 / Pi;
+    C.SetDrawColor(Col.R, Col.G, Col.B, Col.A);
+    // A little longer than the segment, so the joins in a freehand line don't show gaps
+    C.SetPos((A.X + B.X) * 0.5 - (Len2D + Width) * 0.5, (A.Y + B.Y) * 0.5 - Width * 0.5);
+    C.DrawRotatedTile(C.DefaultTexture, Rot, Len2D + Width, Width, 0, 0, C.DefaultTexture.SizeX, C.DefaultTexture.SizeY);
+}
+
+// Liang-Barsky: cuts the segment to the map rectangle, false when none of it is on the map
+function bool ClipToMap(out vector2D A, out vector2D B)
+{
+    local float T0, T1, DX, DY, P[4], Q[4], R;
+    local int i;
+
+    T0 = 0.0;
+    T1 = 1.0;
+    DX = B.X - A.X;
+    DY = B.Y - A.Y;
+    P[0] = -DX; Q[0] = A.X - MapLeft;
+    P[1] = DX;  Q[1] = MapLeft + MapW - A.X;
+    P[2] = -DY; Q[2] = A.Y - MapTop;
+    P[3] = DY;  Q[3] = MapTop + MapH - A.Y;
+
+    for (i = 0; i < 4; i++)
+    {
+        if (Abs(P[i]) < 0.00001)
+        {
+            if (Q[i] < 0)
+                return false;
+            continue;
+        }
+        R = Q[i] / P[i];
+        if (P[i] < 0)
+        {
+            if (R > T1)
+                return false;
+            T0 = FMax(T0, R);
+        }
+        else
+        {
+            if (R < T0)
+                return false;
+            T1 = FMin(T1, R);
+        }
+    }
+
+    B = V2(A.X + T1 * DX, A.Y + T1 * DY);
+    A = V2(A.X + T0 * DX, A.Y + T0 * DY);
+    return true;
+}
+
+function DrawItem(Canvas C, CMMapInfo.ClientMapItem Item, bool bHighlight)
+{
+    local vector2D A, B, Prev, Next, Dir;
+    local float Width, R, HeadLen, Ang;
+    local color Col;
+    local int i;
+
+    if (Item.Points.Length == 0)
+        return;
+
+    Col = bHighlight ? MakeColor(255, 255, 255, 200) : class'CMMapInfo'.static.GetColour(Item.Colour);
+    Width = LINE_WIDTH * UIScale + (bHighlight ? 4.0 : 0.0);
+    A = WorldToScreen(Item.Points[0]);
+
+    switch (Item.Kind)
+    {
+        case class'CMMapInfo'.const.KIND_MARKER:
+            DrawMarker(C, A, Item.Icon, Col, bHighlight);
+            if (Item.Text != "")
+                DrawLabel(C, V2(A.X + ICON_SIZE * UIScale * 0.6, A.Y), Item.Text, Col, false);
+            return;
+
+        case class'CMMapInfo'.const.KIND_TEXT:
+            if (InMap(A))
+                DrawLabel(C, A, Item.Text, Col, bHighlight);
+            return;
+    }
+
+    if (Item.Points.Length < 2)
+        return;
+    B = WorldToScreen(Item.Points[1]);
+
+    switch (Item.Kind)
+    {
+        case class'CMMapInfo'.const.KIND_CIRCLE:
+            R = CircleRadius(Item);
+            Prev = V2(A.X + R, A.Y);
+            for (i = 1; i <= 48; i++)
+            {
+                Next = V2(A.X + R * Cos(i * 2 * Pi / 48), A.Y + R * Sin(i * 2 * Pi / 48));
+                DrawSegment(C, Prev, Next, Width, Col);
+                Prev = Next;
+            }
+            return;
+
+        case class'CMMapInfo'.const.KIND_BOX:
+            DrawSegment(C, A, V2(B.X, A.Y), Width, Col);
+            DrawSegment(C, V2(B.X, A.Y), B, Width, Col);
+            DrawSegment(C, B, V2(A.X, B.Y), Width, Col);
+            DrawSegment(C, V2(A.X, B.Y), A, Width, Col);
+            return;
+
+        case class'CMMapInfo'.const.KIND_ARROW:
+            DrawSegment(C, A, B, Width, Col);
+            if (Dist(A, B) < 1.0)
+                return;
+            // Two strokes back from the tip, 28 degrees either side of the line
+            HeadLen = FMin(16.0 * UIScale, Dist(A, B) * 0.5);
+            Dir = V2((A.X - B.X) / Dist(A, B), (A.Y - B.Y) / Dist(A, B));
+            Ang = 28.0 * Pi / 180.0;
+            DrawSegment(C, B, V2(B.X + HeadLen * (Dir.X * Cos(Ang) - Dir.Y * Sin(Ang)), B.Y + HeadLen * (Dir.X * Sin(Ang) + Dir.Y * Cos(Ang))), Width, Col);
+            DrawSegment(C, B, V2(B.X + HeadLen * (Dir.X * Cos(-Ang) - Dir.Y * Sin(-Ang)), B.Y + HeadLen * (Dir.X * Sin(-Ang) + Dir.Y * Cos(-Ang))), Width, Col);
+            return;
+    }
+
+    // Line or freehand
+    for (i = 1; i < Item.Points.Length; i++)
+    {
+        B = WorldToScreen(Item.Points[i]);
+        DrawSegment(C, A, B, Width, Col);
+        A = B;
+    }
+}
+
+// The game's own map icons where there is one, read from the running map so WW2, Winter War and GOM get theirs
+function Texture2D IconTexture(byte Which)
+{
+    switch (Which)
+    {
+        case class'CMMapInfo'.const.ICON_ATTACK:        return MapWidget.AttackObjectiveOverlay;
+        case class'CMMapInfo'.const.ICON_DEFEND:        return MapWidget.DefendObjectiveOverlay;
+        case class'CMMapInfo'.const.ICON_RALLY:         return MapWidget.WaypointIcon;
+        case class'CMMapInfo'.const.ICON_ENEMY:         return MapWidget.EnemyInfantrySpottedIcon;
+        case class'CMMapInfo'.const.ICON_ENEMY_ARMOUR:  return MapWidget.EnemyVehicleSpottedIcon;
+        case class'CMMapInfo'.const.ICON_ENEMY_VEHICLE: return MapWidget.EnemyTransportSpottedIcon;
+        case class'CMMapInfo'.const.ICON_ENEMY_HELI:    return MapWidget.EnemyHelicopterSpottedIconHuey;
+        case class'CMMapInfo'.const.ICON_ARTILLERY:
+            if (MapWidget.HUDComponents[class'ROHUDWidgetOverheadMap'.const.ROOMT_KeyArtilleryTargetTexture] != None)
+                return MapWidget.HUDComponents[class'ROHUDWidgetOverheadMap'.const.ROOMT_KeyArtilleryTargetTexture].Tex;
+            break;
+        case class'CMMapInfo'.const.ICON_LZ:
+            if (MapWidget.HUDComponents[class'ROHUDWidgetOverheadMap'.const.ROOMT_KeyLZMarkerTexture] != None)
+                return MapWidget.HUDComponents[class'ROHUDWidgetOverheadMap'.const.ROOMT_KeyLZMarkerTexture].Tex;
+            break;
+    }
+    return None;
+}
+
+// bAnywhere for the toolbar, which is off the map
+function DrawMarker(Canvas C, vector2D At, byte Which, color Col, bool bHighlight, optional bool bAnywhere)
+{
+    local Texture2D Tex;
+    local float Size;
+    local rotator Diamond;
+    local color Black;
+
+    if (!bAnywhere && !InMap(At))
+        return;
+
+    Size = ICON_SIZE * UIScale * (bHighlight ? 1.3 : 1.0);
+    Black = MakeColor(0, 0, 0, 200);
+    Tex = IconTexture(Which);
+
+    if (Which == class'CMMapInfo'.const.ICON_CROSS)
+    {
+        DrawSegment(C, V2(At.X - Size * 0.4, At.Y - Size * 0.4), V2(At.X + Size * 0.4, At.Y + Size * 0.4), LINE_WIDTH * UIScale + 2, Black);
+        DrawSegment(C, V2(At.X - Size * 0.4, At.Y + Size * 0.4), V2(At.X + Size * 0.4, At.Y - Size * 0.4), LINE_WIDTH * UIScale + 2, Black);
+        DrawSegment(C, V2(At.X - Size * 0.4, At.Y - Size * 0.4), V2(At.X + Size * 0.4, At.Y + Size * 0.4), LINE_WIDTH * UIScale, Col);
+        DrawSegment(C, V2(At.X - Size * 0.4, At.Y + Size * 0.4), V2(At.X + Size * 0.4, At.Y - Size * 0.4), LINE_WIDTH * UIScale, Col);
+        return;
+    }
+
+    if (Tex == None)
+    {
+        // A diamond with a dark edge
+        Diamond.Yaw = 8192;
+        C.SetDrawColor(0, 0, 0, 200);
+        C.SetPos(At.X - Size * 0.3, At.Y - Size * 0.3);
+        C.DrawRotatedTile(C.DefaultTexture, Diamond, Size * 0.6, Size * 0.6, 0, 0, C.DefaultTexture.SizeX, C.DefaultTexture.SizeY);
+        C.SetDrawColor(Col.R, Col.G, Col.B, Col.A);
+        C.SetPos(At.X - Size * 0.22, At.Y - Size * 0.22);
+        C.DrawRotatedTile(C.DefaultTexture, Diamond, Size * 0.44, Size * 0.44, 0, 0, C.DefaultTexture.SizeX, C.DefaultTexture.SizeY);
+        return;
+    }
+
+    C.SetDrawColor(Col.R, Col.G, Col.B, Col.A);
+    C.SetPos(At.X - Size * 0.5, At.Y - Size * 0.5);
+    C.DrawTile(Tex, Size, Size, 0, 0, Tex.SizeX, Tex.SizeY);
+}
+
+// Text with a dark shadow, its left edge at At.X and its middle at At.Y. With bBox it sits on a dark box instead.
+function DrawLabel(Canvas C, vector2D At, string Text, color Col, bool bBox)
+{
+    local float XL, YL, S;
+
+    S = UIScale * 1.1;
+    C.Font = class'Engine'.static.GetSmallFont();
+    C.TextSize(Text, XL, YL);
+    XL *= S;
+    YL *= S;
+
+    if (bBox)
+    {
+        C.SetDrawColor(0, 0, 0, 180);
+        C.SetPos(At.X - 4 * UIScale, At.Y - YL * 0.5 - 2 * UIScale);
+        C.DrawTile(C.DefaultTexture, XL + 8 * UIScale, YL + 4 * UIScale, 0, 0, C.DefaultTexture.SizeX, C.DefaultTexture.SizeY);
+    }
+    else
+    {
+        C.SetDrawColor(0, 0, 0, 230);
+        C.SetPos(At.X + 1, At.Y - YL * 0.5 + 1);
+        C.DrawText(Text, false, S, S);
+    }
+
+    C.SetDrawColor(Col.R, Col.G, Col.B, 255);
+    C.SetPos(At.X, At.Y - YL * 0.5);
+    C.DrawText(Text, false, S, S);
+}
+
+// Length and direction of what is being dragged, next to the cursor. 50 unreal units = 1 meter.
+function DrawMeasure(Canvas C)
+{
+    local float DX, DY, Meters, Bearing;
+    local string S;
+
+    if (DragPoints.Length < 2)
+        return;
+
+    DX = DragPoints[DragPoints.Length - 1].X - DragPoints[0].X; // north
+    DY = DragPoints[DragPoints.Length - 1].Y - DragPoints[0].Y; // east
+    Meters = Sqrt(DX * DX + DY * DY) / 50.0;
+
+    switch (Tool)
+    {
+        case TOOL_PEN:
+            return;
+        case TOOL_CIRCLE:
+            S = "Radius "$Round(Meters)$" m";
+            break;
+        case TOOL_BOX:
+            S = Round(Abs(DY) / 50.0)$" x "$Round(Abs(DX) / 50.0)$" m";
+            break;
+        default:
+            // Compass bearing: 0 is north, 90 east
+            Bearing = Atan2(DY, DX) * 180.0 / Pi;
+            if (Bearing < 0)
+                Bearing += 360.0;
+            S = Round(Meters)$" m, "$Right("00"$(Round(Bearing) % 360), 3)$" deg";
+    }
+    DrawLabel(C, V2(Mouse.X + 18 * UIScale, Mouse.Y + 22 * UIScale), S, MakeColor(255, 255, 255, 255), true);
+}
+
+// ====================================================
+// Toolbar
+// ====================================================
+
+function AddButton(float X, float Y, float W, float H, byte Action, byte Arg, string Label, bool bSelected)
+{
+    local ToolButton B;
+
+    B.X = X;
+    B.Y = Y;
+    B.W = W;
+    B.H = H;
+    B.Action = Action;
+    B.Arg = Arg;
+    B.Label = Label;
+    B.bSelected = bSelected;
+    Buttons.AddItem(B);
+}
+
+function string ToolName(byte Which)
+{
+    switch (Which)
+    {
+        case TOOL_PEN:    return "Pen";
+        case TOOL_LINE:   return "Line";
+        case TOOL_ARROW:  return "Arrow";
+        case TOOL_CIRCLE: return "Circle";
+        case TOOL_BOX:    return "Box";
+        case TOOL_MARKER: return "Marker";
+        case TOOL_TEXT:   return "Text";
+        case TOOL_ERASER: return "Eraser";
+        case TOOL_RULER:  return "Ruler";
+    }
+    return "Pointer";
+}
+
+function string ToolHint(PlayerController PC)
+{
+    if (!bCursor)
+        return "Press "$CursorKeyName()$" for the cursor";
+    if (Tool != TOOL_POINTER && !CanDraw())
+        return "You can't draw yet";
+
+    switch (Tool)
+    {
+        case TOOL_POINTER: return "The map works as normal";
+        case TOOL_PEN:     return "Hold left mouse and draw";
+        case TOOL_MARKER:  return class'CMMapInfo'.static.IconName(Icon)$": click to place";
+        case TOOL_TEXT:    return "Click, type, then Enter";
+        case TOOL_ERASER:  return "Click a drawing to erase";
+        case TOOL_RULER:   return "Drag to measure (only you see it)";
+    }
+    return "Hold left mouse and drag";
+}
+
+function DrawToolbar(Canvas C, PlayerController PC)
+{
+    local float BtnW, BtnH, Gap, Pad, Inner, X, Y, Cell, XL, YL;
+    local int i, Cols;
+    local PlayerReplicationInfo PRI;
+
+    PRI = PC.PlayerReplicationInfo;
+    Buttons.Length = 0;
+
+    BtnW = 84 * UIScale;
+    BtnH = 22 * UIScale;
+    Gap = 3 * UIScale;
+    Pad = 6 * UIScale;
+    PanelW = Pad * 2 + BtnW * 2 + Gap;
+    Inner = PanelW - Pad * 2;
+
+    // Left of the map if there is room, otherwise inside its left edge
+    PanelX = MapLeft - PanelW - 6 * UIScale;
+    if (PanelX < 4)
+        PanelX = MapLeft + 4 * UIScale;
+    PanelY = MapTop;
+
+    C.Font = class'Engine'.static.GetSmallFont();
+    C.TextSize("Ag", XL, YL);
+    TextScale = (BtnH * 0.72) / FMax(YL, 1.0);
+
+    if (bToolsHidden)
+    {
+        PanelH = BtnH;
+        AddButton(PanelX, PanelY, PanelW, BtnH, A_PANEL, 0, "Map drawing tools", false);
+        DrawButtons(C);
+        return;
+    }
+
+    Y = PanelY + Pad;
+    X = PanelX + Pad;
+    AddButton(X, Y, Inner, BtnH, A_PANEL, 0, "Hide drawing tools", false);
+    Y += BtnH + Gap * 3;
+
+    for (i = 0; i < NUM_TOOLS; i++)
+    {
+        AddButton(X + (i % 2) * (BtnW + Gap), Y, BtnW, BtnH, A_TOOL, i, ToolName(i), Tool == i);
+        if (i % 2 == 1)
+            Y += BtnH + Gap;
+    }
+    Y += Gap * 2;
+
+    Cell = (Inner - Gap * (class'CMMapInfo'.const.NUM_COLOURS - 1)) / class'CMMapInfo'.const.NUM_COLOURS;
+    for (i = 0; i < class'CMMapInfo'.const.NUM_COLOURS; i++)
+        AddButton(X + i * (Cell + Gap), Y, Cell, BtnH, A_COLOUR, i, "", Colour == i);
+    Y += BtnH + Gap * 3;
+
+    if (Tool == TOOL_MARKER)
+    {
+        Cols = 6;
+        Cell = (Inner - Gap * (Cols - 1)) / Cols;
+        for (i = 0; i < class'CMMapInfo'.const.NUM_ICONS; i++)
+        {
+            AddButton(X + (i % Cols) * (Cell + Gap), Y, Cell, Cell, A_ICON, i, "", Icon == i);
+            if (i % Cols == Cols - 1)
+                Y += Cell + Gap;
+        }
+        if (class'CMMapInfo'.const.NUM_ICONS % Cols != 0)
+            Y += Cell + Gap;
+        Y += Gap * 2;
+    }
+
+    AddButton(X, Y, Inner, BtnH, A_CHANNEL, 0, "Draw for: "$class'CMMapInfo'.static.ChannelName(Channel), false);
+    Y += BtnH + Gap;
+    AddButton(X, Y, BtnW, BtnH, A_UNDO, 0, "Undo", false);
+    AddButton(X + BtnW + Gap, Y, BtnW, BtnH, A_CLEAR_MINE, 0, "Clear mine", false);
+    Y += BtnH + Gap;
+    if (class'CMMapInfo'.static.IsLeader(PRI, Info.bScrimAdmin))
+    {
+        AddButton(X, Y, Inner, BtnH, A_CLEAR_CHANNEL, 0, "Clear all for "$class'CMMapInfo'.static.ChannelName(Channel), false);
+        Y += BtnH + Gap;
+    }
+    if (Info.bScrimAdmin)
+    {
+        AddButton(X, Y, Inner, BtnH, A_CLEAR_ALL, 0, "Clear every drawing", false);
+        Y += BtnH + Gap;
+    }
+    AddButton(X, Y, Inner, BtnH, A_HIDE, 0, bHideDrawings ? "Show drawings" : "Hide drawings", bHideDrawings);
+    Y += BtnH + Gap * 2;
+
+    // The hint line under the buttons
+    Y += BtnH;
+    PanelH = Y + Pad - PanelY;
+
+    C.SetDrawColor(0, 0, 0, 170);
+    C.SetPos(PanelX, PanelY);
+    C.DrawTile(C.DefaultTexture, PanelW, PanelH, 0, 0, C.DefaultTexture.SizeX, C.DefaultTexture.SizeY);
+
+    DrawButtons(C);
+
+    C.SetDrawColor(220, 220, 220, 255);
+    C.TextSize(ToolHint(PC), XL, YL);
+    C.SetPos(X, Y - BtnH * 0.5 - YL * TextScale * 0.5);
+    C.DrawText(ToolHint(PC), false, TextScale * 0.9, TextScale * 0.9);
+}
+
+function DrawButtons(Canvas C)
+{
+    local int i;
+    local float XL, YL, Inset;
+    local color Col;
+    local bool bHover;
+    local Texture2D Tex;
+
+    for (i = 0; i < Buttons.Length; i++)
+    {
+        bHover = bCursor && Mouse.X >= Buttons[i].X && Mouse.X <= Buttons[i].X + Buttons[i].W
+            && Mouse.Y >= Buttons[i].Y && Mouse.Y <= Buttons[i].Y + Buttons[i].H;
+
+        // Selected: an amber frame. Hovered: a lighter background.
+        if (Buttons[i].bSelected)
+        {
+            C.SetDrawColor(230, 170, 40, 255);
+            C.SetPos(Buttons[i].X - 2, Buttons[i].Y - 2);
+            C.DrawTile(C.DefaultTexture, Buttons[i].W + 4, Buttons[i].H + 4, 0, 0, C.DefaultTexture.SizeX, C.DefaultTexture.SizeY);
+        }
+
+        if (Buttons[i].Action == A_COLOUR)
+            Col = class'CMMapInfo'.static.GetColour(Buttons[i].Arg);
+        else if (bHover)
+            Col = MakeColor(90, 90, 90, 230);
+        else
+            Col = MakeColor(45, 45, 45, 230);
+        C.SetDrawColor(Col.R, Col.G, Col.B, Col.A);
+        C.SetPos(Buttons[i].X, Buttons[i].Y);
+        C.DrawTile(C.DefaultTexture, Buttons[i].W, Buttons[i].H, 0, 0, C.DefaultTexture.SizeX, C.DefaultTexture.SizeY);
+
+        if (Buttons[i].Action == A_ICON)
+        {
+            Inset = Buttons[i].W * 0.12;
+            Tex = IconTexture(Buttons[i].Arg);
+            if (Tex != None)
+            {
+                Col = class'CMMapInfo'.static.GetColour(Colour);
+                C.SetDrawColor(Col.R, Col.G, Col.B, 255);
+                C.SetPos(Buttons[i].X + Inset, Buttons[i].Y + Inset);
+                C.DrawTile(Tex, Buttons[i].W - Inset * 2, Buttons[i].H - Inset * 2, 0, 0, Tex.SizeX, Tex.SizeY);
+            }
+            else
+                DrawMarker(C, V2(Buttons[i].X + Buttons[i].W * 0.5, Buttons[i].Y + Buttons[i].H * 0.5), Buttons[i].Arg,
+                    class'CMMapInfo'.static.GetColour(Colour), false, true);
+            continue;
+        }
+
+        if (Buttons[i].Label == "")
+            continue;
+
+        C.TextSize(Buttons[i].Label, XL, YL);
+        C.SetDrawColor(255, 255, 255, 255);
+        C.SetPos(Buttons[i].X + (Buttons[i].W - XL * TextScale) * 0.5, Buttons[i].Y + (Buttons[i].H - YL * TextScale) * 0.5);
+        C.DrawText(Buttons[i].Label, false, TextScale, TextScale);
+    }
+}
+
+// ====================================================
+// Spectator overlay, left-out teammates and objective borders
+// ====================================================
+
+// Colour for a team: whatever the running HUD uses (north is SideColors[0], south SideColors[1])
+function color TeamColour(ROHUD H, byte Team)
+{
+    if (H != None && Team < 2)
+        return H.SideColors[Team];
+    return MakeColor(255, 255, 255, 255);
+}
+
+// The game's own name display (distance setting 0 = none) is turned off while the overlay is on and put back afterwards.
+// Where the game reads the setting is not known, so all three places are set: the running HUD, its class default and the
+// server's setting as this client was told it. None of them is saved to the player's settings.
+function SetDefaultNames(ROHUD H, bool bHide)
+{
+    local ROGameReplicationInfo ROGRI;
+
+    if (H == None)
+        return;
+
+    ROGRI = ROGameReplicationInfo(H.WorldInfo.GRI);
+
+    if (bHide && !bNamesHidden)
+    {
+        SavedNames = H.MyFriendlyPlayerNames;
+        SavedClassNames = H.Class.default.MyFriendlyPlayerNames;
+        H.MyFriendlyPlayerNames = 0;
+        H.Class.default.MyFriendlyPlayerNames = 0;
+        if (ROGRI != None)
+        {
+            SavedServerNames = ROGRI.FriendlyPlayerNames;
+            ROGRI.FriendlyPlayerNames = 0;
+        }
+        bNamesHidden = true;
+    }
+    else if (!bHide && bNamesHidden)
+    {
+        H.MyFriendlyPlayerNames = SavedNames;
+        H.Class.default.MyFriendlyPlayerNames = SavedClassNames;
+        if (ROGRI != None)
+            ROGRI.FriendlyPlayerNames = SavedServerNames;
+        bNamesHidden = false;
+    }
+    else if (bHide && bNamesHidden && ROGRI != None && ROGRI.FriendlyPlayerNames != 0)
+    {
+        // The server sent its setting again
+        SavedServerNames = ROGRI.FriendlyPlayerNames;
+        ROGRI.FriendlyPlayerNames = 0;
+    }
+}
+
+// The game's own icon for what the player is in (infantry, a squad leader, tank, truck or one of the helicopters), and
+// the size the game gives that kind of icon
+function Texture2D MapIcon(ROHUDWidgetOverheadMap OM, byte Packed, PlayerReplicationInfo PRI, bool bSpectatorView, out float SizeModifier)
+{
+    local ROPlayerReplicationInfo ROPRI;
+
+    // Squad leaders always show the squad leader icon on a team's map, whatever they are in, as the game does
+    ROPRI = ROPlayerReplicationInfo(PRI);
+    if (!bSpectatorView && ROPRI != None && ROPRI.bIsSquadLeader && OM.SquadLeaderIcon != None)
+    {
+        SizeModifier = LEFT_OUT_SL_SIZE;
+        return OM.SquadLeaderIcon;
+    }
+
+    SizeModifier = bSpectatorView ? OM.InfantrySize : OM.TransportSize;
+    switch (Packed / class'CMMapInfo'.const.KIND_STEP)
+    {
+        case class'CMMapInfo'.const.KIND_TANK:
+            SizeModifier = bSpectatorView ? OM.InfantrySize : OM.TankSize;
+            return OM.FriendlyPlayerIconTank;
+        case class'CMMapInfo'.const.KIND_TRANSPORT:
+            return OM.FriendlyPlayerIconTransport;
+        case class'CMMapInfo'.const.KIND_HUEY:
+            return OM.FriendlyPlayerIconHelicopterHuey;
+        case class'CMMapInfo'.const.KIND_COBRA:
+            return OM.FriendlyPlayerIconHelicopterCobra;
+        case class'CMMapInfo'.const.KIND_LOACH:
+            return OM.FriendlyPlayerIconHelicopterLoach;
+        case class'CMMapInfo'.const.KIND_GUNSHIP:
+            return OM.FriendlyPlayerIconHelicopterGunship;
+    }
+
+    SizeModifier = OM.InfantrySize;
+    if (bSpectatorView && (Packed & class'CMMapInfo'.const.FLAG_LEADER) != 0 && OM.SquadLeaderIcon != None)
+        return OM.SquadLeaderIcon;
+    return OM.FriendlyPlayerIconRifle;
+}
+
+// How opaque (0-255) a just-died left-out teammate is: full for 2 seconds after this client first saw them dead, then
+// fading out over 3, as the game does for its own teammates
+function byte DeadAlpha(PlayerReplicationInfo PRI, float Now)
+{
+    local int Index;
+    local float Age;
+
+    Index = DeadPRIs.Find(PRI);
+    if (Index == INDEX_NONE)
+    {
+        Index = DeadPRIs.Length;
+        DeadPRIs.AddItem(PRI);
+        DeadSince.AddItem(Now);
+    }
+
+    Age = Now - DeadSince[Index];
+    if (Age <= 2.0)
+        return 255;
+    if (Age >= 5.0)
+        return 0;
+    return byte(255 * (1.0 - (Age - 2.0) / 3.0));
+}
+
+// The map is open: spectators get every living player in their team colour; players on a team get the teammates the
+// game's map leaves out, coloured like the game's own (their squad in the squad colour) with "SL" by squad leaders
+function DrawSnapshotOnMap(Canvas C, ROHUD H, bool bSpectatorView)
+{
+    local ROHUDWidgetOverheadMap OM;
+    local ROHUDWidgetComponent IconComp, LabelComp;
+    local ROPlayerReplicationInfo ROPRI, MyPRI;
+    local PlayerController PC;
+    local Pawn P;
+    local vector Loc;
+    local vector2D S;
+    local float BaseSize, Size, SizeModifier, XL, YL, LabelScale, Now;
+    local int i;
+    local byte Packed, Alpha;
+    local Texture2D MapTex;
+    local color Col;
+    local string Label;
+
+    OM = MapWidget;
+    PC = PlayerController(Outer);
+    if (OM == None || PC == None || OM.HUDComponents.Length <= class'ROHUDWidgetOverheadMap'.const.ROOMT_FriendlyPlayerStart)
+        return;
+    IconComp = OM.HUDComponents[class'ROHUDWidgetOverheadMap'.const.ROOMT_FriendlyPlayerStart];
+    if (IconComp == None)
+        return;
+
+    // The size the game gives a player icon at this zoom, before its kind's size modifier
+    BaseSize = (OM.CurrentZoom < 1.75 ? OM.PlayerSizeUnzoomed : OM.PlayerSizeZoomed) * IconComp.ScaleX;
+    MyPRI = ROPlayerReplicationInfo(PC.PlayerReplicationInfo);
+    Now = PC.WorldInfo.RealTimeSeconds;
+
+    for (i = 0; i < class'CMMapInfo'.const.MAX_SNAPSHOT; i++)
+    {
+        ROPRI = Info.SnapPRI[i];
+        if (ROPRI == None)
+            continue;
+        Packed = Info.SnapInfo[i];
+        Loc = Info.SnapLoc[i];
+
+        if ((Packed & class'CMMapInfo'.const.FLAG_DEAD) != 0)
+        {
+            Alpha = DeadAlpha(ROPRI, Now);
+            if (Alpha == 0 || OM.DeadPlayerIcon == None)
+                continue;
+            MapTex = OM.DeadPlayerIcon;
+            Size = OM.DeadPlayerIconSize * IconComp.ScaleX;
+            Col = MakeColor(255, 255, 255, Alpha);
+        }
+        else
+        {
+            DeadPRIs.RemoveItem(ROPRI);
+            // A teammate whose pawn this client can see is drawn where it really is, as the game does
+            if (!bSpectatorView)
+            {
+                P = FindPawn(PC, ROPRI);
+                if (P != None)
+                    Loc = P.Location;
+            }
+
+            MapTex = MapIcon(OM, Packed, ROPRI, bSpectatorView, SizeModifier);
+            Size = BaseSize * (bSpectatorView ? float(OM.InfantrySize) : SizeModifier);
+            if (bSpectatorView)
+                Col = TeamColour(H, Packed & class'CMMapInfo'.const.FLAG_SOUTH);
+            else if (MyPRI != None && MyPRI.SquadIndex < `MAX_SQUADS && ROPRI.SquadIndex == MyPRI.SquadIndex)
+                Col = OM.SquadDrawColor;
+            else
+                Col = OM.TeamDrawColor;
+            Col.A = 255;
+        }
+
+        if (MapTex == None || Loc.X < MinWX || Loc.X > MaxWX || Loc.Y < MinWY || Loc.Y > MaxWY)
+            continue;
+
+        S = WorldToScreen(V2(Loc.X, Loc.Y));
+        C.SetDrawColor(Col.R, Col.G, Col.B, Col.A);
+        C.SetPos(S.X - Size * 0.5, S.Y - Size * 0.5);
+        C.DrawTile(MapTex, Size, Size, 0, 0, MapTex.SizeX, MapTex.SizeY);
+
+        // "SL1" and so on next to a left-out squad leader, as the game labels its own
+        if (!bSpectatorView && (Packed & class'CMMapInfo'.const.FLAG_DEAD) == 0 && ROPRI.bIsSquadLeader && ROPRI.SquadIndex < `MAX_SQUADS)
+        {
+            Label = OM.SquadLeaderShortString $ (ROPRI.SquadIndex + 1);
+            LabelComp = OM.HUDComponents[class'ROHUDWidgetOverheadMap'.const.ROOMT_ObjectiveLabelStart];
+            if (LabelComp != None && LabelComp.TextFont != None)
+                C.Font = LabelComp.TextFont;
+            LabelScale = 1.0;
+            if (LabelComp != None && LabelComp.TextScale > 0.0)
+                LabelScale = LabelComp.TextScale;
+            LabelScale *= IconComp.ScaleY;
+            C.TextSize(Label, XL, YL);
+            C.SetDrawColor(0, 0, 0, 255);
+            C.SetPos(S.X + Size * 0.5 + 6 * IconComp.ScaleY + 1, S.Y - YL * LabelScale * 0.5 + 1);
+            C.DrawText(Label, false, LabelScale, LabelScale);
+            C.SetDrawColor(255, 255, 255, 255);
+            C.SetPos(S.X + Size * 0.5 + 6 * IconComp.ScaleY, S.Y - YL * LabelScale * 0.5);
+            C.DrawText(Label, false, LabelScale, LabelScale);
+        }
+    }
+
+    // Forget players who stayed dead long enough to have faded
+    for (i = DeadPRIs.Length - 1; i >= 0; i--)
+    {
+        if (DeadPRIs[i] == None || Now - DeadSince[i] > 10.0)
+        {
+            DeadPRIs.Remove(i, 1);
+            DeadSince.Remove(i, 1);
+        }
+    }
+    C.Font = class'Engine'.static.GetSmallFont();
+}
+
+// Borders of the capture objectives built with CMenu, in the colour of the team that holds them
+function DrawObjectiveBorders(Canvas C, PlayerController PC)
+{
+    local CMAObjective Objective;
+    local ROGameReplicationInfo ROGRI;
+    local int i;
+    local color LineColor;
+
+    ROGRI = ROGameReplicationInfo(PC.WorldInfo.GRI);
+    if (ROGRI == None)
+        return;
+
+    foreach PC.DynamicActors(class'CMAObjective', Objective)
+    {
+        if (Objective.Corners.Length < 2 || !Objective.bObjectiveReady || !ROGRI.GetObjectiveEnabled(Objective.ObjIndex))
+            continue;
+
+        if (ROGRI.GetObjectiveOwner(Objective.ObjIndex) == `AXIS_TEAM_INDEX)
+            LineColor = MakeColor(255, 80, 80, 255);
+        else if (ROGRI.GetObjectiveOwner(Objective.ObjIndex) == `ALLIES_TEAM_INDEX)
+            LineColor = MakeColor(80, 160, 255, 255);
+        else
+            LineColor = MakeColor(255, 255, 255, 220);
+
+        for (i = 0; i < Objective.Corners.Length; i++)
+        {
+            DrawSegment(C, WorldToScreen(Objective.Corners[i]), WorldToScreen(Objective.Corners[(i + 1) % Objective.Corners.Length]),
+                2.0 * UIScale, LineColor);
+        }
+    }
+}
+
+// Player on the screen, or false when they are behind the camera or off the edge
+function bool ProjectToScreen(Canvas C, vector Loc, vector CamLoc, vector ViewDir, out vector Screen)
+{
+    if (((Loc - CamLoc) Dot ViewDir) <= 0)
+        return false;
+
+    Screen = C.Project(Loc);
+    return Screen.X >= 0 && Screen.X <= C.ClipX && Screen.Y >= 0 && Screen.Y <= C.ClipY;
+}
+
+// A pawn the client can see for the player if there is one (exact position and size), none otherwise
+function Pawn FindPawn(PlayerController PC, PlayerReplicationInfo PRI)
+{
+    local Pawn P;
+
+    foreach PC.WorldInfo.AllPawns(class'Pawn', P)
+    {
+        if (P.PlayerReplicationInfo == PRI && P.Health > 0)
+            return P;
+    }
+    return None;
+}
+
+function vector HeadLocation(Pawn P, vector Fallback)
+{
+    if (P == None)
+        return Fallback + vect(0, 0, 40);
+
+    return P.Location + vect(0, 0, 1) * (P.CylinderComponent.CollisionHeight - 4);
+}
+
+// The spectator's view with the map closed: triangles over players, the looked-at player's name and role icon
+function DrawWorld(Canvas C, PlayerController PC, ROHUD H)
+{
+    local vector CamLoc, ViewDir, Head, Screen;
+    local rotator CamRot;
+    local Pawn P;
+    local int i, Best;
+    local float D, BestD, Scale, Size, W, TH, Dist2D, NameScale, IconSize, IconBottom;
+    local color Col;
+    local string PlayerName;
+    local Texture2D RoleIcon;
+
+    PC.GetPlayerViewPoint(CamLoc, CamRot);
+    ViewDir = vector(CamRot);
+    Scale = FMax(1.0, C.ClipY / 1080.0);
+
+    // The player looked at: nearest the crosshair, close enough to it and not behind a wall
+    Best = -1;
+    BestD = C.ClipX * NAME_RADIUS;
+    for (i = 0; i < class'CMMapInfo'.const.MAX_SNAPSHOT; i++)
+    {
+        if (Info.SnapPRI[i] == None)
+            continue;
+        P = FindPawn(PC, Info.SnapPRI[i]);
+        if (P != None && P == PC.ViewTarget)
+            continue;
+
+        Head = HeadLocation(P, Info.SnapLoc[i]);
+        if (!ProjectToScreen(C, Head, CamLoc, ViewDir, Screen))
+            continue;
+
+        D = Sqrt(Square(Screen.X - C.ClipX * 0.5) + Square(Screen.Y - C.ClipY * 0.5));
+        if (D < BestD && PC.FastTrace(Head, CamLoc))
+        {
+            Best = i;
+            BestD = D;
+        }
+    }
+
+    for (i = 0; i < class'CMMapInfo'.const.MAX_SNAPSHOT; i++)
+    {
+        if (Info.SnapPRI[i] == None)
+            continue;
+        P = FindPawn(PC, Info.SnapPRI[i]);
+        if (P != None && P == PC.ViewTarget)
+            continue;
+
+        Head = HeadLocation(P, Info.SnapLoc[i]);
+        if (!ProjectToScreen(C, Head, CamLoc, ViewDir, Screen))
+            continue;
+
+        Col = TeamColour(H, Info.SnapInfo[i] & class'CMMapInfo'.const.FLAG_SOUTH);
+        Dist2D = VSize(Head - CamLoc);
+
+        if (i == Best)
+        {
+            // Close up, the role they picked is shown under the name, as the game does for friendlies
+            RoleIcon = None;
+            if (Dist2D <= ROLE_ICON_DIST && Info.SnapPRI[i].RoleInfo != None)
+                RoleIcon = Info.SnapPRI[i].RoleInfo.ClassIcon;
+
+            IconSize = (RoleIcon != None) ? 40.0 * Scale : 0.0;
+            IconBottom = Screen.Y - 1 * Scale;
+
+            PlayerName = Info.SnapPRI[i].PlayerName;
+            C.Font = class'Engine'.static.GetMediumFont();
+            NameScale = NAME_SCALE * Scale;
+            C.TextSize(PlayerName, W, TH);
+            W *= NameScale;
+            TH *= NameScale;
+            C.SetDrawColor(0, 0, 0, 255);
+            C.SetPos(Screen.X - W * 0.5 + 2, IconBottom - IconSize - TH + 2);
+            C.DrawText(PlayerName, true, NameScale, NameScale);
+            C.SetPos(Screen.X - W * 0.5 - 1, IconBottom - IconSize - TH - 1);
+            C.DrawText(PlayerName, true, NameScale, NameScale);
+            C.SetDrawColor(Col.R, Col.G, Col.B, 255);
+            C.SetPos(Screen.X - W * 0.5, IconBottom - IconSize - TH);
+            C.DrawText(PlayerName, true, NameScale, NameScale);
+
+            if (RoleIcon != None)
+            {
+                C.SetDrawColor(Col.R, Col.G, Col.B, 255);
+                C.SetPos(Screen.X - IconSize * 0.5, IconBottom - IconSize);
+                C.DrawTile(RoleIcon, IconSize, IconSize, 0, 0, RoleIcon.SizeX, RoleIcon.SizeY);
+            }
+        }
+        else
+        {
+            // Smaller the further away, down to a minimum that can still be seen, sitting just above their head
+            Size = FClamp(22000.0 / FMax(Dist2D, 1.0), 12.0, 26.0) * Scale;
+            DrawTriangle(C, Screen.X, Screen.Y, Size, Col);
+        }
+    }
+}
+
+// Filled triangle pointing down at (X, Y), with a black edge
+function DrawTriangle(Canvas C, float X, float Y, float Size, color Col)
+{
+    local float Row, Half, Top;
+    local color Black;
+
+    Black.A = 255;
+    Top = Y - Size;
+
+    for (Row = 0; Row <= Size + 4; Row += 1.0)
+    {
+        Half = (Size + 4 - Row) * 0.5;
+        C.Draw2DLine(X - Half - 2, Top - 2 + Row, X + Half + 2, Top - 2 + Row, Black);
+    }
+    for (Row = 0; Row <= Size; Row += 1.0)
+    {
+        Half = (Size - Row) * 0.5;
+        C.Draw2DLine(X - Half, Top + Row, X + Half, Top + Row, Col);
+    }
+}
+
+defaultproperties
+{
+    Colour=0
+    Channel=1
+}

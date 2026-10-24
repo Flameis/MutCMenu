@@ -6,6 +6,12 @@ function Initialize()
     {
         MenuText.AddItem("Admin Toggle Fly");
         MenuCommand.AddItem("FLY");
+        MenuText.AddItem("Admin Stop Players Drawing On The Map");
+        MenuCommand.AddItem("MAPDRAWING OFF");
+        MenuText.AddItem("Admin Let Players Draw On The Map");
+        MenuCommand.AddItem("MAPDRAWING ON");
+        MenuText.AddItem("Admin Clear Every Map Drawing");
+        MenuCommand.AddItem("MAPCLEAR ALL");
     }
 
     super.Initialize();

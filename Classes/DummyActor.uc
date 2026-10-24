@@ -253,8 +253,13 @@ reliable client function CMenuSetup()
     TankEntry.MyDA = self;
     pc.Interactions.additem(TankEntry);
 
-    pc.Interactions[pc.Interactions.Length] = pc.Interactions[0];
-    pc.Interactions.remove(0, 1);
+    // The game's own input goes last, so the menus see their keys first. It is found by name: something else (the
+    // MutExtras map drawing tool) may already sit in front of it, and moving that instead would leave the menus behind.
+    i = pc.Interactions.Find(pc.PlayerInput);
+    if (i == INDEX_NONE)
+        i = 0;
+    pc.Interactions[pc.Interactions.Length] = pc.Interactions[i];
+    pc.Interactions.remove(i, 1);
 
     EnsureUIScenesCreated(PC);
 

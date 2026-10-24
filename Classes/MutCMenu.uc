@@ -53,12 +53,20 @@ struct FSActiveStrike
 
 var config array<FSProfile>     FSProfiles;
 var config bool                 bFSPlayersCanCall;  // Non-admin players may use the fire support menu
-var config bool                 bFSFriendlyFire;    // Strikes can damage the caller's own team
+var config bool                 bFSNoFriendlyFire;  // On: strikes never hurt the caller's own team. Off (the default): the server's friendly fire setting decides, as for any weapon
 var config bool                 bFSSilent;          // Set true to not broadcast strike calls to everyone
 var config bool                 bCTFSilent;         // Set true to not announce Capture the Flag flags being placed, picked up, dropped, reset or removed
 var config int                  FSPlayerCooldown;   // Per-team seconds between player-called strikes, 0 = none (admins ignore it)
 var config int                  FSBomberCount;      // Aircraft per Canberra bombing run (1-2), 0 uses 2
 var config int                  FSGunshipDuration;  // Seconds the gunship orbits, 0 uses the map's value
+
+// The overhead map (CMMapManager): spectator overlay, teammates past 32 per team, objective borders and map drawing.
+// The off switches are negative so the features are on by default: a missing ini entry loads as false.
+var config bool                 bDisableEnhancedSpectator;     // Turn off the spectator overlay (every player on the map, coloured names, head triangles)
+var config bool                 bDisableMapDrawing;            // Turn off drawing on the overhead map
+var config bool                 bKeepMapDrawingsBetweenRounds; // Keep drawings when a new round starts (they are cleared by default)
+var config int                  MaxMapDrawingsPerPlayer;       // Drawings one player can have at once before their oldest goes; 0 or missing means 60
+var CMMapManager                MapManager;
 
 // An aircraft strike waiting out its first strike delay
 struct FSPendingStrike
@@ -135,6 +143,8 @@ function PreBeginPlay()
         ROGameInfo(WorldInfo.Game).GameReplicationInfoClass = class'CMGameReplicationInfo';
     }
 
+    MapManager = Spawn(class'CMMapManager', self);
+    MapManager.Mut = self;
 }
 
 // bDebugStandalone only counts in a standalone (single player) game, never on a server
@@ -184,6 +194,8 @@ simulated function NotifyLogin(Controller NewPlayer)
 
     DA.CMenuSetup();
 
+    if (MapManager != None && PlayerController(NewPlayer) != None)
+        MapManager.AddPlayer(PlayerController(NewPlayer));
 
     super.NotifyLogin(NewPlayer);
 }
@@ -201,6 +213,9 @@ simulated function NotifyLogout(Controller Exiting)
             break;
         }
     }
+
+    if (MapManager != None)
+        MapManager.RemovePlayer(Exiting);
 
     super.NotifyLogout(Exiting);
 }
@@ -247,6 +262,13 @@ simulated function Mutate(string mutateString, PlayerController sender)
 
     // `log("mutateString = "$mutateString);
     CurrentMutateString = mutateString;
+
+    // Map drawing commands (mapundo, mapclear, mapdrawing) are for everyone; the map manager checks who may do what
+    if (MapManager != None && MapManager.HandleCommand(sender, SplitString(mutateString, " ", true)))
+    {
+        super.Mutate(mutateString, sender);
+        return;
+    }
 
     // Parse the mutate string into command and parameters
     params = SplitString(mutateString, " ", true);
@@ -1656,9 +1678,11 @@ function bool ParseAircraftRepeat(PlayerController Caller, array<string> Tokens,
     return true;
 }
 
-// The caller as the owner of a strike, when it is for their own team. A spectator, or an admin calling for the other team,
-// has no team of their own on the strike, so it is started without an owner (no kill credit, and nothing in the commander's
-// ability tracking).
+// The caller as the owner of a strike, when it is for their own team. Its damage is then the caller's, so the game's
+// friendly fire rules apply to it as to any weapon: the server's friendly fire setting (and Realism Match's, which turns
+// it off in the briefing and on at LIVE) decides whether it hurts the caller's team, and the caller is always hurt by it.
+// A spectator, or an admin calling for the other team, has no team of their own on the strike, so it is started without
+// an owner (no kill credit, and nothing in the commander's ability tracking).
 function Actor StrikeOwner(PlayerController Caller, int Team)
 {
     if (Caller != None && Caller.GetTeamNum() == Team)
@@ -2432,7 +2456,7 @@ function bool SpawnGunshipStrike(ROPlayerController Caller, vector Target, int T
     return true;
 }
 
-// Remembers who called a strike so friendly fire can be suppressed for it (see NetDamage)
+// Remembers who called a strike so friendly fire can be suppressed for it when bFSNoFriendlyFire is on (see NetDamage)
 function RegisterFSStrike(PlayerController Caller, int Team, float Duration)
 {
     local FSActiveStrike Entry;
@@ -2463,7 +2487,7 @@ function NetDamage(int OriginalDamage, out int Damage, Pawn Injured, Controller 
     local int i;
 
     // Runs before the base game applies friendly fire punishment, so zeroed damage can't get the caller kicked
-    if (!bFSFriendlyFire && Damage > 0 && Injured != None && IsFSStrikeDamage(DamageType))
+    if (bFSNoFriendlyFire && Damage > 0 && Injured != None && IsFSStrikeDamage(DamageType))
     {
         for (i = 0; i < FSActiveStrikes.Length; i++)
         {

@@ -58,6 +58,8 @@ function InitializePreview()
 			PreviewStaticMesh[0].SetMaterial(i, PreviewMeshMIC);
 		}
 
+		bPreviewIsSkeletal = false;
+
 		PreviewStaticMesh[0].SetStaticMesh(ReferenceStaticMesh[0]);
 		PreviewStaticMesh[0].SetHidden(false);
 	}
@@ -72,6 +74,10 @@ simulated state ReadyToPlace extends MenuVisible
 		ModifyScale = vect(1,1,1);
 		ModifyTime = 0;
 
+		// Picking another entry while already placing re-enters this state with the old preview still attached. Detach it
+		// first (HidePreviewMesh uses the old mesh type), so Tick attaches the new one: otherwise a switch between a static
+		// and a skeletal mesh left the old preview behind and never showed the new one.
+		HidePreviewMesh();
 		InitializePreview();
 	}
 

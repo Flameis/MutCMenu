@@ -1,6 +1,6 @@
 # MutCMenu
 
-CMenu is an on-screen menu for drill leaders and admins. It lets you run a drill without memorising console commands: you open the menu, press a number, and things happen. It can also place vehicles, walls, spawn points and even whole objectives, give weapons, move players around, and call in fire support.
+CMenu is an on-screen menu for drill leaders and admins. It lets you run a drill without memorising console commands: you open the menu, press a number, and things happen. It can also place vehicles, walls, spawn points and even whole objectives, give weapons, move players around, and call in fire support. It also adds to the overhead map: a better view for spectators, players past 32 on a team, and drawing on the map for everyone.
 
 ## Contents
 
@@ -9,10 +9,11 @@ CMenu is an on-screen menu for drill leaders and admins. It lets you run a drill
 3. The menus
 4. Fire support
 5. Building things (the Builder menu)
-6. Other features
-7. Typing commands instead of using the menu
-8. Settings
-9. Works with other mods
+6. The overhead map
+7. Other features
+8. Typing commands instead of using the menu
+9. Settings
+10. Works with other mods
 
 ---
 
@@ -54,6 +55,8 @@ The starting point. It lists General Commands, Builder, Weapons, CMenu Settings,
 | Switch Team | Moves you to the other team |
 | Set Team Ready / Not Ready | Tells the match system your team is ready |
 | Admin Toggle Fly | (Admins) fly around freely |
+| Admin Stop Players Drawing On The Map / Admin Let Players Draw On The Map | (Admins) turns map drawing off or back on for players (see section 6) |
+| Admin Clear Every Map Drawing | (Admins) clears every drawing on the map for everyone |
 
 ### Manage Players (admin only)
 Pick a player, then choose what to do to them:
@@ -152,7 +155,7 @@ Examples:
 - Players can only call fire support if the server turns it on (`bFSPlayersCanCall`). When they can, they can use every option above except `--persist`.
 - Player calls have a cooldown per team (`FSPlayerCooldown`). Admins ignore the cooldown.
 - Players cannot target "no artillery" zones. Admin strikes can, including the area outside the combat area. Admin aircraft are not removed for flying outside the map.
-- Friendly fire from strikes is off unless the server turns it on (`bFSFriendlyFire`).
+- Strikes follow the server's friendly fire, like any weapon: they hurt the caller's team when friendly fire is on (for example after Realism Match goes LIVE) and not when it is off (for example in the briefing). The caller is always hurt by their own strike. A server can make strikes never hurt the caller's team with `bFSNoFriendlyFire`.
 - Calls are announced to the whole server unless the server is set to silent (`bFSSilent`) or the caller uses `--suppress`.
 - Warnings (wrong grid, cooldown, no permission) come back to the caller as private messages.
 
@@ -215,9 +218,94 @@ Admins can place real flags on a pole for capture the flag drills, from the Buil
 
 *Still to be checked in a real game:* how the flag looks on a player's back and on the ground (its size and position), and whether the cloth waves. These cannot be checked by the automatic tests.
 
-## 6. Other features
+## 6. The overhead map
+
+CMenu adds these to the overhead map. None of them replaces the game's screen (its HUD), so they work with WW2, Winter War and GOM (Gameplay Overhaul Mutator), which bring their own. *They moved here from MutExtras. Map drawing is being tried in game; how the toolbar, drawings and icons look can only be checked by playing.*
+
+### Spectator view
+
+Spectators normally only see players near them. With CMenu, spectators get:
+
+- **Everyone on the overhead map:** a marker for every living player, using the game's own player and vehicle icons (tank, truck, each helicopter) in the team colour. Squad and team leaders get the leader icon.
+- **Triangles over players:** a small triangle in the team colour sitting just above the head of every player in view.
+- **Names when you look at someone:** the player nearest the middle of your screen shows their **name in their team colour** instead of the triangle. When that player is close (within about 40 meters), the **role icon they picked** is shown under the name in the team colour, like the base game does for friendlies.
+- **The game's own name display is turned off** while you spectate, so the two do not double up, and put back when you stop spectating. Your saved setting is never changed.
+- **A clean map:** while the map is open, the names and triangles are hidden.
+
+Turn it off with `bDisableEnhancedSpectator`.
+
+### Players past 32 on a team
+
+The game's map has room for 32 players per team. With more on a team (MaxPlayersMutator), the 33rd and later never show on their teammates' maps. CMenu shows them with the game's own icons, in the squad colour for your own squad and the team colour for the rest. Squad leaders get the squad leader icon and their "SL" label, and a player who dies stays on the map as a dead marker for a few seconds, as the game does for everyone else.
+
+### Custom objective borders
+
+Objectives built with the Builder have their borders drawn on the map, in the colour of the team that holds them (white while nobody does).
+
+### Drawing on the map
+
+Anyone can draw on the overhead map, like the map tools in Arma or Squad. Whatever you draw is sent to the players it is for, and they see it on their own map straight away. Players who join later get everything that is already drawn.
+
+**Opening the tools:** open the overhead map and press **T** (the game's tactical display key, or whatever you bound it to) to show the map cursor; press it again to hide it. A **toolbar** appears to the left of the map. "Hide drawing tools" folds it away to one small button; the game remembers which you chose.
+
+**Shooting with the map open:** while the map cursor is hidden, the left mouse button fires as normal. (Without CMenu, a click with the map open only shows the cursor.)
+
+**Tools**
+
+| Tool | How to use it |
+| :--- | :--- |
+| Pointer | The map works as normal (squad leader orders, the commander's map clicks). Pick this when you are not drawing |
+| Pen | Hold the left mouse button and draw freehand |
+| Line | Hold and drag a straight line |
+| Arrow | Hold and drag a line with an arrow head where you let go, for movement and attacks |
+| Circle | Hold on the centre and drag out to the edge |
+| Box | Hold on one corner and drag to the other |
+| Marker | Click to place the marker picked below the colours: attack, defend, rally, enemy, enemy armour, enemy vehicle, enemy helicopter, artillery target, landing zone, X or a point. They use the game's own map icons |
+| Text | Click where the label goes, type it (up to 40 characters), press Enter. Escape cancels |
+| Eraser | Click a drawing to erase it. The drawing it would take is highlighted first |
+| Ruler | Drag to measure distance in meters and the compass bearing. Only you see it |
+
+While you drag a line, arrow, circle or box, its length, bearing or size in meters is shown next to the cursor. Right mouse still drags the map and the mouse wheel still zooms.
+
+**The rest of the toolbar**
+
+| Button | What it does |
+| :--- | :--- |
+| Colour row | Picks the colour: red, blue, green, yellow, orange, purple, white or black |
+| Draw for | Who sees what you draw next. Click to change (see below) |
+| Undo | Takes away your newest drawing |
+| Clear mine | Takes away all of your drawings |
+| Clear all for ... | Squad leaders, the commander and scrim admins: clears everything they may erase in the chosen group |
+| Clear every drawing | Scrim admins only: clears the map for everyone |
+| Hide drawings | Hides all drawings on your own map (nothing changes for anyone else) |
+
+Holding the mouse over a drawing shows who drew it and who it is for.
+
+**Who sees a drawing, and who can draw it**
+
+| Draw for | Who sees it | Who can draw for it |
+| :--- | :--- | :--- |
+| Only me | Only you | Everyone |
+| Squad | Your squad, and your team's commander | Everyone in a squad |
+| Team | Your whole team | Everyone on a team |
+| Spectators | Spectators only | Spectators and scrim admins |
+| North / South | One team, wherever the admin is | Scrim admins |
+| Everyone | Both teams and spectators | Scrim admins |
+
+The other team never sees your team's drawings. Spectators see every drawing except what someone drew only for themselves. A scrim admin is a server admin or someone logged in with `scrimadminlogin` (see section 2).
+
+**Stopping players drawing:** a scrim admin can turn drawing off for players with `mutate mapdrawing off`, or **Admin Stop Players Drawing On The Map** in General Commands. Everyone is told. Players then cannot draw anything, not even for themselves, until a scrim admin turns it back on (`mutate mapdrawing on` or **Admin Let Players Draw On The Map**). Drawings already on the map stay, and players can still undo and clear their own. Scrim admins can always draw. It is back on after a map change.
+
+**Who can erase what:** everyone can erase their own drawings. Squad leaders can also erase their squad's, the commander the whole team's, and scrim admins anything.
+
+**Limits:** each player can have 60 drawings at once (the server can change this); when you go over, your oldest one goes. A freehand line holds up to 200 points; a longer one carries on as a new line. Drawing very fast is slowed down so nobody floods the map. Drawings are cleared when a new round starts, unless the server keeps them, and what you drew only for yourself goes when you leave.
+
+The map on the spawn selection screen does not show the drawings. Turn the feature off with `bDisableMapDrawing`.
+
+## 7. Other features
 
 - **Tank entry prompt:** a player who is not tank crew can still climb into a friendly tank. Stand close to it and face it, and an enter prompt appears.
+- **Scales with your screen:** the menu takes up the same part of the screen at any resolution. Its size is set for 1440p; at 1080p it is three quarters of that, at 4K half as big again. The clickable lines in mouse click mode scale with it.
 - **Mouse click mode:** every menu line becomes a clickable button.
 - **Private messages and help in the console:** short replies go to you only; long help opens in the large console.
 - **Loading mod content:** if the server turns it on, CMenu loads extra content packages (MutExtras, GOM 3 and 4, Winter War, WW2) so their weapons and vehicles can be used in the Builder and weapon menu. It switches on Winter War content by itself on Winter War maps and WW2 content on WW2 maps (it goes by the map name).
@@ -230,7 +318,7 @@ Admins can place real flags on a pole for capture the flag drills, from the Buil
 - **Builder preview stops when you pick something else:** choosing an entry that is not an item to place (Clear All, a Delete entry, Reset Flags, ...) ends placing and hides the preview, even with the menu kept open. Before, the preview stayed, a click still placed the last item and the placing keys stayed captured. Turning the page keeps the preview.
 - **Fixes:** the Builder no longer breaks after you respawn, and the tank entry prompt is fixed.
 
-## 7. Typing commands instead of using the menu
+## 8. Typing commands instead of using the menu
 
 Commands can be typed in the console as `mutate <command> --option value` (short form `-o value`, like Linux commands). A value runs until the next option, so names and grid squares can contain spaces. `--option=value` also works. The older spellings still work too (for example `mutate giveweaponnorth L1A1`).
 
@@ -254,10 +342,13 @@ Commands can be typed in the console as `mutate <command> --option value` (short
 | `dropflag` | Drops the flag you are carrying | none |
 | `resetflags` | (Admin) Sends every flag back to where it was placed | none |
 | `removeflags` | (Admin) Removes every flag | none |
+| `mapundo` | Takes away your newest map drawing | none |
+| `mapclear` | Clears map drawings: `mine` (anyone), `squad` or `team` (what you may erase there: squad leaders, the commander, scrim admins), `north`, `south`, `spectators` or `everyone` (scrim admins), `all` or nothing (every drawing; scrim admins) | `mine`, `squad`, `team`, `north`, `south`, `spectators`, `everyone`, `all` |
+| `mapdrawing` | `off` stops players drawing on the map, `on` lets them again (scrim admins). On its own it says whether players can draw | `on`, `off` |
 
 Commands shared with the Realism Match and Paradrops mutators (`scrimadminlogin`, `changename`, `whois`, the match commands and the paradrop commands) work through CMenu too.
 
-## 8. Settings
+## 9. Settings
 
 Set in WebAdmin under **Mutators > MutCMenu Settings**, or in `MutCMenu_Server.ini`.
 
@@ -267,21 +358,26 @@ Set in WebAdmin under **Mutators > MutCMenu Settings**, or in `MutCMenu_Server.i
 | `bNewTankPhys` | Experimental tank physics |
 | `bDebugStandalone` | For testing: in a standalone (single player) game every `bLoad` option above counts as on, so all the mods' content is loaded. It does nothing on a server and does not change the saved `bLoad` settings |
 | `bFSPlayersCanCall` | Let players (not only admins) call fire support |
-| `bFSFriendlyFire` | Let strikes hurt the caller's own team |
+| `bFSNoFriendlyFire` | Strikes never hurt the caller's own team. Off by default: the server's friendly fire setting decides |
 | `bFSSilent` | Never announce fire support calls to everyone |
 | `bCTFSilent` | Never announce Capture the Flag flags being placed, picked up, dropped, reset or removed (they are announced when this is off) |
 | `FSPlayerCooldown` | Seconds between player-called strikes for a team (0 = no cooldown). Admins ignore it |
 | `FSBomberCount` | Planes in a Canberra run (1-2) |
 | `FSGunshipDuration` | How long the gunship circles, in seconds (0 = the map's own time) |
+| `bDisableEnhancedSpectator` | Turn the spectator view off (it is on by default) |
+| `bDisableMapDrawing` | Turn drawing on the map off (it is on by default) |
+| `bKeepMapDrawingsBetweenRounds` | Keep drawings when a new round starts (they are cleared when off) |
+| `MaxMapDrawingsPerPlayer` | How many drawings one player can have at once before their oldest goes. 0 means the default, 60 |
 | `FSProfiles` (ini only) | The default size of each barrage type: salvos, shells per salvo, spread, time between salvos and delay before the first. The defaults are written the first time the server runs. A type added later (like `MIXED`) is added automatically without touching your values |
 
-## 9. Works with other mods
+## 10. Works with other mods
 
 - **WW2 (Black Orchestra):** vehicles and weapons can be placed and given, tank crews are added, tank entry works.
 - **Winter War:** Finnish and Soviet forces, tank crews added, tank entry works.
 - **GOM (Gameplay Overhaul Mutator):** custom factions work; tank crews are added; its vehicles can be placed.
 - **GreenMen (GM):** its Blue Huey, Green Huey and Green Bushranger helicopters can be placed from the Builder.
 - Vehicles from all of these mods can be placed from the Builder.
+- The spectator view, players past 32, objective borders and map drawing work with all of them: CMenu draws them on top of whatever map the mod uses and replaces no HUD.
 
 ---
 

@@ -11,9 +11,15 @@ var string PendingCmdPrefix, PendingCmdSuffix;
 
 const ITEMS_PER_PAGE = 8;
 const TEXT_OFFSET = 10;
+// The menu's sizes (font, line spacing, position, click areas) are made for a 1440 pixel high screen and scaled by
+// MenuScale = screen height / REFERENCE_HEIGHT, so it takes up the same part of the screen at any resolution
+const REFERENCE_HEIGHT = 1440.0;
+const MENU_TOP = 240;
+const LINE_HEIGHT = 50;
 var string MenuName, TargetName, MenuBorderLengthString, LastCmd;
 var bool bIsAuthorized;
 var int MenuPage, MenuHeight;
+var float MenuScale; // From the last frame drawn; 1 until then
 var array<string> MenuText, MenuCommand, PlayerList;
 var name NumberKeys[20];
 
@@ -43,7 +49,8 @@ simulated state MenuVisible
 
 	function PostRender(Canvas HUDCanvas)
     {
-	    DrawMenu(ROCanvas(HUDCanvas), 0, 240, MenuName, MenuText);
+		UpdateMenuScale(HUDCanvas.ClipY);
+	    DrawMenu(ROCanvas(HUDCanvas), 0, MENU_TOP * MenuScale, MenuName, MenuText);
     }
 
 	function EndState(name NextStateName)
@@ -289,6 +296,25 @@ function bool OnPromptSubmitted(string EnteredText, bool bCancelled)
 }
 */
 
+// The menu's scale for a screen this many pixels high (1 at 1440p, 0.75 at 1080p, 1.5 at 4K)
+static function float ScaleForScreenHeight(float ScreenHeight)
+{
+	return ScreenHeight > 0 ? ScreenHeight / REFERENCE_HEIGHT : 1.0;
+}
+
+// Picks up the screen size each frame; when it changes (a new resolution), the click areas are moved to match
+function UpdateMenuScale(float ScreenHeight)
+{
+	local float NewScale;
+
+	NewScale = ScaleForScreenHeight(ScreenHeight);
+	if (Abs(NewScale - MenuScale) > 0.001)
+	{
+		MenuScale = NewScale;
+		RebuildClickOverlay();
+	}
+}
+
 // Mirrors the currently visible page as mouse-clickable hit-regions; no-op unless click mode is active
 function RebuildClickOverlay()
 {
@@ -309,14 +335,15 @@ function RebuildClickOverlay()
 
 	ClickOverlay.EnsureOpen(SceneClient, LocalPlayer(PC.Player));
 
-	LineX = TEXT_OFFSET;
-	LineY = 240 + TEXT_OFFSET + (MenuName != "" ? 50 : 0);
+	// The same layout DrawMenu uses, at the same scale
+	LineX = TEXT_OFFSET * MenuScale;
+	LineY = (MENU_TOP + TEXT_OFFSET + (MenuName != "" ? LINE_HEIGHT : 0)) * MenuScale;
 
 	Count = Min((MenuPage+1)*ITEMS_PER_PAGE, MenuCommand.Length) - (MenuPage*ITEMS_PER_PAGE);
 	for (i = 0; i < Count; i++)
 	{
-		ClickOverlay.PositionButton(i, LineX, LineY, 500.f, 50.f, Self, i+1);
-		LineY += 50;
+		ClickOverlay.PositionButton(i, LineX, LineY, 500.f * MenuScale, LINE_HEIGHT * MenuScale, Self, i+1);
+		LineY += LINE_HEIGHT * MenuScale;
 	}
 	for (i = Count; i < ITEMS_PER_PAGE; i++)
 	{
@@ -325,25 +352,26 @@ function RebuildClickOverlay()
 
 	if (MenuCommand.Length > ((MenuPage+1)*ITEMS_PER_PAGE)) // Next
 	{
-		LineY += 100;
-		ClickOverlay.PositionButton(ITEMS_PER_PAGE, LineX, LineY, 200.f, 50.f, Self, 9);
+		LineY += 2 * LINE_HEIGHT * MenuScale;
+		ClickOverlay.PositionButton(ITEMS_PER_PAGE, LineX, LineY, 200.f * MenuScale, LINE_HEIGHT * MenuScale, Self, 9);
 	}
 	else
 	{
 		ClickOverlay.HideButton(ITEMS_PER_PAGE);
 	}
 
-	LineY += 100;
-	ClickOverlay.PositionButton(ITEMS_PER_PAGE+1, LineX, LineY, 200.f, 50.f, Self, 0);
+	LineY += 2 * LINE_HEIGHT * MenuScale;
+	ClickOverlay.PositionButton(ITEMS_PER_PAGE+1, LineX, LineY, 200.f * MenuScale, LINE_HEIGHT * MenuScale, Self, 0);
 }
 
 // Displays the menu based on an input list
+// Everything is drawn at MenuScale: the font, the line spacing, the margin and the background
 function DrawMenu(ROCanvas MenuCanvas, int MenuX, int MenuY, string title, array<string> LineText)
 {
-	local int height, i, key;
-	local float BL, BH;
+	local int i, key;
+	local float BL, BH, height, X, Y;
 
-	height = 50; // line height
+	height = LINE_HEIGHT * MenuScale;
 	key = 1;
 
 	MenuCanvas.Font = Font'VN_UI_Mega_Fonts.Font_VN_Mega_36';
@@ -352,55 +380,56 @@ function DrawMenu(ROCanvas MenuCanvas, int MenuX, int MenuY, string title, array
 	{
 		MenuCanvas.PushDepthSortPriority(DSP_SkyHigh); // If we don't do this the text will disappear when hovering over a player due to the playername
 		MenuCanvas.StrLen("-----"$MenuBorderLengthString, BL, BH);
-		// draw the background
+		BL *= MenuScale;
+		// draw the background, from the top down to 60 (scaled) below the last line
 		MenuCanvas.SetPos(MenuX, MenuY);
 		MenuCanvas.SetDrawColorStruct(BackgroundColor);
-		MenuCanvas.DrawRect(BL, MenuHeight-180);
+		MenuCanvas.DrawRect(BL, MenuHeight - MenuY + 60 * MenuScale);
 		// draw the border
 		MenuCanvas.SetPos(MenuX, MenuY);
 		MenuCanvas.SetDrawColorStruct(BorderColor);
-		MenuCanvas.DrawBox(BL, MenuHeight-180);
+		MenuCanvas.DrawBox(BL, MenuHeight - MenuY + 60 * MenuScale);
 	}
 
 	MenuCanvas.PushDepthSortPriority(DSP_Insane); // If we don't do this the text will disappear when hovering over a player due to the playername
 	MenuCanvas.SetDrawColorStruct(TextColor); //Orange by default in config (255,128,0,255)
 
-	MenuX+=TEXT_OFFSET;
-	MenuY+=TEXT_OFFSET;
+	X = MenuX + TEXT_OFFSET * MenuScale;
+	Y = MenuY + TEXT_OFFSET * MenuScale;
 
 	// Title
 	if(title != "")
 	{
-		MenuCanvas.SetPos(MenuX, MenuY);
-		MenuCanvas.DrawText(title, false);
-		MenuY += height; // next line
+		MenuCanvas.SetPos(X, Y);
+		MenuCanvas.DrawText(title, false, MenuScale, MenuScale);
+		Y += height; // next line
 	}
 
 	for( i = MenuPage * ITEMS_PER_PAGE; i < Min((MenuPage+1)*ITEMS_PER_PAGE, LineText.Length); i++ )
 	{
-		MenuCanvas.SetPos(MenuX, MenuY);
-		MenuCanvas.DrawText(key $ ". " $ LineText[i], false);
+		MenuCanvas.SetPos(X, Y);
+		MenuCanvas.DrawText(key $ ". " $ LineText[i], false, MenuScale, MenuScale);
 		key++;
-		MenuY += height; // next line
+		Y += height; // next line
 	}
 
 	// 9. Next Page
 	if(LineText.Length > ((MenuPage+1)*ITEMS_PER_PAGE))
 	{
-		MenuY += height*2; // skip a line
-		MenuCanvas.SetPos(MenuX, MenuY);
-		MenuCanvas.DrawText("9. Next", false);
+		Y += height*2; // skip a line
+		MenuCanvas.SetPos(X, Y);
+		MenuCanvas.DrawText("9. Next", false, MenuScale, MenuScale);
 	}
 
 	// 0. Exit Menu
-	MenuY += height*2; // skip a line
-	MenuCanvas.SetPos(MenuX, MenuY);
+	Y += height*2; // skip a line
+	MenuCanvas.SetPos(X, Y);
 	if(MenuPage > 0)
-		MenuCanvas.DrawText("0. Previous", false);
+		MenuCanvas.DrawText("0. Previous", false, MenuScale, MenuScale);
 	else
-		MenuCanvas.DrawText("0. Exit", false);
+		MenuCanvas.DrawText("0. Exit", false, MenuScale, MenuScale);
 
-	MenuHeight = MenuY;
+	MenuHeight = Y;
 }
 
 function MessageSelf(string Message)
@@ -509,6 +538,8 @@ defaultproperties
     NumberKeys[17]=numpadseven
     NumberKeys[18]=numpadeight
     NumberKeys[19]=numpadnine
+
+	MenuScale=1.0
 
 	DefaultTexture_Black=Texture2D'EngineResources.Black'
 	DefaultTexture_White=Texture2D'EngineResources.WhiteSquareTexture'

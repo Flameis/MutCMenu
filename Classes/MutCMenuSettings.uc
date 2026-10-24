@@ -32,8 +32,8 @@ function InitMutSettings()
 	if (self.myMut == None) { self.SetIntPropertyByName(name(Repl("bFSPlayersCanCall", ".", "_")), int(class'MutCMenu'.default.bFSPlayersCanCall)); }
 	else { self.SetIntPropertyByName(name(Repl("bFSPlayersCanCall", ".", "_")), int(MutCMenu(myMut).bFSPlayersCanCall)); }
 
-	if (self.myMut == None) { self.SetIntPropertyByName(name(Repl("bFSFriendlyFire", ".", "_")), int(class'MutCMenu'.default.bFSFriendlyFire)); }
-	else { self.SetIntPropertyByName(name(Repl("bFSFriendlyFire", ".", "_")), int(MutCMenu(myMut).bFSFriendlyFire)); }
+	if (self.myMut == None) { self.SetIntPropertyByName(name(Repl("bFSNoFriendlyFire", ".", "_")), int(class'MutCMenu'.default.bFSNoFriendlyFire)); }
+	else { self.SetIntPropertyByName(name(Repl("bFSNoFriendlyFire", ".", "_")), int(MutCMenu(myMut).bFSNoFriendlyFire)); }
 
 	if (self.myMut == None) { self.SetIntPropertyByName(name(Repl("bFSSilent", ".", "_")), int(class'MutCMenu'.default.bFSSilent)); }
 	else { self.SetIntPropertyByName(name(Repl("bFSSilent", ".", "_")), int(MutCMenu(myMut).bFSSilent)); }
@@ -49,6 +49,20 @@ function InitMutSettings()
 
 	if (self.myMut == None) { self.SetIntPropertyByName(name(Repl("FSGunshipDuration", ".", "_")), class'MutCMenu'.default.FSGunshipDuration); }
 	else { self.SetIntPropertyByName(name(Repl("FSGunshipDuration", ".", "_")), MutCMenu(myMut).FSGunshipDuration); }
+
+	// Overhead map
+	if (self.myMut == None) { self.SetIntPropertyByName(name(Repl("bDisableEnhancedSpectator", ".", "_")), int(class'MutCMenu'.default.bDisableEnhancedSpectator)); }
+	else { self.SetIntPropertyByName(name(Repl("bDisableEnhancedSpectator", ".", "_")), int(MutCMenu(myMut).bDisableEnhancedSpectator)); }
+
+	if (self.myMut == None) { self.SetIntPropertyByName(name(Repl("bDisableMapDrawing", ".", "_")), int(class'MutCMenu'.default.bDisableMapDrawing)); }
+	else { self.SetIntPropertyByName(name(Repl("bDisableMapDrawing", ".", "_")), int(MutCMenu(myMut).bDisableMapDrawing)); }
+
+	if (self.myMut == None) { self.SetIntPropertyByName(name(Repl("bKeepMapDrawingsBetweenRounds", ".", "_")), int(class'MutCMenu'.default.bKeepMapDrawingsBetweenRounds)); }
+	else { self.SetIntPropertyByName(name(Repl("bKeepMapDrawingsBetweenRounds", ".", "_")), int(MutCMenu(myMut).bKeepMapDrawingsBetweenRounds)); }
+
+	if (self.myMut == None) { self.SetIntPropertyByName(name(Repl("MaxMapDrawingsPerPlayer", ".", "_")), class'MutCMenu'.default.MaxMapDrawingsPerPlayer); }
+	else { self.SetIntPropertyByName(name(Repl("MaxMapDrawingsPerPlayer", ".", "_")), MutCMenu(myMut).MaxMapDrawingsPerPlayer); }
+
 }
 
 /**
@@ -82,8 +96,8 @@ function SaveMutSettings()
 	if (self.myMut == None) { self.GetIntPropertyByName(name(Repl("bFSPlayersCanCall", ".", "_")), tempValue); class'MutCMenu'.default.bFSPlayersCanCall = (self.tempValue != 0); }
 	else { self.GetIntPropertyByName(name(Repl("bFSPlayersCanCall", ".", "_")), tempValue); MutCMenu(self.myMut).bFSPlayersCanCall = (self.tempValue != 0); }
 
-	if (self.myMut == None) { self.GetIntPropertyByName(name(Repl("bFSFriendlyFire", ".", "_")), tempValue); class'MutCMenu'.default.bFSFriendlyFire = (self.tempValue != 0); }
-	else { self.GetIntPropertyByName(name(Repl("bFSFriendlyFire", ".", "_")), tempValue); MutCMenu(self.myMut).bFSFriendlyFire = (self.tempValue != 0); }
+	if (self.myMut == None) { self.GetIntPropertyByName(name(Repl("bFSNoFriendlyFire", ".", "_")), tempValue); class'MutCMenu'.default.bFSNoFriendlyFire = (self.tempValue != 0); }
+	else { self.GetIntPropertyByName(name(Repl("bFSNoFriendlyFire", ".", "_")), tempValue); MutCMenu(self.myMut).bFSNoFriendlyFire = (self.tempValue != 0); }
 
 	if (self.myMut == None) { self.GetIntPropertyByName(name(Repl("bFSSilent", ".", "_")), tempValue); class'MutCMenu'.default.bFSSilent = (self.tempValue != 0); }
 	else { self.GetIntPropertyByName(name(Repl("bFSSilent", ".", "_")), tempValue); MutCMenu(self.myMut).bFSSilent = (self.tempValue != 0); }
@@ -100,6 +114,19 @@ function SaveMutSettings()
 	if (self.myMut == None) { self.GetIntPropertyByName(name(Repl("FSGunshipDuration", ".", "_")), tempValue); class'MutCMenu'.default.FSGunshipDuration = self.tempValue; }
 	else { self.GetIntPropertyByName(name(Repl("FSGunshipDuration", ".", "_")), tempValue); MutCMenu(self.myMut).FSGunshipDuration = self.tempValue; }
 
+
+	// Overhead map
+	if (self.myMut == None) { self.GetIntPropertyByName(name(Repl("bDisableEnhancedSpectator", ".", "_")), tempValue); class'MutCMenu'.default.bDisableEnhancedSpectator = (self.tempValue != 0); }
+	else { self.GetIntPropertyByName(name(Repl("bDisableEnhancedSpectator", ".", "_")), tempValue); MutCMenu(myMut).bDisableEnhancedSpectator = (self.tempValue != 0); }
+
+	if (self.myMut == None) { self.GetIntPropertyByName(name(Repl("bDisableMapDrawing", ".", "_")), tempValue); class'MutCMenu'.default.bDisableMapDrawing = (self.tempValue != 0); }
+	else { self.GetIntPropertyByName(name(Repl("bDisableMapDrawing", ".", "_")), tempValue); MutCMenu(myMut).bDisableMapDrawing = (self.tempValue != 0); }
+
+	if (self.myMut == None) { self.GetIntPropertyByName(name(Repl("bKeepMapDrawingsBetweenRounds", ".", "_")), tempValue); class'MutCMenu'.default.bKeepMapDrawingsBetweenRounds = (self.tempValue != 0); }
+	else { self.GetIntPropertyByName(name(Repl("bKeepMapDrawingsBetweenRounds", ".", "_")), tempValue); MutCMenu(myMut).bKeepMapDrawingsBetweenRounds = (self.tempValue != 0); }
+
+	if (self.myMut == None) { self.GetIntPropertyByName(name(Repl("MaxMapDrawingsPerPlayer", ".", "_")), tempValue); class'MutCMenu'.default.MaxMapDrawingsPerPlayer = Max(self.tempValue, 0); }
+	else { self.GetIntPropertyByName(name(Repl("MaxMapDrawingsPerPlayer", ".", "_")), tempValue); MutCMenu(myMut).MaxMapDrawingsPerPlayer = Max(self.tempValue, 0); }
 
     if (self.myMut != None)
 		self.myMut.SaveConfig();
@@ -137,7 +164,7 @@ defaultproperties
 	PropertyMappings.Add((Id=610, Name="bFSPlayersCanCall"))
 
 	Properties.Add((PropertyId=611, Data=(Type=SDT_Int32, Value1=0)))
-	PropertyMappings.Add((Id=611, Name="bFSFriendlyFire"))
+	PropertyMappings.Add((Id=611, Name="bFSNoFriendlyFire"))
 
 	Properties.Add((PropertyId=612, Data=(Type=SDT_Int32, Value1=0)))
 	PropertyMappings.Add((Id=612, Name="bFSSilent"))
@@ -153,4 +180,16 @@ defaultproperties
 
 	Properties.Add((PropertyId=615, Data=(Type=SDT_Int32, Value1=0)))
 	PropertyMappings.Add((Id=615, Name="FSGunshipDuration"))
+
+	Properties.Add((PropertyId=620, Data=(Type=SDT_Int32, Value1=0)))
+	PropertyMappings.Add((Id=620, Name="bDisableEnhancedSpectator"))
+
+	Properties.Add((PropertyId=621, Data=(Type=SDT_Int32, Value1=0)))
+	PropertyMappings.Add((Id=621, Name="bDisableMapDrawing"))
+
+	Properties.Add((PropertyId=622, Data=(Type=SDT_Int32, Value1=0)))
+	PropertyMappings.Add((Id=622, Name="bKeepMapDrawingsBetweenRounds"))
+
+	Properties.Add((PropertyId=623, Data=(Type=SDT_Int32, Value1=0)))
+	PropertyMappings.Add((Id=623, Name="MaxMapDrawingsPerPlayer"))
 }
