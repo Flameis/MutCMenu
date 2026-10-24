@@ -38,6 +38,9 @@ function InitMutSettings()
 	if (self.myMut == None) { self.SetIntPropertyByName(name(Repl("bFSSilent", ".", "_")), int(class'MutCMenu'.default.bFSSilent)); }
 	else { self.SetIntPropertyByName(name(Repl("bFSSilent", ".", "_")), int(MutCMenu(myMut).bFSSilent)); }
 
+	if (self.myMut == None) { self.SetIntPropertyByName(name(Repl("bCTFSilent", ".", "_")), int(class'MutCMenu'.default.bCTFSilent)); }
+	else { self.SetIntPropertyByName(name(Repl("bCTFSilent", ".", "_")), int(MutCMenu(myMut).bCTFSilent)); }
+
 	if (self.myMut == None) { self.SetIntPropertyByName(name(Repl("FSPlayerCooldown", ".", "_")), class'MutCMenu'.default.FSPlayerCooldown); }
 	else { self.SetIntPropertyByName(name(Repl("FSPlayerCooldown", ".", "_")), MutCMenu(myMut).FSPlayerCooldown); }
 
@@ -84,6 +87,9 @@ function SaveMutSettings()
 
 	if (self.myMut == None) { self.GetIntPropertyByName(name(Repl("bFSSilent", ".", "_")), tempValue); class'MutCMenu'.default.bFSSilent = (self.tempValue != 0); }
 	else { self.GetIntPropertyByName(name(Repl("bFSSilent", ".", "_")), tempValue); MutCMenu(self.myMut).bFSSilent = (self.tempValue != 0); }
+
+	if (self.myMut == None) { self.GetIntPropertyByName(name(Repl("bCTFSilent", ".", "_")), tempValue); class'MutCMenu'.default.bCTFSilent = (self.tempValue != 0); }
+	else { self.GetIntPropertyByName(name(Repl("bCTFSilent", ".", "_")), tempValue); MutCMenu(self.myMut).bCTFSilent = (self.tempValue != 0); }
 
 	if (self.myMut == None) { self.GetIntPropertyByName(name(Repl("FSPlayerCooldown", ".", "_")), tempValue); class'MutCMenu'.default.FSPlayerCooldown = self.tempValue; }
 	else { self.GetIntPropertyByName(name(Repl("FSPlayerCooldown", ".", "_")), tempValue); MutCMenu(self.myMut).FSPlayerCooldown = self.tempValue; }
@@ -135,6 +141,9 @@ defaultproperties
 
 	Properties.Add((PropertyId=612, Data=(Type=SDT_Int32, Value1=0)))
 	PropertyMappings.Add((Id=612, Name="bFSSilent"))
+
+	Properties.Add((PropertyId=617, Data=(Type=SDT_Int32, Value1=0)))
+	PropertyMappings.Add((Id=617, Name="bCTFSilent"))
 
 	Properties.Add((PropertyId=613, Data=(Type=SDT_Int32, Value1=0)))
 	PropertyMappings.Add((Id=613, Name="FSPlayerCooldown"))

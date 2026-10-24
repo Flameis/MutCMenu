@@ -593,12 +593,29 @@ reliable server function ClearAllActors()
 
     foreach AllActors(class'Actor', ActorToClear)
     {
-        if (ActorToClear.IsA('CMASpawn') || ActorToClear.IsA('CMAObjective') || ActorToClear.IsA('DecalActor'))
+        if (ActorToClear.IsA('CMASpawn') || ActorToClear.IsA('CMAObjective') || ActorToClear.IsA('DecalActor') || ActorToClear.IsA('CMAFlag'))
         {
             ActorToClear.Destroy();
         }
     }
     `log("All actors have been cleared.");
+}
+
+// The Builder's Capture the Flag entries. Checked here too: anyone can open the Builder and call this
+reliable server function ServerPlaceFlag(vector PlaceLoc, int TeamIdx)
+{
+    local PlayerController PC;
+
+    PC = PlayerController(Owner);
+    if (MyMut == None || PC == None)
+        return;
+
+    if (!MyMut.IsAuthorized(PC))
+    {
+        MyMut.PrivateMessage(PC, "[CMenu] Only admins can place flags");
+        return;
+    }
+    MyMut.PlaceFlag(PC, PlaceLoc, class'CMAFlag'.static.FactionForTeam(WorldInfo, TeamIdx));
 }
 
 reliable server function ServerSpawnObjective(vector SpawnLocation, array<Vector2D> ObjectiveCorners)

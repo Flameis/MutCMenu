@@ -166,9 +166,54 @@ Open **Builder Menu** from the main menu. You aim at the spot you want, and conf
 | Structures | Copy buildings or whole areas you are aiming at and paste them somewhere else. Select several meshes, copy the selection, remove the last one, or clear the selection |
 | Static Meshes | Copy, paste and delete single objects. Presets: straight sandbags and an F4 Phantom. Admins also get **Toggle Collision** and **Delete Any Object** |
 | Pickups | Turn a weapon into a pickup on the ground: **Custom** (type the weapon path) or **Copy Held Weapon** (the one in your hands) |
-| Actors | Place team spawn points (North and South), an M2 turret, a DShK turret and an ammo resupply point. **Mark Corner** and **Spawn Obj** let you draw and place a brand new capture objective of your own. **Clear All** removes everything you placed |
+| Actors | Place team spawn points (North and South), an M2 turret, a DShK turret and an ammo resupply point. **Mark Corner** and **Spawn Obj** let you draw and place a brand new capture objective of your own. Admins also get a **CTF Flag** entry for each team's flag (for example "CTF Flag: PAVN (North)"), **CTF Flag: Command Line**, **Reset Flags** and **Remove Flags** (see below). **Clear All** removes everything you placed, flags included |
 
 Admins also get "Clear All Vehicles / Meshes / Pickups / Actors" entries to wipe what has been placed. Custom objectives you create appear on the map, and with MutExtras their borders are drawn on the overhead map. Placed spawn points are used for the team that owns them.
+
+### Capture the Flag flags
+
+Admins can place real flags on a pole for capture the flag drills, from the Builder's Actors menu or with `mutate spawnflag`.
+
+- **Picking it up:** any player of either team picks a flag up by walking onto it. They carry it on their back, and everyone else sees it there. One flag per player.
+- **Dropping it:** the carrier drops it on purpose with `mutate dropflag` (bind it to a key, for example `setbind G mutate dropflag`). It is thrown a short way forward. Whoever dropped it has to wait 3 seconds before they can pick it up again.
+- **It drops by itself** where the carrier dies (teamkills too), gets into a vehicle or leaves the server.
+- **It never disappears.** A flag that falls out of the map goes back to where it was placed. Every flag also goes back there when the round restarts, or when an admin uses **Reset Flags** (`mutate resetflags`).
+- **Whose flag it is:** every flag belongs to one faction, chosen when it is placed, and keeps it whoever carries it. Admins on either team can place either team's flag.
+  - `mutate spawnflag` places your own team's flag.
+  - `--team` places a team's flag: `north`/`south`, `axis`/`allies`, `finnish`/`soviet` or `0`/`1`. A spectator has no team, so they must use `--team` or `--flag`.
+  - `--flag` places exactly the flag you name, even if no team on the map has it (for example `mutate spawnflag --flag dak`). The names are in the table below.
+- **A team's flag** comes from the map. On Vietnam maps it is the map's forces: US Army, USMC, Australian Army, ARVN, PAVN or NLF. On WW2 maps it is the faction most of the team's roles belong to, so a DAK map gives the DAK flag even though it uses Wehrmacht riflemen. On Winter War maps it is the Finnish Army and the Red Army.
+- **Team names follow the game:** North and South on Vietnam maps, Axis and Allies on WW2 maps, Finnish and Soviet on Winter War maps. The Builder's entries show the faction and the team, for example "CTF Flag: DAK (Axis)".
+- **Command line entry:** the Builder's **CTF Flag: Command Line** entry skips the preview. It types `mutate spawnflag ` in the console and lists the options (`--team`, `--flag` with every flag name, `--nobeam`) with examples, so you can add them and press Enter. The flag lands where you are looking when you press Enter. Use it for any flag the two team entries can't make, or for a flag without a beam.
+- **WW2 and Winter War flags on other maps:** placing a WW2 flag needs `bLoadWW2`, and a Winter War flag needs `bLoadWW`, unless the map is from that mod (then its content is already loaded). Vietnam flags never need a setting.
+- **A beam** stands above each flag so it can be found from a distance, whether it is carried or lying on the ground. Place a flag with `--nobeam` to leave it off.
+- **Chat:** placing, pickups, drops, resets and removals are announced with the faction's name, for example "Smith picked up the DAK flag". Turn `bCTFSilent` on (settings page) to stop these announcements.
+
+| `--flag` name (other names that work) | Chat name | Flag |
+| :--- | :--- | :--- |
+| `usarmy` (`us`, `usa`) | US Army | US (50 stars) |
+| `usmc` (`marines`) | USMC | US (50 stars) |
+| `aus` (`australia`, `australian`) | Australian Army | Australian |
+| `arvn` (`southvietnam`, `svn`) | ARVN | South Vietnamese |
+| `pavn` (`nva`, `northvietnam`) | PAVN | North Vietnamese |
+| `nlf` (`vc`, `vietcong`) | NLF | Viet Cong |
+| `france` (`french`) | French Army | French |
+| `redarmy` (`soviet`, `sov`, `ussr`) | Red Army | Soviet |
+| `usarmy48` (`us48`, `ww2us`) | US Army | US (48 stars), WW2 |
+| `usmc48` (`ww2usmc`) | USMC | US (48 stars), WW2 |
+| `cw` (`commonwealth`, `british`, `britain`, `uk`) | Commonwealth | British, WW2 |
+| `nra` (`chinese`, `china`) | NRA | US (48 stars), WW2: the game has no Chinese flag |
+| `wehrmacht` (`wh`, `heer`, `german`, `germany`) | Wehrmacht | Iron Cross war flag, WW2 |
+| `dak` (`afrikakorps`) | DAK | Iron Cross war flag, WW2 |
+| `fallschirmjaeger` (`fallschirmjager`, `fj`, `fmj`) | Fallschirmjaeger | Swastika national flag, WW2 |
+| `ss` | SS | Swastika national flag, WW2 |
+| `italy` (`italian`, `ita`) | Italian Army | Italian, WW2 |
+| `ija` (`japan`, `japanese`) | IJA | Japanese, WW2 |
+| `snlf` | SNLF | Japanese, WW2 |
+| `finland` (`finnish`, `fin`) | Finnish Army | Finnish, Winter War |
+| `wwredarmy` (`wwsoviet`, `wwussr`) | Red Army | Soviet, Winter War |
+
+*Still to be checked in a real game:* how the flag looks on a player's back and on the ground (its size and position), and whether the cloth waves. These cannot be checked by the automatic tests.
 
 ## 6. Other features
 
@@ -182,6 +227,7 @@ Admins also get "Clear All Vehicles / Meshes / Pickups / Actors" entries to wipe
 - **Vehicles keep their size:** the mouse wheel still scales walls and objects in the Builder, but not vehicles, which are always placed at their own size.
 - **Spectators can build:** the Builder works for spectators, who have no character. The preview and the placing follow the spectator camera. (Copying a held weapon needs a weapon, so it is refused for a spectator.)
 - **No duplicate menu entries:** a menu used to keep the admin entries it had added and add them again every time it opened, so "Clear All Vehicles" could appear several times (and menu entries could go missing) after opening the menu repeatedly or logging in as scrim admin more than once. Every menu now starts from its own list each time it opens. Setting the menus up a second time no longer stacks a second copy of every menu either.
+- **Builder preview stops when you pick something else:** choosing an entry that is not an item to place (Clear All, a Delete entry, Reset Flags, ...) ends placing and hides the preview, even with the menu kept open. Before, the preview stayed, a click still placed the last item and the placing keys stayed captured. Turning the page keeps the preview.
 - **Fixes:** the Builder no longer breaks after you respawn, and the tank entry prompt is fixed.
 
 ## 7. Typing commands instead of using the menu
@@ -204,6 +250,10 @@ Commands can be typed in the console as `mutate <command> --option value` (short
 | `forcerankpatch` | Change a player's rank patch | `--player/-p`, `--rank/-r` |
 | `scrimadminlogin` / `scrimadminlogout` | Log in or out as a scrim admin | `--user/-u`, `--password/-p` |
 | `clearobjs`, `clearcorners`, `delnorthspawns`, `delsouthspawns` | Remove custom objectives, marked corners or custom spawn points | none |
+| `spawnflag` | (Admin) Places a Capture the Flag flag where you are looking: your team's flag, a team's flag with `--team`, or exactly one flag with `--flag` (see the flag table in section 5). Spectators must use `--team` or `--flag` | `--team/-t` (north, south, axis, allies, finnish, soviet, 0, 1), `--flag/-f <name>`, `--nobeam/-n` |
+| `dropflag` | Drops the flag you are carrying | none |
+| `resetflags` | (Admin) Sends every flag back to where it was placed | none |
+| `removeflags` | (Admin) Removes every flag | none |
 
 Commands shared with the Realism Match and Paradrops mutators (`scrimadminlogin`, `changename`, `whois`, the match commands and the paradrop commands) work through CMenu too.
 
@@ -213,12 +263,13 @@ Set in WebAdmin under **Mutators > MutCMenu Settings**, or in `MutCMenu_Server.i
 
 | Setting | What it does |
 | :--- | :--- |
-| `bLoadExtras`, `bLoadGOM3`, `bLoadGOM4`, `bLoadWW`, `bLoadWW2` | Load the content of MutExtras, GOM 3/4 (Gameplay Overhaul Mutator), Winter War or WW2 |
+| `bLoadExtras`, `bLoadGOM3`, `bLoadGOM4`, `bLoadWW`, `bLoadWW2` | Load the content of MutExtras, GOM 3/4 (Gameplay Overhaul Mutator), Winter War or WW2. `bLoadWW2` and `bLoadWW` also allow placing WW2 and Winter War Capture the Flag flags on maps that aren't from those mods |
 | `bNewTankPhys` | Experimental tank physics |
 | `bDebugStandalone` | For testing: in a standalone (single player) game every `bLoad` option above counts as on, so all the mods' content is loaded. It does nothing on a server and does not change the saved `bLoad` settings |
 | `bFSPlayersCanCall` | Let players (not only admins) call fire support |
 | `bFSFriendlyFire` | Let strikes hurt the caller's own team |
 | `bFSSilent` | Never announce fire support calls to everyone |
+| `bCTFSilent` | Never announce Capture the Flag flags being placed, picked up, dropped, reset or removed (they are announced when this is off) |
 | `FSPlayerCooldown` | Seconds between player-called strikes for a team (0 = no cooldown). Admins ignore it |
 | `FSBomberCount` | Planes in a Canberra run (1-2) |
 | `FSGunshipDuration` | How long the gunship circles, in seconds (0 = the map's own time) |

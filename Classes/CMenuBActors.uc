@@ -1,5 +1,33 @@
 class CMenuBActors extends CMenuB;
 
+function Initialize()
+{
+	// Capture the Flag flags for either team, labelled with the team's faction ("CTF Flag: DAK (Axis)"). The server checks
+	// for admins again.
+	if (bIsAuthorized && PC != None)
+	{
+		MenuText.AddItem("CTF Flag: "$FlagEntry(`AXIS_TEAM_INDEX));
+		MenuText.AddItem("CTF Flag: "$FlagEntry(`ALLIES_TEAM_INDEX));
+		MenuCommand.AddItem("CTFFLAGNORTH");
+		MenuCommand.AddItem("CTFFLAGSOUTH");
+		// No preview: types the command in the console with the options explained, for flags the entries above can't make
+		MenuText.AddItem("CTF Flag: Command Line");
+		MenuCommand.AddItem("CTFFLAGCMD");
+		MenuText.AddItem("Reset Flags");
+		MenuText.AddItem("Remove Flags");
+		MenuCommand.AddItem("RESETFLAGS");
+		MenuCommand.AddItem("REMOVEFLAGS");
+	}
+
+	super.Initialize();
+}
+
+function string FlagEntry(int Team)
+{
+	return class'CMAFlag'.default.Factions[class'CMAFlag'.static.FactionForTeam(PC.WorldInfo, Team)].Label
+		$" ("$class'CMAFlag'.static.TeamWord(PC.WorldInfo, Team)$")";
+}
+
 function bool CheckExceptions(string Command)
 {
 	local StaticMeshComponent SMC;
@@ -40,6 +68,22 @@ function bool CheckExceptions(string Command)
 
 		case "TURRETDSHK":
 			ReferenceSkeletalMesh[0] = class'ROTurret_DShK_HMG_Destroyable'.Default.Mesh.SkeletalMesh;
+			GoToState('ReadyToPlace',, true);
+			return true;
+
+		case "CTFFLAGCMD":
+			PromptForText("CTF Flag|Places a flag where you are looking. Add options after the command, or just press Enter for your own team's flag.|"
+				$"--team / -t : whose flag it is: north, south, axis, allies, finnish, soviet, 0 or 1 (spectators must give --team or --flag)|"
+				$"--flag / -f : exactly one flag by name, even if no team on the map has it. Names: "$class'CMAFlag'.static.FactionNames()$"|"
+				$"--nobeam / -n : leave out the beam above the flag|"
+				$"Example: --team south|Example: --flag dak|Example: --flag ss --nobeam|Example: -t 1 -n|"
+				$"WW2 and Winter War flags on a map from another game need bLoadWW2 / bLoadWW.", "mutate spawnflag ");
+			return true;
+
+		case "CTFFLAGNORTH":
+		case "CTFFLAGSOUTH":
+			ReferenceStaticMesh[0] = class'CMAFlag'.default.PoleMesh.StaticMesh;
+			SpawnTeamIndex = (Command ~= "CTFFLAGNORTH") ? `AXIS_TEAM_INDEX : `ALLIES_TEAM_INDEX;
 			GoToState('ReadyToPlace',, true);
 			return true;
 
@@ -104,6 +148,11 @@ function DoPlace()
 
 		case "RESUPPLYPOINT":
 			MyDA.Spawn(class'CMAResupplyPoint',, 'ResupplyPoint', PlaceLoc, PlaceRot,, true);
+			return;
+
+		case "CTFFLAGNORTH":
+		case "CTFFLAGSOUTH":
+			MyDA.ServerPlaceFlag(PlaceLoc, SpawnTeamIndex);
 			return;
 	}
 }

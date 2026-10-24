@@ -20,6 +20,7 @@ var Actor							TracedActor;
 var array<Vector2D> 				Corners;
 var string                     		SMToPlace;
 var int 							SpawnTeamIndex, NumObjs;
+var bool							bPlacingStarted;	// An entry just picked put the menu into ReadyToPlace (see SelectLine)
 
 const ROT_MODIFIER = 2048; // 11.25 degrees
 const LOC_MODIFIER = 20; // 20 units
@@ -66,6 +67,7 @@ simulated state ReadyToPlace extends MenuVisible
 {
 	function BeginState(name PreviousStateName)
 	{
+		bPlacingStarted = true;
         ModifyRot = rot(0,0,0);
 		ModifyScale = vect(1,1,1);
 		ModifyTime = 0;
@@ -179,6 +181,28 @@ simulated state ReadyToPlace extends MenuVisible
         }
 	    return false;
 	}
+}
+
+// Picking an entry that is not a placeable (Clear All, Delete, Reset Flags, ...) ends placing. Without this, a menu that
+// is kept open (bKeepOpen) stayed in ReadyToPlace: the preview kept showing, a click placed the last item and the placing
+// keys stayed captured. The entries that are placeables enter ReadyToPlace themselves, which bPlacingStarted notices.
+// Turning the page keeps the preview, and the menu is rebuilt afterwards the same way the sub-menus already do it.
+function bool SelectLine(int NumKey)
+{
+	local bool bWasPlacing, bPaging, bResult;
+
+	bWasPlacing = IsInState('ReadyToPlace');
+	bPaging = (NumKey == 0) || (NumKey == 9 && MenuCommand.Length > ((MenuPage + 1) * ITEMS_PER_PAGE));
+	bPlacingStarted = false;
+
+	bResult = Super.SelectLine(NumKey);
+
+	if (bWasPlacing && !bPaging && !bPlacingStarted && IsInState('ReadyToPlace'))
+	{
+		TargetName = ""; // Initialize puts a menu opened for one item straight back into placing it
+		GoToState('MenuVisible',, true);
+	}
+	return bResult;
 }
 
 // A spectator has no pawn: the builder aims from their camera and hangs the preview off their DummyActor

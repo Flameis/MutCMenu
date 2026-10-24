@@ -52,6 +52,7 @@ var config array<FSProfile>     FSProfiles;
 var config bool                 bFSPlayersCanCall;  // Non-admin players may use the fire support menu
 var config bool                 bFSFriendlyFire;    // Strikes can damage the caller's own team
 var config bool                 bFSSilent;          // Set true to not broadcast strike calls to everyone
+var config bool                 bCTFSilent;         // Set true to not announce Capture the Flag flags being placed, picked up, dropped, reset or removed
 var config int                  FSPlayerCooldown;   // Per-team seconds between player-called strikes, 0 = none (admins ignore it)
 var config int                  FSBomberCount;      // Aircraft per Canberra bombing run (1-2), 0 uses 2
 var config int                  FSGunshipDuration;  // Seconds the gunship orbits, 0 uses the map's value
@@ -95,7 +96,6 @@ var array<FSActiveStrike>       FSActiveStrikes;
 var array<FSPendingStrike>      FSPendingStrikes;
 var string                      CurrentMutateString; // The command being processed, so argument errors can put it back in the console for editing
 var float                       FSNextCallTime[2];
-
 // =================================================================
 // Initialization
 // =================================================================
@@ -410,6 +410,20 @@ simulated function Mutate(string mutateString, PlayerController sender)
                 }
             }
             break;
+
+        // The flag commands check for admins themselves, so a refused player is told why
+        case "SPAWNFLAG":
+            SpawnFlagCommand(sender, params);
+            break;
+
+        case "DROPFLAG":
+            DropFlagCommand(sender);
+            break;
+
+        case "RESETFLAGS":
+        case "REMOVEFLAGS":
+            FlagAdminCommand(sender, command);
+            break;
     }
     if (IsAuthorized(sender))
     {
@@ -472,6 +486,176 @@ simulated function Mutate(string mutateString, PlayerController sender)
         }
     }
     super.Mutate(MutateString, sender);
+}
+
+// =================================================================
+// Capture the Flag flags (CMAFlag)
+// =================================================================
+// mutate spawnflag [--team <team>] [--flag <faction>] [--nobeam] (-t, -f, -n): a flag where the sender is looking. It shows
+// the flag of the sender's team, the team named with --team (north/south, axis/allies, finnish/soviet or 0/1, so either
+// team's flag can be placed), or exactly the faction named with --flag. A spectator has no team, so they name one.
+function SpawnFlagCommand(PlayerController Sender, array<string> Tokens)
+{
+    local vector ViewLoc, HitLoc, HitNorm, Loc;
+    local rotator ViewRot;
+    local string TeamText, FlagText;
+    local int Team, Faction;
+
+    if (!IsAuthorized(Sender))
+    {
+        PrivateMessage(Sender, "[CMenu] Only admins can place flags");
+        return;
+    }
+
+    FlagText = class'CmdOptions'.static.Get(Tokens, "flag", "f");
+    if (FlagText != "")
+    {
+        Faction = class'CMAFlag'.static.FindFaction(FlagText);
+        if (Faction == -1)
+        {
+            PrivateMessage(Sender, "[CMenu] Unknown flag '"$FlagText$"'. Flags: "$class'CMAFlag'.static.FactionNames());
+            return;
+        }
+    }
+    else
+    {
+        Team = Sender.GetTeamNum();
+        TeamText = class'CmdOptions'.static.GetOrPositional(Tokens, "team", "t");
+        if (TeamText != "")
+            Team = ParseFlagTeam(TeamText);
+
+        if (Team != `AXIS_TEAM_INDEX && Team != `ALLIES_TEAM_INDEX)
+        {
+            if (TeamText == "")
+                PrivateMessage(Sender, "[CMenu] You are not on a team: say whose flag it is with --team "$FlagTeamChoices()$", or pick one with --flag");
+            else
+                PrivateMessage(Sender, "[CMenu] Usage: mutate spawnflag [--team "$FlagTeamChoices()$"] [--flag <name>] [--nobeam]");
+            return;
+        }
+        Faction = class'CMAFlag'.static.FactionForTeam(WorldInfo, Team);
+    }
+
+    // Where they are looking, up to 100 meters away, otherwise just in front of them
+    Sender.GetPlayerViewPoint(ViewLoc, ViewRot);
+    if (Trace(HitLoc, HitNorm, ViewLoc + vector(ViewRot) * 5000, ViewLoc, false) != None)
+        Loc = HitLoc + HitNorm * 20;
+    else
+        Loc = ViewLoc + vector(ViewRot) * 100;
+
+    PlaceFlag(Sender, Loc, Faction, !class'CmdOptions'.static.Has(Tokens, "nobeam", "n"));
+}
+
+// north/south, axis/allies, 0/1, and on Winter War maps finnish/soviet. -1 when it is none of them
+function int ParseFlagTeam(string Text)
+{
+    switch (Caps(Text))
+    {
+        case "FINNISH":
+        case "FINLAND":
+            return `AXIS_TEAM_INDEX;
+        case "SOVIET":
+        case "SOVIETS":
+            return `ALLIES_TEAM_INDEX;
+    }
+    return class'CmdOptions'.static.ParseTeam(Text);
+}
+
+// The team names to type on this map, for messages
+function string FlagTeamChoices()
+{
+    return Locs(class'CMAFlag'.static.TeamWord(WorldInfo, `AXIS_TEAM_INDEX))$"|"$Locs(class'CMAFlag'.static.TeamWord(WorldInfo, `ALLIES_TEAM_INDEX))$"|0|1";
+}
+
+// Places a flag of that faction just above Loc, and it falls to the ground. Used by spawnflag and the Builder's Actors
+// menu.
+function CMAFlag PlaceFlag(PlayerController Sender, vector Loc, int Faction, optional bool bBeam = true)
+{
+    local CMAFlag F;
+
+    if (!FlagAllowed(Sender, Faction))
+        return None;
+
+    F = Spawn(class'CMAFlag',,, Loc + vect(0, 0, 50),,, true);
+    if (F == None)
+    {
+        PrivateMessage(Sender, "[CMenu] A flag can't be placed there");
+        return None;
+    }
+
+    F.MyMut = self;
+    F.SetBeam(bBeam);
+    F.SetFaction(Faction);
+    F.SetPhysics(PHYS_Falling);
+
+    FlagAnnounce(Sender.PlayerReplicationInfo.PlayerName$" placed the "$F.Label()$" flag");
+    return F;
+}
+
+// A WW2 or Winter War flag needs bLoadWW2 / bLoadWW, unless the map is from that mod (then its content is loaded anyway).
+// Vietnam flags are always allowed.
+function bool FlagAllowed(PlayerController Sender, int Faction)
+{
+    local int Mod;
+
+    Mod = class'CMAFlag'.default.Factions[Faction].Mod;
+    if (Mod == class'CMAFlag'.const.MOD_VN || Mod == class'CMAFlag'.static.ModOfMap(WorldInfo))
+        return true;
+    if (Mod == class'CMAFlag'.const.MOD_WW2 && (bLoadWW2 || bForceModLoads))
+        return true;
+    if (Mod == class'CMAFlag'.const.MOD_WW && (bLoadWW || bForceModLoads))
+        return true;
+
+    PrivateMessage(Sender, "[CMenu] "$(Mod == class'CMAFlag'.const.MOD_WW2 ? "bLoadWW2" : "bLoadWW")
+        $" must be enabled in the WebAdmin mutators settings for you to place the "$class'CMAFlag'.default.Factions[Faction].Label$" flag on this map!");
+    return false;
+}
+
+// Every flag message to the whole server goes through here, so bCTFSilent (also on the settings page) silences them all
+function FlagAnnounce(string Msg)
+{
+    if (!bCTFSilent)
+        WorldInfo.Game.Broadcast(self, "[CMenu] "$Msg);
+}
+
+// mutate dropflag: anyone carrying a flag throws it down in front of them
+function DropFlagCommand(PlayerController Sender)
+{
+    local CMAFlag F;
+
+    foreach DynamicActors(class'CMAFlag', F)
+    {
+        if (F.Carrier != None && F.Carrier == Sender.Pawn)
+        {
+            F.Drop(true);
+            return;
+        }
+    }
+    PrivateMessage(Sender, "[CMenu] You are not carrying a flag");
+}
+
+// mutate resetflags (every flag back where it was placed) / mutate removeflags
+function FlagAdminCommand(PlayerController Sender, string Command)
+{
+    local CMAFlag F;
+
+    if (!IsAuthorized(Sender))
+    {
+        PrivateMessage(Sender, "[CMenu] Only admins can reset or remove flags");
+        return;
+    }
+
+    foreach DynamicActors(class'CMAFlag', F)
+    {
+        if (Command == "RESETFLAGS")
+            F.ReturnHome();
+        else
+            F.Destroy();
+    }
+
+    if (Command == "RESETFLAGS")
+        FlagAnnounce(Sender.PlayerReplicationInfo.PlayerName$" sent the flags back to where they were placed");
+    else
+        FlagAnnounce(Sender.PlayerReplicationInfo.PlayerName$" removed the flags");
 }
 
 // =================================================================
