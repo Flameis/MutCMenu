@@ -9,6 +9,9 @@ class MutCMenu extends ROMutator
     dependson(ROMapInfo)
     config(MutCMenu_Server);
 
+// Help longer than this goes to the player in pieces (ShowHelpToPlayer); one network call can only carry so much
+const HELP_PART_CHARS = 400;
+
 var array<DummyActor>           DummyActors;
 var array<vector2d>			    Corners;
 
@@ -1268,6 +1271,12 @@ function bool ShowHelpToPlayer(PlayerController PC, string Prompt, string Prefix
     if (DA == None)
         return false;
 
+    // Long help goes in pieces: on a server one call can only carry so much, and a longer one never arrives
+    while (Len(Prompt) > HELP_PART_CHARS)
+    {
+        DA.ClientAddHelpPart(Left(Prompt, HELP_PART_CHARS));
+        Prompt = Mid(Prompt, HELP_PART_CHARS);
+    }
     DA.ClientShowHelp(Prompt, Prefix, "", "");
     return true;
 }

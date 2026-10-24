@@ -26,7 +26,7 @@ CMenu is an on-screen menu for drill leaders and admins. It lets you run a drill
 
 Some entries need a value from you (a player name, a grid square, a time). When you pick one, the menu closes and the large console opens with the command already typed and short instructions above it. Add your value and press Enter. A mistyped fire support command tells you what was wrong and puts the command back so you can fix it.
 
-Long help text (for example `mutate firesupporthelp`) opens in the large console so it does not flood the chat. Short messages arrive as private chat messages that only you see.
+Long help text (for example `mutate firesupporthelp`) opens in the large console so it does not flood the chat. This works on a server too: long help is sent to you in pieces and shown in one go. Short messages arrive as private chat messages that only you see.
 
 ## 2. Who can do what
 

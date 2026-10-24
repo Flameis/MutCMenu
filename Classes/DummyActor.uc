@@ -11,6 +11,8 @@ var CMenuClickOverlayScene ClickOverlay;
 
 var array<vector2d>				Corners;
 
+var string PendingHelp; // client-side: help received in pieces, waiting for ClientShowHelp
+
 // WW2 Tank compatibility - stores original ClassIndex when temporarily modifying for vehicle entry
 var byte OriginalClassIndex;
 var bool bInWW2TankEntryCheck;
@@ -194,8 +196,17 @@ simulated function ShowHelp(string Prompt, string Prefix, string Suffix, string 
 }
 
 // Server to client: used for help from the mutators, so they don't have to flood the chat
+// Long help arrives in pieces (MutCMenu.ShowHelpToPlayer): one function call can only carry so much over the network,
+// and a longer one is dropped ("RPC bunch overflowed"). The pieces are kept here until ClientShowHelp shows them.
+reliable client function ClientAddHelpPart(string Part)
+{
+    PendingHelp $= Part;
+}
+
 reliable client function ClientShowHelp(string Prompt, string Prefix, string Suffix, string LinePrefix)
 {
+    Prompt = PendingHelp$Prompt;
+    PendingHelp = "";
     ShowHelp(Prompt, Prefix, Suffix, LinePrefix);
 }
 
