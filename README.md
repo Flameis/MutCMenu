@@ -236,9 +236,10 @@ Spectators normally only see players near them. With CMenu, spectators get:
 - **Empty vehicles on the map:** vehicles nobody is in are shown too, with the game's icon for that kind of vehicle in its team's colour (grey if it has no team), a little faded so they stand apart from vehicles with a crew.
 - **Deaths on the map:** someone who dies shows the game's death icon where they fell, like the base game does for teammates. It stays for 2 seconds, then fades out over 3.
 - **Capture the Flag flags on the map:** every flag is shown, whichever team could normally see it, as a small flag in the colour of the team it belongs to, labelled with what is happening to it: "PAVN flag: at its spot", "PAVN flag: carried by Smith" or "PAVN flag: dropped".
-- **Triangles over players:** a small triangle in the team colour sitting just above the head of every player in view. When that player is hit, the triangle **flashes white** for a moment, like in Arma.
+- **Triangles over players:** a small triangle in the team colour sitting just above the head of every player in view. When that player is hit, the triangle **strobes white** for about two and a half seconds, like in Arma.
 - **Death icon over the body:** someone who dies gets the game's death icon over their body instead of the triangle, fading out after a few seconds.
-- **Names when you look at someone:** the player nearest the middle of your screen shows their **name in their team colour** instead of the triangle. When that player is close (within about 40 meters), the **role icon they picked** is shown under the name in the team colour, like the base game does for friendlies.
+- **Names when you look at someone:** the player nearest the middle of your screen shows their **name in their team colour** instead of the triangle. When that player is close (within about 40 meters), the **role icon they picked** is shown under the name in the team colour, like the base game does for friendlies. Within **15 meters** the name and role icon show **through walls and objects** too; further away, only for a player you can actually see.
+- **Hold to see every name:** hold **Left Alt** to show the name and role icon of every player on your screen at once, through walls, at any distance. Let go and it goes back to the one you look at. The camera strip at the bottom names the key ("Hold LeftAlt: every name"). Left Alt is prone for players, which a spectator doesn't use, and the game still gets the key as normal. To use another key, set `ShowNamesKey` under `[MutCMenu.CMMapInteraction]` in `MutCMenu_Client.ini` (for example `ShowNamesKey=G`).
 - **Camera strip:** low in the middle of the screen, a strip shows your camera mode (first person, third person, third person with a free camera, free roam or map camera), who you are watching (with their vehicle, if they are in one), and the two players "previous" goes back to and the two "next" goes on to, in their team colours. Next and previous are worked out on the server the same way the game picks them. They are left out in free roam and the map cameras, where next and previous do not go to players.
 - **The game's own name display is turned off** while you spectate, so the two do not double up, and put back when you stop spectating. Your saved setting is never changed.
 - **A clean map:** while the map is open, the names, triangles and the camera strip are hidden.
@@ -297,7 +298,9 @@ While you drag a line, arrow, circle or box, its length, bearing or size in mete
 
 **Spectators can tell the teams apart:** a spectator sees both teams' drawings, each with a soft edge in the colour of the team it was drawn for (a wider line under lines and shapes, a square under markers, a box under text).
 
-**Toolbar text and markers no longer vanish:** typing a label on the map, or placing a marker, used to make the toolbar's text or its marker icons disappear, because the game drew them under the buttons. The toolbar is now drawn in its own layer above the map. *This can only be checked by playing.*
+**Toolbar text and markers no longer vanish:** typing a label on the map, or placing a marker, used to make the toolbar's text or its marker icons disappear, because the game drew them under the buttons. The toolbar is now drawn in its own layers above the map, and the map cursor above the toolbar, its text and its marker icons. *This can only be checked by playing.*
+
+**If the toolbar doesn't appear:** the game's log (`ROGame\Logs\Launch.log`) gets a line starting `[MutCMenu] Map tools:` saying why, for example that map drawing is off on this server or that the map wasn't ready.
 
 Holding the mouse over a drawing shows who drew it and who it is for.
 

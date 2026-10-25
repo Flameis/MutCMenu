@@ -42,7 +42,8 @@ const A_HIDE = 9;
 const A_SPEC_TEAMS = 10;
 
 const CONFIRM_TIME = 4.0;   // seconds a clear button waits for its second click
-const FLASH_TIME = 0.4;     // seconds a spectator's marker over a player flashes white when they are hit
+const FLASH_TIME = 2.5;     // seconds a spectator's marker over a player strobes white after they are hit
+const STROBE_STEP = 0.12;   // seconds each white and each normal step of the strobe lasts
 
 // Which teams' drawings a spectator sees
 const SPEC_BOTH = 0;
@@ -58,7 +59,11 @@ const SENT_TIMEOUT = 4.0;   // seconds an own drawing is shown before the server
 // Spectator overlay
 const NAME_SCALE = 1.4;
 const ROLE_ICON_DIST = 2000.0; // how close (unreal units, 40 meters) a looked at player must be to get their role icon
+const XRAY_NAME_DIST = 750.0;  // how close (15 meters) a looked at player's name and role show through walls
 const NAME_RADIUS = 0.07; // how close to the screen centre (as a part of its width) a player must be to be read as "looked at"
+
+// Why the map tools were or weren't drawn last frame, for the tests and the log
+var string MapState;
 
 // Left-out teammates: a squad leader's icon is a little smaller than the game's real one (TransportSize) so they stay
 // distinct from a real one while standing out from the others
@@ -83,6 +88,7 @@ struct SentItem
 };
 
 var config bool bToolsHidden; // the player folded the toolbar away
+var config name ShowNamesKey; // spectators hold it to see every name on screen; LeftAlt when not set (prone, which spectators don't use)
 var config byte SavedColour, SavedIcon;
 
 var byte Tool, Colour, Icon, Channel;
@@ -143,16 +149,26 @@ function ROHUDWidgetOverheadMap ReadMap()
     MapWidget = None;
     PC = PlayerController(Outer);
     H = (PC != None) ? ROHUD(PC.myHUD) : None;
-    if (Info == None || Info.bDeleteMe || H == None || !H.bShowHud)
-        return None;
+    if (Info == None || Info.bDeleteMe)
+        return NoMap("no map info from the server");
+    if (H == None)
+        return NoMap("the HUD is not an ROHUD ("$((PC != None && PC.myHUD != None) ? string(PC.myHUD.Class) : "none")$")");
+    if (!H.bShowHud)
+        return NoMap("the HUD is hidden");
 
     OM = H.OverheadMapWidget;
-    if (OM == None || !OM.IsVisible() || OM.bHiddenTemporarily || OM.HUDComponents.Length <= class'ROHUDWidgetOverheadMap'.const.ROOMT_MousePointer)
-        return None;
+    if (OM == None)
+        return NoMap("the HUD has no overhead map");
+    if (!OM.IsVisible() || OM.bHiddenTemporarily)
+        return NoMap("map closed");
+    if (OM.HUDComponents.Length <= class'ROHUDWidgetOverheadMap'.const.ROOMT_MousePointer)
+        return NoMap("the overhead map has only "$OM.HUDComponents.Length$" parts");
 
     MapComp = OM.HUDComponents[class'ROHUDWidgetOverheadMap'.const.ROOMT_Map];
-    if (MapComp == None || OM.MaxVisibleWorldX <= OM.MinVisibleWorldX || OM.MaxVisibleWorldY <= OM.MinVisibleWorldY)
-        return None;
+    if (MapComp == None)
+        return NoMap("the overhead map has no map picture");
+    if (OM.MaxVisibleWorldX <= OM.MinVisibleWorldX || OM.MaxVisibleWorldY <= OM.MinVisibleWorldY)
+        return NoMap("the overhead map hasn't been laid out yet");
 
     // North is up and east is right. Component positions are relative to the widget, which the game adds when it draws them.
     MapLeft = OM.CurrentX + MapComp.CurX;
@@ -172,6 +188,20 @@ function ROHUDWidgetOverheadMap ReadMap()
 
     MapWidget = OM;
     return OM;
+}
+
+// Notes why the map can't be used. Anything but the map simply being closed goes to the log once when it starts.
+function ROHUDWidgetOverheadMap NoMap(string Why)
+{
+    SetMapState(Why);
+    return None;
+}
+
+function SetMapState(string NewState)
+{
+    if (NewState != MapState && NewState != "map closed" && NewState != "drawn")
+        LogInternal("[MutCMenu] Map tools: "$NewState);
+    MapState = NewState;
 }
 
 function vector2D WorldToScreen(vector2D W)
@@ -881,7 +911,10 @@ event PostRender(Canvas C)
 
     PC = PlayerController(Outer);
     if (C == None || PC == None || Info == None || Info.bDeleteMe)
+    {
+        MapState = "no player or map info";
         return;
+    }
     H = ROHUD(PC.myHUD);
 
     // The spectator overlay is on while the owner spectates and the server sends them everyone
@@ -953,9 +986,13 @@ event PostRender(Canvas C)
         DrawFlagsOnMap(C, H);
 
     if (!Info.bDrawingEnabled)
+    {
+        SetMapState("map drawing is off on this server");
         return;
+    }
 
     DrawToolbar(C, PC);
+    SetMapState("drawn");
 
     // Who drew what under the cursor; the eraser also shows what it would take
     if (bCursor && !bToolsHidden && !bDragging && !OverPanel(Mouse) && InMap(Mouse))
@@ -971,11 +1008,13 @@ event PostRender(Canvas C)
         }
     }
 
-    // The game drew its cursor before this; draw it again so it stays on top of the toolbar and the drawings
+    // The game drew its cursor before this; draw it again so it stays on top of the toolbar and the drawings. It goes in
+    // the top layer, where the game draws its own cursor, above the toolbar's two.
     CursorComp = MapWidget.HUDComponents[class'ROHUDWidgetOverheadMap'.const.ROOMT_MousePointer];
     if (bCursor && CursorComp != None)
     {
-        PushLayer(C, true);
+        if (ROCanvas(C) != None)
+            ROCanvas(C).PushDepthSortPriority(DSP_Insane);
         DrawCursor(C, CursorComp);
         PopLayer(C);
     }
@@ -984,15 +1023,17 @@ event PostRender(Canvas C)
 // The canvas draws everything with the same texture together, in the order each texture was first used. So text drawn
 // after a box could end up under it when the same font had been used earlier in the frame (a label typed on the map took
 // the toolbar's text with it, a marker on the map the toolbar's marker icons). The toolbar and other boxes with text on
-// them are drawn in two layers above the map: the boxes (bTop false), then what goes on them (bTop true).
+// them are drawn in two layers above the map (which draws in the layers up to DSP_AboveNormal): the boxes (bTop false),
+// then what goes on them (bTop true). The top layer (DSP_Insane) is left to the cursor: the game draws its own cursor
+// there, and anything else in it would be drawn over the cursor.
 function PushLayer(Canvas C, bool bTop)
 {
     if (ROCanvas(C) == None)
         return;
     if (bTop)
-        ROCanvas(C).PushDepthSortPriority(DSP_Insane);
-    else
         ROCanvas(C).PushDepthSortPriority(DSP_SkyHigh);
+    else
+        ROCanvas(C).PushDepthSortPriority(DSP_Highest);
 }
 
 function PopLayer(Canvas C)
@@ -2000,6 +2041,18 @@ function bool Flashing(PlayerReplicationInfo PRI, byte Count, float Now)
     return Now < FlashUntil[Index];
 }
 
+// While the player's marker flashes after a hit, whether it is white right now: white and the team colour take turns
+// every STROBE_STEP, starting white
+function bool StrobeWhite(PlayerReplicationInfo PRI, byte Count, float Now)
+{
+    local int Index;
+
+    if (!Flashing(PRI, Count, Now))
+        return false;
+    Index = HurtPRIs.Find(PRI);
+    return (int((Now - (FlashUntil[Index] - FLASH_TIME)) / STROBE_STEP) % 2) == 0;
+}
+
 // Borders of the capture objectives built with CMenu, in the colour of the team that holds them
 function DrawObjectiveBorders(Canvas C, PlayerController PC)
 {
@@ -2070,17 +2123,17 @@ function DrawWorld(Canvas C, PlayerController PC, ROHUD H)
     local rotator CamRot;
     local Pawn P;
     local int i, Best;
-    local float D, BestD, Scale, Size, W, TH, Dist2D, NameScale, IconSize, IconBottom, Now;
+    local float D, BestD, Scale, Size, Dist2D, Now;
     local color Col;
-    local string PlayerName;
-    local Texture2D RoleIcon;
+    local bool bAllNames;
 
     PC.GetPlayerViewPoint(CamLoc, CamRot);
     ViewDir = vector(CamRot);
     Scale = FMax(1.0, C.ClipY / 1080.0);
     Now = PC.WorldInfo.RealTimeSeconds;
+    bAllNames = NamesKeyHeld(PC);
 
-    // The player looked at: nearest the crosshair, close enough to it and not behind a wall
+    // The player looked at: nearest the crosshair and close enough to it, and in sight unless within XRAY_NAME_DIST
     Best = -1;
     BestD = C.ClipX * NAME_RADIUS;
     for (i = 0; i < class'CMMapInfo'.const.MAX_SNAPSHOT; i++)
@@ -2095,8 +2148,9 @@ function DrawWorld(Canvas C, PlayerController PC, ROHUD H)
         if (!ProjectToScreen(C, Head, CamLoc, ViewDir, Screen))
             continue;
 
+        // Within 15 meters the name and role show through walls; further away only for a player in sight
         D = Sqrt(Square(Screen.X - C.ClipX * 0.5) + Square(Screen.Y - C.ClipY * 0.5));
-        if (D < BestD && PC.FastTrace(Head, CamLoc))
+        if (D < BestD && (VSize(Head - CamLoc) <= XRAY_NAME_DIST || PC.FastTrace(Head, CamLoc)))
         {
             Best = i;
             BestD = D;
@@ -2124,8 +2178,8 @@ function DrawWorld(Canvas C, PlayerController PC, ROHUD H)
         if (!ProjectToScreen(C, Head, CamLoc, ViewDir, Screen))
             continue;
 
-        // White for a moment when they are hit, like Arma's
-        if (Flashing(Info.SnapPRI[i], class'CMMapInfo'.static.HurtCountOf(Info.SnapInfo[i]), Now))
+        // Strobing white for a couple of seconds after they are hit, like Arma's
+        if (StrobeWhite(Info.SnapPRI[i], class'CMMapInfo'.static.HurtCountOf(Info.SnapInfo[i]), Now))
             Col = MakeColor(255, 255, 255, 255);
         else
             Col = TeamColour(H, Info.SnapInfo[i] & class'CMMapInfo'.const.FLAG_SOUTH);
@@ -2134,34 +2188,12 @@ function DrawWorld(Canvas C, PlayerController PC, ROHUD H)
         if (i == Best)
         {
             // Close up, the role they picked is shown under the name, as the game does for friendlies
-            RoleIcon = None;
-            if (Dist2D <= ROLE_ICON_DIST && Info.SnapPRI[i].RoleInfo != None)
-                RoleIcon = Info.SnapPRI[i].RoleInfo.ClassIcon;
-
-            IconSize = (RoleIcon != None) ? 40.0 * Scale : 0.0;
-            IconBottom = Screen.Y - 1 * Scale;
-
-            PlayerName = Info.SnapPRI[i].PlayerName;
-            C.Font = class'Engine'.static.GetMediumFont();
-            NameScale = NAME_SCALE * Scale;
-            C.TextSize(PlayerName, W, TH);
-            W *= NameScale;
-            TH *= NameScale;
-            C.SetDrawColor(0, 0, 0, 255);
-            C.SetPos(Screen.X - W * 0.5 + 2, IconBottom - IconSize - TH + 2);
-            C.DrawText(PlayerName, true, NameScale, NameScale);
-            C.SetPos(Screen.X - W * 0.5 - 1, IconBottom - IconSize - TH - 1);
-            C.DrawText(PlayerName, true, NameScale, NameScale);
-            C.SetDrawColor(Col.R, Col.G, Col.B, 255);
-            C.SetPos(Screen.X - W * 0.5, IconBottom - IconSize - TH);
-            C.DrawText(PlayerName, true, NameScale, NameScale);
-
-            if (RoleIcon != None)
-            {
-                C.SetDrawColor(Col.R, Col.G, Col.B, 255);
-                C.SetPos(Screen.X - IconSize * 0.5, IconBottom - IconSize);
-                C.DrawTile(RoleIcon, IconSize, IconSize, 0, 0, RoleIcon.SizeX, RoleIcon.SizeY);
-            }
+            DrawNameTag(C, Info.SnapPRI[i], Screen, Col, Scale, Dist2D <= ROLE_ICON_DIST, 1.0);
+        }
+        else if (bAllNames)
+        {
+            // The names key held: everyone on screen, through walls, with their role, a little smaller than the one looked at
+            DrawNameTag(C, Info.SnapPRI[i], Screen, Col, Scale, true, 0.75);
         }
         else
         {
@@ -2173,6 +2205,57 @@ function DrawWorld(Canvas C, PlayerController PC, ROHUD H)
 
     ForgetOldDead(Now);
     DrawCameraStrip(C, PC, H, Scale);
+}
+
+// A player's name in Col with a dark shadow, its bottom just above Screen, and their role icon between the two when
+// bRole. Size scales the whole tag.
+function DrawNameTag(Canvas C, PlayerReplicationInfo PRI, vector Screen, color Col, float Scale, bool bRole, float Size)
+{
+    local Texture2D RoleIcon;
+    local float W, TH, NameScale, IconSize, IconBottom;
+    local string PlayerName;
+
+    RoleIcon = None;
+    if (bRole && ROPlayerReplicationInfo(PRI) != None && ROPlayerReplicationInfo(PRI).RoleInfo != None)
+        RoleIcon = ROPlayerReplicationInfo(PRI).RoleInfo.ClassIcon;
+
+    IconSize = (RoleIcon != None) ? 40.0 * Scale * Size : 0.0;
+    IconBottom = Screen.Y - 1 * Scale;
+
+    PlayerName = PRI.PlayerName;
+    C.Font = class'Engine'.static.GetMediumFont();
+    NameScale = NAME_SCALE * Scale * Size;
+    C.TextSize(PlayerName, W, TH);
+    W *= NameScale;
+    TH *= NameScale;
+    C.SetDrawColor(0, 0, 0, 255);
+    C.SetPos(Screen.X - W * 0.5 + 2, IconBottom - IconSize - TH + 2);
+    C.DrawText(PlayerName, true, NameScale, NameScale);
+    C.SetPos(Screen.X - W * 0.5 - 1, IconBottom - IconSize - TH - 1);
+    C.DrawText(PlayerName, true, NameScale, NameScale);
+    C.SetDrawColor(Col.R, Col.G, Col.B, 255);
+    C.SetPos(Screen.X - W * 0.5, IconBottom - IconSize - TH);
+    C.DrawText(PlayerName, true, NameScale, NameScale);
+
+    if (RoleIcon != None)
+    {
+        C.SetDrawColor(Col.R, Col.G, Col.B, 255);
+        C.SetPos(Screen.X - IconSize * 0.5, IconBottom - IconSize);
+        C.DrawTile(RoleIcon, IconSize, IconSize, 0, 0, RoleIcon.SizeX, RoleIcon.SizeY);
+    }
+}
+
+// The key spectators hold to see every name, and whether it is down. It is read from the game's own list of held keys
+// rather than caught here, so the game still gets it and a release missed (a menu opened while holding it) can't leave
+// the names on.
+function name NamesKey()
+{
+    return (ShowNamesKey != '') ? ShowNamesKey : 'LeftAlt';
+}
+
+function bool NamesKeyHeld(PlayerController PC)
+{
+    return PC != None && PC.PlayerInput != None && PC.PlayerInput.PressedKeys.Find(NamesKey()) != INDEX_NONE;
 }
 
 function DrawDeathInWorld(Canvas C, ROHUD H, PlayerReplicationInfo PRI, vector Loc, vector CamLoc, vector ViewDir, float Scale, float Now)
@@ -2270,8 +2353,13 @@ function DrawCameraStrip(Canvas C, PlayerController PC, ROHUD H, float Scale)
 
     Mode = CameraModeName(PC);
     Watched = ViewedName(PC, Current);
-    if (Mode == "" && Watched == "")
-        return;
+    if (Mode == "")
+        Mode = "Spectating";
+    // The hold key, after the camera mode
+    if (NamesKeyHeld(PC))
+        Mode $= "   |   Showing every name";
+    else
+        Mode $= "   |   Hold "$NamesKey()$": every name";
 
     if (Info.SpecPrev[1] != None) { Texts.AddItem(Info.SpecPrev[1].PlayerName); Cols.AddItem(PRIColour(H, Info.SpecPrev[1])); Texts.AddItem("  <  "); Cols.AddItem(MakeColor(160, 160, 160, 255)); }
     if (Info.SpecPrev[0] != None) { Texts.AddItem(Info.SpecPrev[0].PlayerName); Cols.AddItem(PRIColour(H, Info.SpecPrev[0])); Texts.AddItem("  <  "); Cols.AddItem(MakeColor(160, 160, 160, 255)); }
