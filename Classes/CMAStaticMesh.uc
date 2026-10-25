@@ -317,7 +317,12 @@ defaultproperties
         bCanBecomeDynamic=true
     End Object */
 
+    // Full detail: placed while the game runs, the mesh is not in the map's texture streaming data, so its textures stayed
+    // blurry (low mips) and it dropped to a low LOD early. ForcedLodModel=1 always draws LOD 0, and bForceMipStreaming
+    // keeps the textures' full mips loaded.
     Begin Object class=StaticMeshComponent Name=StaticMeshComponent0
+		ForcedLodModel=1
+		bForceMipStreaming=true
 		CastShadow=true
 		bSelfShadowOnly=false
 		bCastDynamicShadow=true

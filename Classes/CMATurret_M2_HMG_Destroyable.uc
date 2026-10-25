@@ -129,4 +129,9 @@ defaultproperties
 
 
 	Health=200
+
+	// Full detail, as for the Builder's meshes (CMAStaticMesh)
+	Begin Object Name=WeaponSkeletalMeshComponent
+		bForceMipStreaming=true
+	End Object
 }

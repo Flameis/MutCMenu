@@ -635,6 +635,8 @@ defaultproperties
     // 1 m x 0.7 m, hung from near the top of the pole. The cloth runs along +X, which faces backwards while carried.
     Begin Object Class=SkeletalMeshComponent Name=FlagCloth
         SkeletalMesh=SkeletalMesh'ENV_VN_Flags.Meshes.S_VN_Flag_USA'
+        ForcedLodModel=1
+        bForceMipStreaming=true
         Translation=(X=1,Y=0,Z=40)
         Scale=0.05
         LightEnvironment=FlagLightEnvironment
@@ -654,6 +656,8 @@ defaultproperties
     // The pole's origin is near its top: at 0.4 it runs from the bottom of the collision (Z=-40) to Z=60
     Begin Object Class=StaticMeshComponent Name=FlagPole
         StaticMesh=StaticMesh'ENV_VN_Flags.Meshes.S_VN_Flagpole'
+        ForcedLodModel=1
+        bForceMipStreaming=true
         Translation=(X=0,Y=0,Z=45)
         Scale=0.4
         LightEnvironment=FlagLightEnvironment

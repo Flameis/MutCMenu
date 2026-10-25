@@ -186,9 +186,12 @@ Open **Builder Menu** from the main menu. You aim at the spot you want, and conf
 - **The preview looks like what you place:** a flag shows its small pole and cloth where it will land, the resupply point shows all its crates, a turret shows that turret. Spawn points and corners are flagpoles in the game, so they preview as one.
 - **Turrets start raised:** the DShK starts 60 units (about 1.2 m) up and the M2 20 units up, preview included, so their legs are not in the ground. The Up and Down arrow keys still move them from there. The next item starts back on the ground.
 - **No scaling:** actors are always placed at their own size; the mouse wheel says "This cannot be scaled."
-- **Resupply points for everyone:** a resupply point is now placed by the server, so every player gets it. Before, only the person who placed it could see it. *Not yet tried in a game.*
+- **Resupply points for everyone:** a resupply point is now placed by the server, so every player gets it. Before, only the person who placed it could see it.
+- **Resupply points resupply:** standing within about 5 meters of the crates resupplies players of both teams the way a map's own resupply area does: ammo, grenades and the like once a minute, a squad leader's equipment, and the game's resupply indicator shows. It also shows as a resupply area on everyone's map. It stops when it is blown up or removed. Before, it had no working resupply area, so it resupplied nobody. *Not yet tried in a game.*
+- **Spawn points on the deploy map:** a North or South spawn you place is listed with that team's spawns, so it shows on the deploy map with a number and a button, and players can pick it. With several of your spawns for a team, players spawn at the one they picked (or the first one placed). Removing it takes it off the deploy map. *Not yet tried in a game.*
+- **Full detail:** everything the Builder places (meshes, structures, spawn poles, resupply crates, flags, the M2) now draws at its best detail with sharp textures. Before, placed meshes dropped to a low detail model early and their textures could stay blurry, because they are not part of the map. *How it looks has not been checked by playing.*
 
-Admins also get "Clear All Vehicles / Meshes / Pickups / Actors" entries to wipe what has been placed. Custom objectives you create appear on the map with their borders drawn (see Custom objectives). Placed spawn points are used for the team that owns them.
+Admins also get "Clear All Vehicles / Meshes / Pickups / Actors" entries to wipe what has been placed. Custom objectives you create appear on the map with their borders drawn (see Custom objectives). Placed spawn points are used for the team that owns them, and show on that team's deploy map.
 
 ### Capture the Flag flags
 
@@ -376,7 +379,7 @@ The map on the spawn selection screen does not show the drawings. Turn the featu
 - **Private messages and help in the console:** short replies go to you only; long help opens in the large console.
 - **Loading mod content:** if the server turns it on, CMenu loads extra content packages (MutExtras, GOM 3 and 4, Winter War, WW2) so their weapons and vehicles can be used in the Builder and weapon menu. It switches on Winter War content by itself on Winter War maps and WW2 content on WW2 maps (it goes by the start of the map name: `WWTE`/`WWSU` for Winter War, `RRTE`/`RRSU`/`RRSK`/`DRTE`/`DRSU` for WW2).
 - **Wind for smoke:** every map gets a wind direction. If the map has none, CMenu adds one facing a random direction each time the map loads, so smoke drifts. (How the smoke looks can only be checked by playing.)
-- **Spawn points from the Builder:** custom spawn points are respected when players spawn.
+- **Spawn points from the Builder:** custom spawn points are respected when players spawn, show on the team's deploy map, and can be picked there.
 - **Its own game modes:** CMenu still lists its own Territories and Supremacy game mode entries for servers that already use them, but nothing needs them any more: custom objectives and spawn points work in whatever game mode the server runs.
 - **Experimental tank physics:** an optional setting (`bNewTankPhys`).
 - **Vehicles and actors keep their size:** the mouse wheel still scales walls and objects in the Builder, but not vehicles or actors (spawns, turrets, flags, resupply points), which are always placed at their own size.
