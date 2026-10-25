@@ -177,7 +177,7 @@ Open **Builder Menu** from the main menu. You aim at the spot you want, and conf
 - **No scaling:** actors are always placed at their own size; the mouse wheel says "This cannot be scaled."
 - **Resupply points for everyone:** a resupply point is now placed by the server, so every player gets it. Before, only the person who placed it could see it. *Not yet tried in a game.*
 
-Admins also get "Clear All Vehicles / Meshes / Pickups / Actors" entries to wipe what has been placed. Custom objectives you create appear on the map, and with MutExtras their borders are drawn on the overhead map. Placed spawn points are used for the team that owns them.
+Admins also get "Clear All Vehicles / Meshes / Pickups / Actors" entries to wipe what has been placed. Custom objectives you create appear on the map with their borders drawn (see Custom objectives). Placed spawn points are used for the team that owns them.
 
 ### Capture the Flag flags
 
@@ -252,9 +252,18 @@ Turn it off with `bDisableEnhancedSpectator`.
 
 The game's map has room for 32 players per team. With more on a team (MaxPlayersMutator), the 33rd and later never show on their teammates' maps. CMenu shows them with the game's own icons, in the squad colour for your own squad and the team colour for the rest. Squad leaders get the squad leader icon and their "SL" label, and a player who dies stays on the map as a dead marker for a few seconds, as the game does for everyone else.
 
-### Custom objective borders
+### Custom objectives
 
-Objectives built with the Builder have their borders drawn on the map, in the colour of the team that holds them (white while nobody does).
+Admins can build their own capture objectives in the Builder's **Actors** menu: stand at each corner of the area and pick **Mark Corner**, then pick **Spawn Obj** (you need at least three corners). The area can be any shape, a square, an L or a triangle. The new objective gets the next free letter, and:
+
+- **It captures by itself, on any server.** It works in every Territories game mode, including WW2, Winter War and GOM, not only in CMenu's own game modes. Players, vehicle crews and turret gunners standing inside the area capture it, with the same rules as the map's own objectives: more people capture faster, squad mates and leaders count for more, it drains when nobody is inside, and the capturing team gets the points. Height does not matter.
+- **It matches its border.** The area you marked is the area that captures, and the border drawn on the map is that same area. Corners clicked in a crossing order (a "bow tie") are put in outline order. A corner clicked twice counts once.
+- **It sits in the middle of its area.** The map's letter, "drop at objective" and the paradrops go to the middle of the area (to the widest part inside it for a curved shape), not to wherever you stood when you picked Spawn Obj.
+- **Everyone sees it.** The objective, its letter and its capture progress show on every player's map and HUD, and players who join later get it too. The border is drawn on the overhead map in the colour of the team that holds it (white while nobody does), and fainter while the objective is closed.
+- **Realism Match works on it.** `openobj`, `closeobj`, `setobjnorth`, `setobjsouth`, `setobjneutral` and the capture time apply to it by its letter, like the map's own objectives.
+- **Admins only.** The server checks that you are an admin, and tells you if the objective could not be built (too few corners, corners too close together, or all 16 objective slots in use). `clearobjs` (or **Clear All**) removes them and frees their letters.
+
+*Tested by the test harness with the objective built in the same game; what a joined player sees (the border on their map) has not been tried in a network game.*
 
 ### Drawing on the map
 
@@ -333,7 +342,7 @@ The map on the spawn selection screen does not show the drawings. Turn the featu
 - **Private messages and help in the console:** short replies go to you only; long help opens in the large console.
 - **Loading mod content:** if the server turns it on, CMenu loads extra content packages (MutExtras, GOM 3 and 4, Winter War, WW2) so their weapons and vehicles can be used in the Builder and weapon menu. It switches on Winter War content by itself on Winter War maps and WW2 content on WW2 maps (it goes by the start of the map name: `WWTE`/`WWSU` for Winter War, `RRTE`/`RRSU`/`RRSK`/`DRTE`/`DRSU` for WW2).
 - **Spawn points from the Builder:** custom spawn points are respected when players spawn.
-- **Its own game modes:** CMenu adds its own Territories and Supremacy game mode entries (needed for custom objectives and spawn points to work properly). A server has to pick them as its game mode.
+- **Its own game modes:** CMenu still lists its own Territories and Supremacy game mode entries for servers that already use them, but nothing needs them any more: custom objectives and spawn points work in whatever game mode the server runs.
 - **Experimental tank physics:** an optional setting (`bNewTankPhys`).
 - **Vehicles and actors keep their size:** the mouse wheel still scales walls and objects in the Builder, but not vehicles or actors (spawns, turrets, flags, resupply points), which are always placed at their own size.
 - **Spectators can build:** the Builder works for spectators, who have no character. The preview and the placing follow the spectator camera. (Copying a held weapon needs a weapon, so it is refused for a spectator.)

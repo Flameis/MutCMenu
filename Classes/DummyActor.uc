@@ -589,37 +589,43 @@ reliable server function ServerPlaceFlag(vector PlaceLoc, int TeamIdx)
     MyMut.PlaceFlag(PC, PlaceLoc, class'CMAFlag'.static.FactionForTeam(WorldInfo, TeamIdx));
 }
 
+// Builds a capture objective from the corners the builder marked. Checked here too: anyone can open the Builder and call this
 reliable server function ServerSpawnObjective(vector SpawnLocation, array<Vector2D> ObjectiveCorners)
 {
     local CMAObjective CMPO;
+    local PlayerController PC;
+
+    PC = PlayerController(Owner);
+    if (MyMut == None || PC == None)
+        return;
+
+    if (!MyMut.IsAuthorized(PC))
+    {
+        MyMut.PrivateMessage(PC, "[CMenu] Only admins can build objectives");
+        return;
+    }
 
     if (ObjectiveCorners.Length < 3)
     {
-        `warn("ServerSpawnObjective: at least three corners are required");
+        MyMut.PrivateMessage(PC, "[CMenu] An objective needs at least three marked corners");
         return;
     }
 
     CMPO = Spawn(class'CMAObjective',,, SpawnLocation,,, true);
     if (CMPO == none)
     {
+        MyMut.PrivateMessage(PC, "[CMenu] The objective could not be placed");
         return;
     }
 
     CMPO.Init(ObjectiveCorners);
-}
-
-function ClientSetupObj(CMAObjective CMPO)
-{
-    local ROGameReplicationInfo ROGRI;
-    local int i;
-
-    ROGRI = ROGameReplicationInfo(WorldInfo.GRI);
-    ROGRI.AddObjective(CMPO, true);
-
-    for (i=0; I < 16; i++)
+    if (!CMPO.bObjectiveReady)
     {
-        `log(ROGameReplicationInfo(WorldInfo.GRI).ObjectiveShortNames[i]);
+        MyMut.PrivateMessage(PC, "[CMenu] The objective could not be built: the corners are too close together, or all the objective slots are in use");
+        return;
     }
+
+    MyMut.PrivateMessage(PC, "[CMenu] Built objective "$CMPO.ObjShortName$" ("$ObjectiveCorners.Length$" corners). Realism Match commands such as openobj and setobjnorth work on it");
 }
 
 function string IntToString(int Int)

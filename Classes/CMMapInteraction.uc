@@ -2053,7 +2053,8 @@ function bool StrobeWhite(PlayerReplicationInfo PRI, byte Count, float Now)
     return (int((Now - (FlashUntil[Index] - FLASH_TIME)) / STROBE_STEP) % 2) == 0;
 }
 
-// Borders of the capture objectives built with CMenu, in the colour of the team that holds them
+// Borders of the capture objectives built with CMenu, in the colour of the team that holds them (white while nobody does),
+// fainter while the objective is closed. The shape is the one the objective captures in.
 function DrawObjectiveBorders(Canvas C, PlayerController PC)
 {
     local CMAObjective Objective;
@@ -2067,7 +2068,8 @@ function DrawObjectiveBorders(Canvas C, PlayerController PC)
 
     foreach PC.DynamicActors(class'CMAObjective', Objective)
     {
-        if (Objective.Corners.Length < 2 || !Objective.bObjectiveReady || !ROGRI.GetObjectiveEnabled(Objective.ObjIndex))
+        if (Objective.Corners.Length < 3 || !Objective.bObjectiveReady || Objective.bDeleteMe || Objective.ObjIndex >= `MAX_OBJECTIVES
+            || !ROGRI.GetObjectiveEnabled(Objective.ObjIndex))
             continue;
 
         if (ROGRI.GetObjectiveOwner(Objective.ObjIndex) == `AXIS_TEAM_INDEX)
@@ -2076,6 +2078,8 @@ function DrawObjectiveBorders(Canvas C, PlayerController PC)
             LineColor = MakeColor(80, 160, 255, 255);
         else
             LineColor = MakeColor(255, 255, 255, 220);
+        if (!ROGRI.GetObjectiveActive(Objective.ObjIndex))
+            LineColor.A = 110;
 
         for (i = 0; i < Objective.Corners.Length; i++)
         {

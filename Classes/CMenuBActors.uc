@@ -191,6 +191,11 @@ function DoPlace()
 			return;
 
 		case "SPAWNOBJ":
+			if (Corners.Length < 3)
+			{
+				MessageSelf("An objective needs at least three corners. Use Mark Corner for each one first.");
+				return;
+			}
 			MyDA.ServerSpawnObjective(PlaceLoc, Corners);
 			Corners.Remove(0, Corners.Length);
 			return;
