@@ -114,6 +114,8 @@ var PlayerController            LookCaller;
 var vector                      LookFromClient, LookNormalFromClient;
 var bool                        bLookFromClientHit;
 var float                       FSNextCallTime[2];
+var bool                        bObjectivesHidden;   // custom objectives are switched off for the game's spawn search (see HideObjectivesFromSpawnSearch)
+var bool                        bToldAmbushOff;      // the North team was told ambush respawn is off while a custom objective is open
 
 const DELETE_OBJ_RANGE = 2500.0; // 50 meters: how far from where an admin looks deleteobj finds an objective
 // =================================================================
@@ -262,6 +264,9 @@ function NavigationPoint FindPlayerStart(Controller Player, optional byte InTeam
     if (ROGI == None || Player == None)
         return super.FindPlayerStart(Player, InTeam, incomingName);
 
+    // The game looks for a spot near the squad leader after this, and that search crashes on a custom objective
+    HideObjectivesFromSpawnSearch();
+
     Chosen = PickedCustomSpawn(Player);
     foreach AllActors(class'CMASpawn', SMS)
     {
@@ -282,6 +287,88 @@ function NavigationPoint FindPlayerStart(Controller Player, optional byte InTeam
         return SpawnPoint;
     }
     return super.FindPlayerStart(Player, InTeam, incomingName);
+}
+
+// The game's search for a spawn spot near a squad leader checks every open objective's area in native code, and crashes the
+// server on a custom objective, which has none. Called as the game starts looking for a player's spawn spot: the custom
+// objectives are switched off until the player's pawn appears (CheckReplacement), or the next tick at the latest. The
+// game's own capture timer can't run in between, so nothing sees them closed.
+function HideObjectivesFromSpawnSearch()
+{
+    local CMAObjective O;
+
+    foreach DynamicActors(class'CMAObjective', O)
+    {
+        if (!O.bDeleteMe && O.bActive)
+        {
+            O.HideFromSpawnSearch();
+            bObjectivesHidden = true;
+        }
+    }
+    if (bObjectivesHidden)
+        SetTimer(0.01, false, 'ShowObjectivesAgain');
+}
+
+function ShowObjectivesAgain()
+{
+    local CMAObjective O;
+
+    if (!bObjectivesHidden)
+        return;
+    bObjectivesHidden = false;
+    ClearTimer('ShowObjectivesAgain');
+    foreach DynamicActors(class'CMAObjective', O)
+        O.ShowAfterSpawnSearch();
+}
+
+// The player's pawn is made right after the spawn search: the custom objectives are open again before it does anything
+function bool CheckReplacement(Actor Other)
+{
+    if (bObjectivesHidden && ROPawn(Other) != None)
+        ShowObjectivesAgain();
+    return super.CheckReplacement(Other);
+}
+
+function bool AnyCustomObjectiveOpen()
+{
+    local CMAObjective O;
+
+    foreach DynamicActors(class'CMAObjective', O)
+    {
+        if (!O.bDeleteMe && O.IsOpen())
+            return true;
+    }
+    return false;
+}
+
+// The North commander's ambush respawn makes the game search for a spot near the commander before any mutator is asked,
+// the same search that crashes on a custom objective. So while a custom objective is open, ambush respawn is switched
+// off again the moment it is called, and the North team is told why.
+event Tick(float DeltaTime)
+{
+    local ROGameInfo ROGI;
+    local PlayerController PC;
+
+    super.Tick(DeltaTime);
+
+    ROGI = ROGameInfo(WorldInfo.Game);
+    if (ROGI == None || !ROGI.bEnableAmbushRespawn)
+    {
+        bToldAmbushOff = false;
+        return;
+    }
+    if (!AnyCustomObjectiveOpen())
+        return;
+
+    ROGI.ClearAmbushRespawn();
+    if (bToldAmbushOff)
+        return;
+    bToldAmbushOff = true;
+    foreach WorldInfo.AllControllers(class'PlayerController', PC)
+    {
+        if (PC.GetTeamNum() == `AXIS_TEAM_INDEX)
+            PrivateMessage(PC, "[CMenu] Ambush respawn is not available while a custom objective from the Builder is open.");
+    }
 }
 
 // The custom spawn the player picked on the deploy map, if what they picked is one

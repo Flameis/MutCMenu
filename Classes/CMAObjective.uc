@@ -27,6 +27,7 @@ var repnotify byte ReplicatedCornerCount;
 var Vector2D ReplicatedCorners[32];
 var vector ReplicatedLocation;
 var repnotify bool bObjectiveReady;
+var bool bHiddenFromSpawnSearch; // Server: switched off for a moment while the game looks for a spawn spot (see HideFromSpawnSearch)
 
 // Counted again every capture tick
 var int NumCappers[2];
@@ -218,6 +219,7 @@ function Reset()
 
 event SetActive(bool bNewValue)
 {
+    bHiddenFromSpawnSearch = false;
     super.SetActive(bNewValue);
     ReplicatedActive = bActive;
     bNetDirty = true;
@@ -228,6 +230,35 @@ event SetEnabled(bool bNewValue)
     super.SetEnabled(bNewValue);
     ReplicatedEnabled = bEnabled;
     bNetDirty = true;
+}
+
+// When a player spawns on their squad leader (and when the North commander's ambush respawn places players), the game
+// searches for a spot with native code that checks every open objective's area. A custom objective has no area, and the
+// search crashed the server on it (bots spawn on their squad leader all the time, so it looked like bots crashing the
+// server). MutCMenu switches custom objectives off for just that search and on again straight after
+// (MutCMenu.HideObjectivesFromSpawnSearch), before anything else can see them closed.
+function HideFromSpawnSearch()
+{
+    if (bActive && !bHiddenFromSpawnSearch)
+    {
+        bHiddenFromSpawnSearch = true;
+        bActive = false;
+    }
+}
+
+function ShowAfterSpawnSearch()
+{
+    if (bHiddenFromSpawnSearch)
+    {
+        bHiddenFromSpawnSearch = false;
+        bActive = true;
+    }
+}
+
+// Open, counting a moment hidden from the spawn search as open
+function bool IsOpen()
+{
+    return bActive || bHiddenFromSpawnSearch;
 }
 
 // The game keeps a list of objectives and a status for each; a removed objective takes its place out of both
@@ -358,13 +389,13 @@ function CaptureTick()
     local byte OldStatus, OldProgress, OldRatio;
 
     // Realism Match opens and closes objectives by setting bActive directly: clients are told that too
-    if (ReplicatedActive != bActive)
+    if (ReplicatedActive != IsOpen())
     {
-        ReplicatedActive = bActive;
+        ReplicatedActive = IsOpen();
         bNetDirty = true;
     }
 
-    if (ROGIT == none || ROGRI == none || !ROGIT.bRoundActive || !bActive
+    if (ROGIT == none || ROGRI == none || !ROGIT.bRoundActive || !IsOpen()
         || ObjIndex >= ROGIT.Objectives.Length || ROGIT.Objectives[ObjIndex] != self)
     {
         return;
