@@ -41,6 +41,15 @@ const A_CLEAR_ALL = 8;
 const A_HIDE = 9;
 const A_SPEC_TEAMS = 10;
 const A_PLAYER_NAMES = 11;
+const A_ICONS_MENU = 12;   // folds the Map icons menu open and shut
+const A_MAP_ICON = 13;     // shows or hides one kind of map icon (Arg: a MAPICON_ value)
+
+// The kinds of map icon the Map icons menu shows and hides
+const MAPICON_PLAYERS = 0;  // spectators: every player
+const MAPICON_VEHICLES = 1; // spectators: vehicles nobody is in
+const MAPICON_FLAGS = 2;    // spectators: Capture the Flag flags
+const MAPICON_DEATHS = 3;   // spectators: death icons
+const MAPICON_BORDERS = 4;  // everyone: custom objective borders
 
 const CONFIRM_TIME = 4.0;   // seconds a clear button waits for its second click
 const FLASH_TIME = 2.5;     // seconds a spectator's marker over a player strobes white after they are hit
@@ -108,6 +117,9 @@ struct SentItem
 
 var config bool bToolsHidden; // the player folded the toolbar away
 var config bool bNoPlayerNames; // the player turned off the name shown when the cursor is over a player on the map (on when not set)
+var config bool bIconsMenuOpen; // the Map icons menu in the toolbar is folded open
+// Map icons turned off in the Map icons menu (all shown when not set)
+var config bool bHideMapPlayers, bHideMapVehicles, bHideMapFlags, bHideMapDeaths, bHideObjectiveBorders;
 var config name ShowNamesKey; // spectators hold it to see every name on screen; LeftAlt when not set (prone, which spectators don't use)
 var config name TracersKey;   // spectators hold it to see the tracers, or tap it with Shift held to switch them on and off; RightControl when not set
 var config byte SavedColour, SavedIcon;
@@ -558,7 +570,55 @@ function PressButton(ToolButton B)
             bNoPlayerNames = !bNoPlayerNames;
             SaveConfig();
             break;
+        case A_ICONS_MENU:
+            bIconsMenuOpen = !bIconsMenuOpen;
+            SaveConfig();
+            break;
+        case A_MAP_ICON:
+            ToggleMapIcon(B.Arg);
+            break;
     }
+}
+
+// The Map icons menu: whether one kind of map icon is shown
+function bool MapIconShown(byte Which)
+{
+    switch (Which)
+    {
+        case MAPICON_PLAYERS:  return !bHideMapPlayers;
+        case MAPICON_VEHICLES: return !bHideMapVehicles;
+        case MAPICON_FLAGS:    return !bHideMapFlags;
+        case MAPICON_DEATHS:   return !bHideMapDeaths;
+        case MAPICON_BORDERS:  return !bHideObjectiveBorders;
+    }
+    return true;
+}
+
+function ToggleMapIcon(byte Which)
+{
+    switch (Which)
+    {
+        case MAPICON_PLAYERS:  bHideMapPlayers = !bHideMapPlayers; break;
+        case MAPICON_VEHICLES: bHideMapVehicles = !bHideMapVehicles; break;
+        case MAPICON_FLAGS:    bHideMapFlags = !bHideMapFlags; break;
+        case MAPICON_DEATHS:   bHideMapDeaths = !bHideMapDeaths; break;
+        case MAPICON_BORDERS:  bHideObjectiveBorders = !bHideObjectiveBorders; break;
+        default: return;
+    }
+    SaveConfig();
+}
+
+static function string MapIconName(byte Which)
+{
+    switch (Which)
+    {
+        case MAPICON_PLAYERS:  return "Players";
+        case MAPICON_VEHICLES: return "Vehicles";
+        case MAPICON_FLAGS:    return "Flags";
+        case MAPICON_DEATHS:   return "Deaths";
+        case MAPICON_BORDERS:  return "Borders";
+    }
+    return "";
 }
 
 // A spectator who picked one team doesn't see the other team's drawings; everything else is always shown
@@ -982,7 +1042,8 @@ event PostRender(Canvas C)
     UIScale = FMax(0.75, C.ClipY / 1080.0);
     C.Font = class'Engine'.static.GetSmallFont();
 
-    DrawObjectiveBorders(C, PC);
+    if (MapIconShown(MAPICON_BORDERS))
+        DrawObjectiveBorders(C, PC);
 
     if (Info.bDrawingEnabled)
     {
@@ -1034,7 +1095,7 @@ event PostRender(Canvas C)
     // spectator's snapshot would show the whole server.
     if (Info.bSpectating == bSpectatorView)
         DrawSnapshotOnMap(C, H, bSpectatorView);
-    if (bSpectatorView)
+    if (bSpectatorView && MapIconShown(MAPICON_FLAGS))
         DrawFlagsOnMap(C, H);
 
     // The name of the player under the cursor, whether or not drawing is on
@@ -1077,7 +1138,7 @@ event PostRender(Canvas C)
 
 // The map is open and the cursor is over a player's icon: their name next to the cursor, in their team's colour. Players
 // see the teammates the game draws on their map (and the ones it leaves out); spectators see everyone. Off when the player
-// turned "Player names" off in the toolbar. Returns true when a name was shown.
+// turned Names off in the toolbar's Map icons menu (and, for spectators, when Players is off there). Returns true when a name was shown.
 function bool DrawPlayerHover(Canvas C, PlayerController PC, ROHUD H, bool bSpectatorView)
 {
     local ROPlayerReplicationInfo ROPRI, MyPRI, Best;
@@ -1092,6 +1153,9 @@ function bool DrawPlayerHover(Canvas C, PlayerController PC, ROHUD H, bool bSpec
     local color Col;
 
     if (bNoPlayerNames || !bCursor || bDragging || OverPanel(Mouse) || !InMap(Mouse))
+        return false;
+    // A spectator who hid the players gets no names for them either
+    if (bSpectatorView && !MapIconShown(MAPICON_PLAYERS))
         return false;
 
     MyPRI = ROPlayerReplicationInfo(PC.PlayerReplicationInfo);
@@ -1716,13 +1780,27 @@ function DrawToolbar(Canvas C, PlayerController PC)
     }
     AddButton(X, Y, Inner, BtnH, A_HIDE, 0, bHideDrawings ? "Show drawings" : "Hide drawings", bHideDrawings);
     Y += BtnH + Gap;
-    if (PRI != None && PRI.bOnlySpectator)
+
+    // The Map icons menu: what the map shows besides the drawings. Each button is framed while that kind is shown.
+    AddButton(X, Y, Inner, BtnH, A_ICONS_MENU, 0, bIconsMenuOpen ? "Map icons  (fold)" : "Map icons...", bIconsMenuOpen);
+    Y += BtnH + Gap;
+    if (bIconsMenuOpen)
     {
-        AddButton(X, Y, Inner, BtnH, A_SPEC_TEAMS, 0, SpecTeamsLabel(PC), SpecTeams != SPEC_BOTH);
+        if (PRI != None && PRI.bOnlySpectator)
+        {
+            for (i = MAPICON_PLAYERS; i <= MAPICON_DEATHS; i++)
+            {
+                AddButton(X + (i % 2) * (BtnW + Gap), Y, BtnW, BtnH, A_MAP_ICON, i, MapIconName(i), MapIconShown(i));
+                if (i % 2 == 1)
+                    Y += BtnH + Gap;
+            }
+            AddButton(X, Y, Inner, BtnH, A_SPEC_TEAMS, 0, SpecTeamsLabel(PC), SpecTeams != SPEC_BOTH);
+            Y += BtnH + Gap;
+        }
+        AddButton(X, Y, BtnW, BtnH, A_PLAYER_NAMES, 0, "Names", !bNoPlayerNames);
+        AddButton(X + BtnW + Gap, Y, BtnW, BtnH, A_MAP_ICON, MAPICON_BORDERS, MapIconName(MAPICON_BORDERS), MapIconShown(MAPICON_BORDERS));
         Y += BtnH + Gap;
     }
-    AddButton(X, Y, Inner, BtnH, A_PLAYER_NAMES, 0, bNoPlayerNames ? "Player names: off" : "Player names: on", !bNoPlayerNames);
-    Y += BtnH + Gap;
     Y += Gap;
     MarkArmedButton(PC);
 
@@ -1962,7 +2040,7 @@ function DrawSnapshotOnMap(Canvas C, ROHUD H, bool bSpectatorView)
     Now = PC.WorldInfo.RealTimeSeconds;
 
     // Under the players, so a crew getting in is drawn on top
-    if (bSpectatorView)
+    if (bSpectatorView && MapIconShown(MAPICON_VEHICLES))
         DrawEmptyVehicles(C, H, OM, BaseSize);
 
     for (i = 0; i < class'CMMapInfo'.const.MAX_SNAPSHOT; i++)
@@ -1975,6 +2053,8 @@ function DrawSnapshotOnMap(Canvas C, ROHUD H, bool bSpectatorView)
 
         if ((Packed & class'CMMapInfo'.const.FLAG_DEAD) != 0)
         {
+            if (bSpectatorView && !MapIconShown(MAPICON_DEATHS))
+                continue;
             Alpha = DeadAlpha(ROPRI, Now);
             if (Alpha == 0 || OM.DeadPlayerIcon == None)
                 continue;
@@ -1990,6 +2070,8 @@ function DrawSnapshotOnMap(Canvas C, ROHUD H, bool bSpectatorView)
         else
         {
             DeadPRIs.RemoveItem(ROPRI);
+            if (bSpectatorView && !MapIconShown(MAPICON_PLAYERS))
+                continue;
             // A teammate whose pawn this client can see is drawn where it really is, as the game does
             if (!bSpectatorView)
             {

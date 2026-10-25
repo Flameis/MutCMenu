@@ -296,7 +296,7 @@ Admins can build their own capture objectives in the Builder's **Actors** menu: 
 
 ### Names on the map
 
-Point the map cursor at a player's icon and their **name** appears next to it. Players see this for their teammates, and spectators for everyone (in the team colour). A **Player names: on/off** button in the drawing toolbar turns it off for you; the game remembers your choice. It works whether or not map drawing is on.
+Point the map cursor at a player's icon and their **name** appears next to it. Players see this for their teammates, and spectators for everyone (in the team colour). The **Names** button in the toolbar's **Map icons** menu turns it off for you; the game remembers your choice. The names work whether or not map drawing is on (the toolbar itself only shows when map drawing is on).
 
 ### Drawing on the map
 
@@ -328,14 +328,27 @@ While you drag a line, arrow, circle or box, its length, bearing or size in mete
 | Button | What it does |
 | :--- | :--- |
 | Colour row | Picks the colour: red, blue, green, yellow, orange, purple, white or black |
-| Player names | Turns the name shown when the cursor is over a player on or off |
 | Draw for | Who sees what you draw next. Click to change (see below) |
 | Undo | Takes away your newest drawing |
 | Clear mine | Takes away all of your drawings |
 | Clear all for ... | Clears every drawing in the group picked under "Draw for". Squad: only the squad leader. Team: only the commander. Scrim admins: any group. Everyone sees the button, but it is greyed out and does nothing for those who may not use it |
 | Clear every drawing | Scrim admins only: clears the map for everyone |
 | Hide drawings | Hides all drawings on your own map (nothing changes for anyone else) |
-| Teams shown | Spectators only: show both teams' drawings, or only North's or only South's (the button uses the map's own team names). Drawings for everyone, for spectators and your own always show |
+| Map icons | Folds open a small menu of what the map shows besides the drawings. Each button has a gold frame while that kind is shown; click it to hide or show it. Your choices are kept for next time (see the table below) |
+
+**The Map icons menu**
+
+| Button | What it does |
+| :--- | :--- |
+| Players | Spectators: every player's icon on the map (and their name under the cursor) |
+| Vehicles | Spectators: vehicles nobody is in |
+| Flags | Spectators: the Capture the Flag flags and who carries them |
+| Deaths | Spectators: the death icons where players fell |
+| Teams shown | Spectators: show both teams' drawings, or only North's or only South's (the button uses the map's own team names). Drawings for everyone, for spectators and your own always show |
+| Names | The name shown when the cursor is over a player |
+| Borders | The borders of custom objectives built with the Builder |
+
+*How the menu looks has not been checked by playing; the buttons and what they switch are tested.*
 
 **Clearing asks first:** every clear button (Clear mine, Clear all for, Clear every drawing) turns red and asks "Are you sure?" on the first click. Click it again within 4 seconds to clear. Clicking anything else, or waiting, cancels it.
 
