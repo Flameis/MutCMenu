@@ -114,8 +114,20 @@ function bool CheckExceptions(string Command)
             GoToState('ReadyToPlace',, true);
 			return true;
 
-		case "SETCORNER":
 		case "SPAWNOBJ":
+			PromptForText("Spawn Objective|Builds a capture objective from the corners you marked with Mark Corner. Leave a box blank for its default.|"
+				$"--name / -n : the objective's name (default: Custom Objective and its letter)|"
+				$"--time / -t : seconds it takes to capture (default: 30)|"
+				$"--owner / -o : who holds it at the start: north, south or neutral (default: neutral)|"
+				$"Example: --name Village --time 45 --owner south", "mutate spawnobj ", , "name,time,owner");
+			return true;
+
+		case "DELETEOBJ":
+			PromptForText("Delete Objective|Removes one custom objective. Leave it blank for the one you are looking at.|"
+				$"--obj / -o : the objective's letter or name|Example: --obj B", "mutate deleteobj ", , "obj");
+			return true;
+
+		case "SETCORNER":
 		case "REDDECAL":
 		case "YELLOWDECAL":
 			StartParts();
@@ -174,8 +186,6 @@ function bool CheckExceptions(string Command)
 
 function DoPlace()
 {
-	local array<Vector2D> NoCorners;
-
 	switch (LastCmd)
 	{
 		case "NORTHSPAWN":
@@ -188,12 +198,6 @@ function DoPlace()
 
 		case "SETCORNER":
 			MyDA.ServerMarkCorner(PlaceLoc, PlaceRot); // The server keeps the corner, stands the pole up and tells you
-			return;
-
-		case "SPAWNOBJ":
-			// The corners are the ones the server kept from Mark Corner; it says when there are not enough
-			NoCorners.Length = 0;
-			MyDA.ServerSpawnObjective(PlaceLoc, NoCorners);
 			return;
 
 		case "REDDECAL":
@@ -334,7 +338,8 @@ defaultproperties
 	MenuText.Add("Mark Corner")
 	MenuText.Add("Spawn Obj")
 	MenuText.Add("Clear Corners")
-    // MenuText.Add("Clear Objs")
+	MenuText.Add("Delete Obj")
+	MenuText.Add("Clear Objs")
     MenuText.Add("Clear All")
     MenuText.Add("M2 Turret")
 	MenuText.Add("DShK Turret")
@@ -350,7 +355,8 @@ defaultproperties
 	MenuCommand.Add("SETCORNER")
 	MenuCommand.Add("SPAWNOBJ")
 	MenuCommand.Add("CLEARCORNERS")
-    // MenuCommand.Add("CLEAROBJS")
+	MenuCommand.Add("DELETEOBJ")
+	MenuCommand.Add("CLEAROBJS")
     MenuCommand.Add("CLEARALLACTORS")
 	MenuCommand.Add("TURRETM2")
 	MenuCommand.Add("TURRETDSHK")

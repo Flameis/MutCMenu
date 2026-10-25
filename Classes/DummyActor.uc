@@ -658,8 +658,10 @@ reliable server function ServerPlaceFlag(vector PlaceLoc, int TeamIdx)
     MyMut.PlaceFlag(PC, PlaceLoc, class'CMAFlag'.static.FactionForTeam(WorldInfo, TeamIdx));
 }
 
-// Builds a capture objective from the corners the builder marked. Checked here too: anyone can open the Builder and call this
-reliable server function ServerSpawnObjective(vector SpawnLocation, array<Vector2D> ObjectiveCorners)
+// Builds a capture objective from the corners the builder marked. Checked here too: anyone can open the Builder and call this.
+// The name, capture time and starting owner are as for CMAObjective.Init (blank, 0 and -1 are the defaults).
+reliable server function ServerSpawnObjective(vector SpawnLocation, array<Vector2D> ObjectiveCorners, optional string ObjName,
+    optional int CapTime, optional int OwnerTeam = -1)
 {
     local CMAObjective CMPO;
     local PlayerController PC;
@@ -691,7 +693,7 @@ reliable server function ServerSpawnObjective(vector SpawnLocation, array<Vector
         return;
     }
 
-    CMPO.Init(ObjectiveCorners);
+    CMPO.Init(ObjectiveCorners, ObjName, CapTime, OwnerTeam);
     if (!CMPO.bObjectiveReady)
     {
         MyMut.PrivateMessage(PC, "[CMenu] The objective could not be built: the corners are too close together, or all the objective slots are in use");
@@ -699,7 +701,8 @@ reliable server function ServerSpawnObjective(vector SpawnLocation, array<Vector
     }
 
     ClearCornerMarkers();
-    MyMut.PrivateMessage(PC, "[CMenu] Built objective "$CMPO.ObjShortName$" ("$ObjectiveCorners.Length$" corners). Realism Match commands such as openobj and setobjnorth work on it");
+    MyMut.PrivateMessage(PC, "[CMenu] Built objective "$CMPO.ObjShortName$", \""$CMPO.DisplayName$"\" ("$ObjectiveCorners.Length$" corners, "
+        $CMPO.MinimumCaptureTime$" seconds to capture, held by "$MyMut.ObjectiveOwnerWord(CMPO)$"). Realism Match commands such as openobj and setobjnorth work on it");
 }
 
 function string IntToString(int Int)

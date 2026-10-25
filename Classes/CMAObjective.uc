@@ -7,6 +7,9 @@ class CMAObjective extends ROObjective;
 const MIN_CORNER_GAP = 25.0;    // Corners closer together than this (half a meter) are the same corner clicked twice
 const MIN_CORNER_COUNT = 3;
 const MAX_CORNER_COUNT = 32;    // What can be sent to clients
+const DEFAULT_CAPTURE_TIME = 30;
+const MAX_CAPTURE_TIME = 600;   // seconds
+const MAX_NAME_LENGTH = 40;
 
 var array<Vector2D> Corners;
 var ROGameInfoTerritories ROGIT;
@@ -51,8 +54,10 @@ function string GetDisplayName()
 // ====================================================
 
 // Called once on the server right after it is spawned. The corners are the shape as the builder clicked it; the objective
-// is left as it is (and goes away on its own) when it cannot be made.
-function Init(array<Vector2D> InCorners)
+// is left as it is (and goes away on its own) when it cannot be made. The name, capture time (seconds) and the team that
+// holds it at the start are the builder's choice; blank, 0 and -1 give "Custom Objective <letter>", 30 seconds and
+// nobody.
+function Init(array<Vector2D> InCorners, optional string InName, optional int InCapTime, optional int InOwner = -1)
 {
     local Vector2D Middle;
     local vector Where;
@@ -93,9 +98,14 @@ function Init(array<Vector2D> InCorners)
     ObjIndex = Slot;
     ObjRepIndex = RepIndex;
     ObjShortName = IntToString(Slot);
-    DisplayName = "Custom Objective " $ ObjShortName;
-    MinimumCaptureTime = 30;
-    InitialObjState = OBJ_Neutral;
+    DisplayName = (InName != "") ? Left(InName, MAX_NAME_LENGTH) : "Custom Objective " $ ObjShortName;
+    MinimumCaptureTime = (InCapTime > 0) ? Min(InCapTime, MAX_CAPTURE_TIME) : DEFAULT_CAPTURE_TIME;
+    if (InOwner == `AXIS_TEAM_INDEX)
+        InitialObjState = OBJ_Axis;
+    else if (InOwner == `ALLIES_TEAM_INDEX)
+        InitialObjState = OBJ_Allies;
+    else
+        InitialObjState = OBJ_Neutral;
     AppliedInitialObjState = InitialObjState;
     bEnabled = true;
 

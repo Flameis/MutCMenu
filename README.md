@@ -169,7 +169,7 @@ Open **Builder Menu** from the main menu. You aim at the spot you want, and conf
 | Structures | Copy buildings or whole areas you are aiming at and paste them somewhere else. Select several meshes, copy the selection, remove the last one, or clear the selection |
 | Static Meshes | Copy, paste and delete single objects. Presets: straight sandbags and an F4 Phantom. Admins also get **Toggle Collision** and **Delete Any Object** |
 | Pickups | Turn a weapon into a pickup on the ground: **Custom** (types `--item ` for you to add the weapon path) or **Copy Held Weapon** (the one in your hands) |
-| Actors | Place team spawn points (North and South), an M2 turret, a DShK turret and an ammo resupply point. **Mark Corner** and **Spawn Obj** let you draw and place a brand new capture objective of your own. Everyone gets a **CTF Flag** entry for each team's flag (for example "CTF Flag: PAVN (North)") and **CTF Flag: Command Line**; admins also get **Reset Flags** and **Remove Flags** (see below). **Clear All** removes everything you placed, flags included |
+| Actors | Place team spawn points (North and South), an M2 turret, a DShK turret and an ammo resupply point. **Mark Corner** and **Spawn Obj** let you draw and place a brand new capture objective of your own; **Delete Obj** and **Clear Objs** take them away again. Everyone gets a **CTF Flag** entry for each team's flag (for example "CTF Flag: PAVN (North)") and **CTF Flag: Command Line**; admins also get **Reset Flags** and **Remove Flags** (see below). **Clear All** removes everything you placed, flags included |
 
 **Placing keys** (while a preview is showing; click to place it, or Alt-click in mouse click mode)
 
@@ -278,14 +278,15 @@ The game's map has room for 32 players per team. With more on a team (MaxPlayers
 
 ### Custom objectives
 
-Admins can build their own capture objectives in the Builder's **Actors** menu: stand at each corner of the area and pick **Mark Corner**, then pick **Spawn Obj** (you need at least three corners). Only admins can mark corners. Each **Mark Corner** stands a flagpole on the spot for everyone to see, and you are told which corner it was ("Corner 2 marked") and how many more you need. Marking the same spot twice counts once. The poles are taken away when the objective is built. An objective can have up to 32 corners. **Clear Corners** (or `mutate clearcorners`) takes your poles away so you can start again. The area can be any shape, a square, an L or a triangle. The new objective gets the next free letter, and:
+Admins can build their own capture objectives in the Builder's **Actors** menu: stand at each corner of the area and pick **Mark Corner**, then pick **Spawn Obj** (you need at least three corners). Spawn Obj asks for the objective's **name**, its **capture time** in seconds and **who holds it at the start** (North, South or nobody). In mouse click mode this is a form with a box for each; otherwise the command is typed in the console for you. Leave a box blank for its default: "Custom Objective" and its letter, 30 seconds, and nobody. The objective stands at the height of the corner poles. Only admins can mark corners. Each **Mark Corner** stands a flagpole on the spot for everyone to see, and you are told which corner it was ("Corner 2 marked") and how many more you need. Marking the same spot twice counts once. The poles are taken away when the objective is built. An objective can have up to 32 corners. **Clear Corners** (or `mutate clearcorners`) takes your poles away so you can start again. The area can be any shape, a square, an L or a triangle. The new objective gets the next free letter, and:
 
 - **It captures by itself, on any server.** It works in every Territories game mode, including WW2, Winter War and GOM, not only in CMenu's own game modes. Players, vehicle crews and turret gunners standing inside the area capture it, with the same rules as the map's own objectives: more people capture faster, squad mates and leaders count for more, it drains when nobody is inside, and the capturing team gets the points. Height does not matter.
 - **It matches its border.** The area you marked is the area that captures, and the border drawn on the map is that same area. Corners clicked in a crossing order (a "bow tie") are put in outline order. A corner clicked twice counts once.
 - **It sits in the middle of its area.** The map's letter, "drop at objective" and the paradrops go to the middle of the area (to the widest part inside it for a curved shape), not to wherever you stood when you picked Spawn Obj.
 - **Everyone sees it.** The objective, its letter and its capture progress show on every player's map and HUD, and players who join later get it too. The border is drawn on the overhead map in the colour of the team that holds it (white while nobody does), and fainter while the objective is closed.
 - **Realism Match works on it.** `openobj`, `closeobj`, `setobjnorth`, `setobjsouth`, `setobjneutral` and the capture time apply to it by its letter, like the map's own objectives.
-- **Admins only.** The server checks that you are an admin, and tells you if the objective could not be built (too few corners, corners too close together, or all 16 objective slots in use). `clearobjs` (or **Clear All**) removes them and frees their letters.
+- **Admins only.** The server checks that you are an admin, and tells you if the objective could not be built (too few corners, corners too close together, or all 16 objective slots in use). When it is built you are told its letter, name, capture time and owner.
+- **Taking them away (admins).** **Delete Obj** (`mutate deleteobj`) removes one objective: the one you are looking at, or the one you name by its letter or name (`--obj B`, `--obj Village`). **Clear Objs** (`mutate clearobjs`) removes all of them. Either way their letters are freed. **Clear All** removes them too, with everything else you placed.
 
 *Tested by the test harness with the objective built in the same game; what a joined player sees (the border on their map) has not been tried in a network game.*
 
@@ -404,7 +405,10 @@ Commands can be typed in the console as `mutate <command> --option value` (short
 | `forceunitpatch` | Change a player's unit patch | `--player/-p`, `--unit/-u` |
 | `forcerankpatch` | Change a player's rank patch | `--player/-p`, `--rank/-r` |
 | `scrimadminlogin` / `scrimadminlogout` | Log in or out as a scrim admin | `--user/-u`, `--password/-p` |
-| `clearobjs`, `clearcorners`, `delnorthspawns`, `delsouthspawns` | Remove custom objectives, marked corners or custom spawn points | none |
+| `spawnobj` | (Admin) Builds a custom objective from the corners you marked | `--name/-n <text>`, `--time/-t <seconds>`, `--owner/-o` (north, south, neutral) |
+| `deleteobj` | (Admin) Removes one custom objective: the one you look at, or the one named | `--obj/-o <letter or name>` |
+| `clearobjs` | (Admin) Removes every custom objective | none |
+| `clearcorners`, `delnorthspawns`, `delsouthspawns` | Remove your marked corners or custom spawn points | none |
 | `spawnflag` | Places a Capture the Flag flag where you are looking: your team's flag, a team's flag with `--team`, or exactly one flag with `--flag` (see the flag table in section 5). Spectators must use `--team` or `--flag` | `--team/-t` (north, south, axis, allies, finnish, soviet, 0, 1), `--flag/-f <name>`, `--nobeam/-n` |
 | `dropflag` | Drops the flag you are carrying | none |
 | `resetflags` | (Admin) Sends every flag back to where it was placed | none |

@@ -114,6 +114,8 @@ var PlayerController            LookCaller;
 var vector                      LookFromClient, LookNormalFromClient;
 var bool                        bLookFromClientHit;
 var float                       FSNextCallTime[2];
+
+const DELETE_OBJ_RANGE = 2500.0; // 50 meters: how far from where an admin looks deleteobj finds an objective
 // =================================================================
 // Initialization
 // =================================================================
@@ -277,7 +279,6 @@ simulated function Mutate(string mutateString, PlayerController sender)
 {
     local DummyActor DA, DASender, DAFound;
     local CMASpawn SMS;
-	local CMAObjective CMPO;
 
     local array<string> params;
     local string        command;
@@ -431,10 +432,15 @@ simulated function Mutate(string mutateString, PlayerController sender)
             break;
 
         case "CLEAROBJS":
-            foreach AllActors(class'CMAObjective', CMPO)
-            {
-                CMPO.Destroy();
-            }
+            ClearObjectivesCommand(sender);
+            break;
+
+        case "SPAWNOBJ":
+            SpawnObjectiveCommand(sender, params);
+            break;
+
+        case "DELETEOBJ":
+            DeleteObjectiveCommand(sender, params);
             break;
 
         case "CLEARCORNERS":
@@ -567,6 +573,195 @@ function RunWithClientLook(PlayerController Caller, string Command, bool bHit, v
     bLookFromClientHit = bHit;
     Mutate(Command, Caller);
     LookCaller = None;
+}
+
+// =================================================================
+// Custom objectives (CMAObjective), built from the corners marked with the Builder
+// =================================================================
+// mutate spawnobj [--name <text>] [--time <seconds>] [--owner north|south|neutral] (-n, -t, -o): builds an objective from
+// the corners the sender marked with Mark Corner (admins). It stands at the height of the corner poles.
+function SpawnObjectiveCommand(PlayerController Sender, array<string> Tokens)
+{
+    local DummyActor DA;
+    local array<Vector2D> NoCorners;
+    local string TimeText, OwnerText;
+    local int CapTime, OwnerTeam, i, Poles;
+    local vector Where, ViewLoc;
+    local rotator ViewRot;
+
+    DA = FindDummyActor(Sender);
+    if (DA == None)
+        return;
+
+    TimeText = class'CmdOptions'.static.Get(Tokens, "time", "t");
+    if (TimeText != "")
+    {
+        CapTime = int(TimeText);
+        if (CapTime <= 0)
+        {
+            PrivateMessage(Sender, "[CMenu] --time is the seconds it takes to capture, above 0 (up to "$class'CMAObjective'.const.MAX_CAPTURE_TIME$")");
+            return;
+        }
+    }
+
+    OwnerTeam = -1;
+    OwnerText = class'CmdOptions'.static.Get(Tokens, "owner", "o");
+    if (OwnerText != "" && !(OwnerText ~= "neutral") && !(OwnerText ~= "none") && !(OwnerText ~= "nobody"))
+    {
+        OwnerTeam = class'CmdOptions'.static.ParseTeam(OwnerText);
+        if (OwnerTeam != `AXIS_TEAM_INDEX && OwnerTeam != `ALLIES_TEAM_INDEX)
+        {
+            PrivateMessage(Sender, "[CMenu] --owner must be north, south or neutral");
+            return;
+        }
+    }
+
+    // The height of the corner poles, or else where the builder is
+    for (i = 0; i < DA.CornerMarkers.Length; i++)
+    {
+        if (DA.CornerMarkers[i] != None && !DA.CornerMarkers[i].bDeleteMe)
+        {
+            Where += DA.CornerMarkers[i].Location;
+            Poles++;
+        }
+    }
+    if (Poles > 0)
+        Where /= Poles;
+    else if (Sender.Pawn != None)
+        Where = Sender.Pawn.Location;
+    else
+    {
+        Sender.GetPlayerViewPoint(ViewLoc, ViewRot);
+        Where = ViewLoc;
+    }
+
+    NoCorners.Length = 0;
+    DA.ServerSpawnObjective(Where, NoCorners, class'CmdOptions'.static.GetOrPositional(Tokens, "name", "n"), CapTime, OwnerTeam);
+}
+
+// mutate deleteobj [--obj <letter or name>] (-o): removes one custom objective (admins). Without --obj, the one the sender
+// looks at: the one whose shape the spot is in, or else the nearest within 50 meters of it.
+function DeleteObjectiveCommand(PlayerController Sender, array<string> Tokens)
+{
+    local CMAObjective O, Best;
+    local string Which, What;
+    local vector Target;
+    local float D, BestD;
+
+    if (!IsAuthorized(Sender))
+    {
+        PrivateMessage(Sender, "[CMenu] Only admins can remove objectives");
+        return;
+    }
+
+    Which = class'CmdOptions'.static.GetOrPositional(Tokens, "obj", "o");
+    if (Which != "")
+    {
+        foreach DynamicActors(class'CMAObjective', O)
+        {
+            if (O.bObjectiveReady && !O.bDeleteMe && (O.ObjShortName ~= Which || O.DisplayName ~= Which))
+            {
+                Best = O;
+                break;
+            }
+        }
+        if (Best == None)
+        {
+            PrivateMessage(Sender, "[CMenu] There is no custom objective '"$Which$"'. Custom objectives: "$CustomObjectiveList());
+            return;
+        }
+    }
+    else
+    {
+        // Where they are looking (their own game says where, for spectators)
+        if (AskClientForLook(Sender))
+            return;
+        if (!GetLookTarget(Sender, Target))
+        {
+            if (Sender.Pawn == None)
+            {
+                PrivateMessage(Sender, "[CMenu] Look at a custom objective, or name one with --obj. Custom objectives: "$CustomObjectiveList());
+                return;
+            }
+            Target = Sender.Pawn.Location;
+        }
+
+        BestD = DELETE_OBJ_RANGE;
+        foreach DynamicActors(class'CMAObjective', O)
+        {
+            if (!O.bObjectiveReady || O.bDeleteMe)
+                continue;
+            if (O.ContainsLocation(Target))
+            {
+                Best = O;
+                break;
+            }
+            D = VSize2D(O.Location - Target);
+            if (D < BestD)
+            {
+                BestD = D;
+                Best = O;
+            }
+        }
+        if (Best == None)
+        {
+            PrivateMessage(Sender, "[CMenu] There is no custom objective where you are looking. Name one with --obj. Custom objectives: "$CustomObjectiveList());
+            return;
+        }
+    }
+
+    What = Best.ObjShortName$" (\""$Best.DisplayName$"\")";
+    Best.Destroy();
+    PrivateMessage(Sender, "[CMenu] Removed custom objective "$What);
+}
+
+// mutate clearobjs: removes every custom objective (admins)
+function ClearObjectivesCommand(PlayerController Sender)
+{
+    local CMAObjective O;
+    local int Count;
+
+    if (!IsAuthorized(Sender))
+    {
+        PrivateMessage(Sender, "[CMenu] Only admins can remove objectives");
+        return;
+    }
+
+    foreach DynamicActors(class'CMAObjective', O)
+    {
+        if (O.bDeleteMe)
+            continue;
+        O.Destroy();
+        Count++;
+    }
+    PrivateMessage(Sender, "[CMenu] Removed "$Count$" custom objective"$(Count == 1 ? "" : "s"));
+}
+
+// "A (Village), B (Custom Objective B)", or "none"
+function string CustomObjectiveList()
+{
+    local CMAObjective O;
+    local string List;
+
+    foreach DynamicActors(class'CMAObjective', O)
+    {
+        if (!O.bObjectiveReady || O.bDeleteMe)
+            continue;
+        if (List != "")
+            List $= ", ";
+        List $= O.ObjShortName$" ("$O.DisplayName$")";
+    }
+    return (List != "") ? List : "none";
+}
+
+// Who holds an objective, in words: "North", "South" or "nobody"
+function string ObjectiveOwnerWord(ROObjective O)
+{
+    if (O.ObjState == OBJ_Axis)
+        return "North";
+    if (O.ObjState == OBJ_Allies)
+        return "South";
+    return "nobody";
 }
 
 // =================================================================
