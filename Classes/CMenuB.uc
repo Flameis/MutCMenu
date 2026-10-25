@@ -17,7 +17,6 @@ var int 							ModifyTime;
 var bool 							SwitchRotDir;
 var Actor							TracedActor;
 
-var array<Vector2D> 				Corners;
 var string                     		SMToPlace;
 var int 							SpawnTeamIndex, NumObjs;
 var bool							bPlacingStarted;	// An entry just picked put the menu into ReadyToPlace (see SelectLine)
@@ -155,6 +154,9 @@ simulated state ReadyToPlace extends MenuVisible
 			{
 	        	case 'LeftMouseButton':
 	        	    DoPlace();
+					// With the menu not kept open, placing the item is what closes it
+					if (!bKeepOpen)
+						GoToState('');
             	    return true;
 
 				// If tab reverse the direction of the rotation

@@ -32,7 +32,7 @@ function bool CheckExceptions(string Command)
     {
         case "GIVEWEAPON":
             if(bCMenuDebug) `Log("GIVEWEAPON");
-            PromptForText("Give Weapon|--weapon / -w : a short name such as L1A1 or BHP, or a full weapon path (already typed for you, add the weapon)|--team / -t : north, south or all (leave it out to give it to yourself; admins only)|Example: --weapon L1A1   or   --team north --weapon L1A1|Older form: giveweapon L1A1, giveweaponnorth L1A1", "Mutate "$Command$" ");
+            PromptForText("Give Weapon|--weapon / -w : a short name such as L1A1 or BHP, or a full weapon path (already typed for you, add the weapon)|--team / -t : north, south or all (leave it out to give it to yourself; admins only)|Example: --weapon L1A1   or   --team north --weapon L1A1|Older form: giveweapon L1A1, giveweaponnorth L1A1", "Mutate "$Command$" ", , "weapon,team");
             return true;
 
         case "COPY":

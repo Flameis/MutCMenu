@@ -10,6 +10,7 @@ var string PendingCmdPrefix, PendingCmdSuffix;
 
 const ITEMS_PER_PAGE = 8;
 const FORM_MAX_VALUE = 80; // the longest value that can be typed in a form box
+const FORM_MARGIN = 20;    // the least gap (at 1440p) the form keeps from the top and bottom of the screen
 // Every menu is drawn the same size: this wide (the widest of the menu's own lines is used when one is wider still) and tall
 // enough for a full page. A long entry is better shortened than left to widen the menu.
 const MENU_WIDTH_TEXT = "8. Copy Held Weapon To Clipboard";
@@ -174,6 +175,9 @@ simulated state FormVisible
 		// Releases always go through, so a movement key held while the form opened doesn't get stuck
 		if (EventType == IE_Released)
 			return false;
+		// The console key and the function keys (often bound to open menus) still work
+		if (FormPassesKey(Key))
+			return false;
 		if (EventType != IE_Pressed && EventType != IE_Repeat)
 			return true;
 
@@ -201,7 +205,7 @@ simulated state FormVisible
 			{
 				Hit = Len(FormFields[FormFocus].Value);
 				if (Hit < FORM_MAX_VALUE)
-					FormFields[FormFocus].Value $= FormKeyChar(Key, bFormShift);
+					FormFields[FormFocus].Value $= class'CMMapInteraction'.static.KeyChar(Key, bFormShift);
 			}
 		}
 		return true;
@@ -338,11 +342,12 @@ function bool SelectLine(int NumKey)
 
 		if (CheckExceptions(Command)) //Check for any exceptions in child classes
 		{
-			if (!bKeepOpen && !IsInState('FormVisible')) GotoState(''); // Close Menu (a command that opened a form is waiting for it)
+			// Close Menu, unless the command is waiting for something: a form to be filled in, or a Builder item to be placed
+			if (!bKeepOpen && !IsInState('FormVisible') && !IsInState('ReadyToPlace')) GotoState('');
 			return true;
 		}
 		PC.ConsoleCommand("mutate "$Command); //Execute Command
-		if (!bKeepOpen) GotoState(''); // Close Menu
+		if (!bKeepOpen && !IsInState('ReadyToPlace')) GotoState(''); // Close Menu (a Builder item waits to be placed)
 		return true;
 	}
 	else
@@ -421,13 +426,15 @@ function GameUISceneClient GetCMenuSceneClient()
 // Prompt lines are separated by "|". The player finishes the command (CommandPrefix$<value>$CommandSuffix) and presses enter.
 // The guidance is written into the console history and the large console is opened, because it is far longer than the chat
 // window can show and stays readable (scrollable) while typing.
-function PromptForText(string Prompt, string CommandPrefix, optional string CommandSuffix, optional bool bNoForm)
+// FormOptions names the command's options for the form in mouse click mode, in order, separated by commas; a name ending in
+// "!" is an on/off option (for example "team,flag,nobeam!"). Their descriptions come from the "--option : ..." lines of Prompt.
+function PromptForText(string Prompt, string CommandPrefix, optional string CommandSuffix, optional string FormOptions)
 {
 	PendingCmdPrefix = CommandPrefix;
 	PendingCmdSuffix = CommandSuffix;
 
 	// Mouse click mode: a form with a box for each option, instead of typing the command in the console
-	if (!bNoForm && ClickActive() && OpenForm(Prompt, CommandPrefix, CommandSuffix))
+	if (ClickActive() && OpenForm(Prompt, CommandPrefix, CommandSuffix, FormOptions))
 		return;
 
 	// Short guidance goes to the chat and the mini console, long guidance to the large console (see DummyActor.ShowHelp)
@@ -438,21 +445,6 @@ function PromptForText(string Prompt, string CommandPrefix, optional string Comm
 // ====================================================
 // Option forms
 // ====================================================
-
-// The options that are on or off rather than taking a value
-static function bool IsSwitchOption(string OptionName)
-{
-	switch (Locs(OptionName))
-	{
-		case "nobeam":
-		case "live":
-		case "look":
-		case "suppress":
-		case "persist":
-			return true;
-	}
-	return false;
-}
 
 function string TrimSpaces(string S)
 {
@@ -475,12 +467,15 @@ function int FindFormField(string OptionName)
 	return INDEX_NONE;
 }
 
-// Reads the options out of the guidance the console would show (lines separated by "|": a title, notes, "--option / -o :
-// what it does" lines, examples) and opens the form. False when the guidance names no option, so the console is used.
-function bool OpenForm(string Prompt, string Prefix, string Suffix)
+// Opens the form for a command: a row for each option in Options (see PromptForText), described by the guidance the console
+// would show (lines separated by "|": a title, notes, "--option / -o : what it does" lines, examples). Without Options the
+// rows are read from the guidance itself, as text boxes. False when there is no option, so the console is used.
+function bool OpenForm(string Prompt, string Prefix, string Suffix, optional string Options)
 {
-	local array<string> Lines;
-	local int i;
+	local array<string> Lines, Names;
+	local array<FormField> Read;
+	local FormField Field;
+	local int i, Found;
 	local string Line;
 
 	FormFields.Length = 0;
@@ -508,6 +503,32 @@ function bool OpenForm(string Prompt, string Prefix, string Suffix)
 			AddFormFields(Line);
 		else if (FormFields.Length == 0 && FormNotes.Length < 3)
 			FormNotes.AddItem(Line);
+	}
+
+	// The options named by the menu decide the rows and which are on/off; the guidance only describes them
+	if (Options != "")
+	{
+		Read = FormFields;
+		FormFields.Length = 0;
+		Names = SplitString(Options, ",", true);
+		for (i = 0; i < Names.Length; i++)
+		{
+			Field.Name = TrimSpaces(Names[i]);
+			Field.bSwitch = Right(Field.Name, 1) == "!";
+			if (Field.bSwitch)
+				Field.Name = Left(Field.Name, Len(Field.Name) - 1);
+			Field.Desc = "";
+			for (Found = 0; Found < Read.Length; Found++)
+			{
+				if (Read[Found].Name ~= Field.Name)
+				{
+					Field.Desc = Read[Found].Desc;
+					break;
+				}
+			}
+			if (Field.Name != "" && FindFormField(Field.Name) == INDEX_NONE)
+				FormFields.AddItem(Field);
+		}
 	}
 
 	if (FormFields.Length == 0)
@@ -588,7 +609,6 @@ function AddFormField(string Chunk)
 		Desc = Left(Desc, Len(Desc) - 1);
 
 	Field.Desc = Desc;
-	Field.bSwitch = IsSwitchOption(Field.Name);
 	FormFields.AddItem(Field);
 }
 
@@ -619,11 +639,15 @@ function string BuildFormCommand()
 
 function RunForm()
 {
-	PC.ConsoleCommand(BuildFormCommand());
-	if (bKeepOpen)
+	local string Cmd;
+
+	Cmd = BuildFormCommand();
+	// A command that opens a menu (the Builder's Custom items) toggles it: closed first, so it opens rather than closes
+	if (bKeepOpen && Left(Locs(Cmd), 12) != "mutate cmenu")
 		GotoState('MenuVisible');
 	else
 		GotoState('');
+	PC.ConsoleCommand(Cmd);
 }
 
 function CancelForm()
@@ -654,49 +678,19 @@ function ClickForm()
 		CancelForm();
 }
 
-// The character a key types (US keyboard), or "" for keys that don't type
-function string FormKeyChar(name Key, bool bShifted)
+// Keys the form leaves to the game: the console key, and F1 to F12
+function bool FormPassesKey(name Key)
 {
+	local LocalPlayer LP;
 	local string S;
-	local int Digit;
+
+	LP = (PC != None) ? LocalPlayer(PC.Player) : None;
+	if (LP != None && LP.ViewportClient != None && LP.ViewportClient.ViewportConsole != None
+		&& Key == LP.ViewportClient.ViewportConsole.ConsoleKey)
+		return true;
 
 	S = string(Key);
-	if (Len(S) == 1)
-		return bShifted ? Caps(S) : Locs(S);
-
-	Digit = INDEX_NONE;
-	switch (Key)
-	{
-		case 'SpaceBar':    return " ";
-		case 'Period':      return bShifted ? ">" : ".";
-		case 'Comma':       return bShifted ? "<" : ",";
-		case 'Hyphen':      return bShifted ? "_" : "-";
-		case 'Equals':      return bShifted ? "+" : "=";
-		case 'Slash':       return bShifted ? "?" : "/";
-		case 'Semicolon':   return bShifted ? ":" : ";";
-		case 'Apostrophe':  return bShifted ? "\"" : "'";
-		case 'Add':         return "+";
-		case 'Subtract':    return "-";
-		case 'Multiply':    return "*";
-		case 'Divide':      return "/";
-		case 'Decimal':     return ".";
-		case 'Zero':  case 'NumPadZero':  Digit = 0; break;
-		case 'One':   case 'NumPadOne':   Digit = 1; break;
-		case 'Two':   case 'NumPadTwo':   Digit = 2; break;
-		case 'Three': case 'NumPadThree': Digit = 3; break;
-		case 'Four':  case 'NumPadFour':  Digit = 4; break;
-		case 'Five':  case 'NumPadFive':  Digit = 5; break;
-		case 'Six':   case 'NumPadSix':   Digit = 6; break;
-		case 'Seven': case 'NumPadSeven': Digit = 7; break;
-		case 'Eight': case 'NumPadEight': Digit = 8; break;
-		case 'Nine':  case 'NumPadNine':  Digit = 9; break;
-	}
-
-	if (Digit == INDEX_NONE)
-		return "";
-	if (bShifted && InStr(S, "NumPad") == INDEX_NONE)
-		return Mid(")!@#$%^&*(", Digit, 1);
-	return string(Digit);
+	return Left(S, 1) == "F" && Len(S) >= 2 && Len(S) <= 3 && int(Mid(S, 1)) >= 1 && int(Mid(S, 1)) <= 12;
 }
 
 // Text cut short with ... so it fits the width at the scale
@@ -723,6 +717,7 @@ function string FitText(ROCanvas C, string Text, float MaxW, float Scale)
 function DrawForm(ROCanvas C)
 {
 	local float S, PanelX, PanelY, PanelW, PanelH, Pad, LineH, DescH, LabelW, BoxX, BoxW, Y, TW, TH, TitleScale, LabelScale, DescScale, ValueScale, ButtonW, Now;
+	local float FullH, Margin;
 	local int i;
 	local bool bHover;
 	local string Shown;
@@ -730,7 +725,14 @@ function DrawForm(ROCanvas C)
 	if (C == None)
 		return;
 
+	// A form with many options (fire support has a dozen) would run off the bottom of the screen: it moves up first, and
+	// is drawn smaller when it still doesn't fit. FullH is its height at a scale of 1, as the rows below lay it out.
 	S = MenuScale;
+	Margin = FORM_MARGIN * MenuScale;
+	FullH = TEXT_OFFSET + LINE_HEIGHT + FormNotes.Length * 26 + FormFields.Length * (LINE_HEIGHT + 26 + 4) + FormExamples.Length * 26
+		+ TEXT_OFFSET + LINE_HEIGHT * 0.9 + TEXT_OFFSET;
+	if (FullH * S > C.ClipY - Margin * 2)
+		S = FMax(0.1, (C.ClipY - Margin * 2) / FullH);
 	Pad = TEXT_OFFSET * S;
 	LineH = LINE_HEIGHT * S;
 	DescH = 26 * S;
@@ -739,7 +741,7 @@ function DrawForm(ROCanvas C)
 	ValueScale = S * 0.8;
 	DescScale = S * 0.5;
 	PanelX = 0;
-	PanelY = MENU_TOP * S;
+	PanelY = FMax(Margin, FMin(MENU_TOP * MenuScale, C.ClipY - FullH * S - Margin));
 	PanelW = 1150 * S;
 	LabelW = 280 * S;
 	BoxX = PanelX + Pad + LabelW;
@@ -1279,6 +1281,25 @@ function ToggleCMenuBackground()
 			CMenu(PC.Interactions[i]).SaveConfig();
         }
     }
+}
+
+// Mouse click mode on or off (CMenu Settings), and a message saying how it works
+function ToggleClickMode()
+{
+	if (MyDA == None)
+		return;
+
+	MyDA.bClickModeActive = !MyDA.bClickModeActive;
+	MyDA.bClickCursorKnown = false; // a fresh start on the first line
+	if (!MyDA.bClickModeActive)
+	{
+		MessageSelf("[CMenu] Mouse click mode is off. Pick menu lines with the number keys again.");
+		return;
+	}
+	MessageSelf("[CMenu] Mouse click mode is on. While a menu is open, the mouse moves a pointer: left click a line to pick it.");
+	MessageSelf("[CMenu] Commands that need options open a form: click a box, type the value (leave it blank for the default), then click Run.");
+	MessageSelf("[CMenu] Hold Alt to look around and use the map without picking menu lines. In the Builder, Alt + left click places what you are holding.");
+	MessageSelf("[CMenu] Turn it off again in CMenu Settings.");
 }
 
 function ToggleCMenuStay()

@@ -42,8 +42,10 @@ function bool CheckExceptions(string Command)
     switch (Command)
     {
         case "CUSTOM":
-            PromptForText("Custom Vehicle|--item / -i : the full name of the vehicle to place (already typed for you, add the name)|Example: --item ROGameContent.ROHeli_AH1G_Content|Older form: mutate cmenu CMenuBVehicles to ROGameContent.ROHeli_AH1G_Content", "mutate cmenu --menu CMenuBVehicles --item ", , true);
-            GoToState('ReadyToPlace',, true);
+            PromptForText("Custom Vehicle|--item / -i : the full name of the vehicle to place (already typed for you, add the name)|Example: --item ROGameContent.ROHeli_AH1G_Content|Older form: mutate cmenu CMenuBVehicles to ROGameContent.ROHeli_AH1G_Content", "mutate cmenu --menu CMenuBVehicles --item ", , "item");
+            // In mouse click mode a form asks for the item; running it opens this menu for that item
+            if (!IsInState('FormVisible'))
+                GoToState('ReadyToPlace',, true);
             return true;
 
         case "DELETEVEHICLE":

@@ -6,7 +6,7 @@ function bool CheckExceptions(string Command)
     switch (Caps(Command))
     {
         case "COUNTDOWN":
-            PromptForText("Countdown to LIVE|--time / -t : seconds until the match goes LIVE|Example: --time 10   (or just 10)", "Mutate "$Command$" ");
+            PromptForText("Countdown to LIVE|--time / -t : seconds until the match goes LIVE|Example: --time 10   (or just 10)", "Mutate "$Command$" ", , "time");
             return true;
 
         default:
