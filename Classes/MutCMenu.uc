@@ -63,6 +63,7 @@ var config int                  FSGunshipDuration;  // Seconds the gunship orbit
 // The overhead map (CMMapManager): spectator overlay, teammates past 32 per team, objective borders and map drawing.
 // The off switches are negative so the features are on by default: a missing ini entry loads as false.
 var config bool                 bDisableEnhancedSpectator;     // Turn off the spectator overlay (every player on the map, coloured names, head triangles)
+var config bool                 bDisableSpectatorTracers;      // Turn off the bullet and shell paths spectators see
 var config bool                 bDisableMapDrawing;            // Turn off drawing on the overhead map
 var config bool                 bKeepMapDrawingsBetweenRounds; // Keep drawings when a new round starts (they are cleared by default)
 var config int                  MaxMapDrawingsPerPlayer;       // Drawings one player can have at once before their oldest goes; 0 or missing means 60

@@ -45,6 +45,14 @@ const CONFIRM_TIME = 4.0;   // seconds a clear button waits for its second click
 const FLASH_TIME = 2.5;     // seconds a spectator's marker over a player strobes white after they are hit
 const STROBE_STEP = 0.12;   // seconds each white and each normal step of the strobe lasts
 
+// Spectators: the paths projectiles fly (tracers), each segment fading over its kind's life
+const BULLET_LIFE = 2.0;    // seconds a stretch of a bullet's path stays
+const GRENADE_LIFE = 4.0;
+const SHELL_LIFE = 5.0;
+const TRACER_GLOW = 0.15;   // seconds a new stretch burns white before it takes its team's colour
+const MAX_CLIENT_TRACERS = 600;
+const NEAR_PLANE = 20.0;    // unreal units; a line is cut here where it passes behind the camera
+
 // Which teams' drawings a spectator sees
 const SPEC_BOTH = 0;
 const SPEC_NORTH = 1;
@@ -128,6 +136,17 @@ var byte SavedServerNames; // and the server's setting as this client was told i
 // Players who have just died: when this client first saw them dead, for the fade
 var array<PlayerReplicationInfo> DeadPRIs;
 var array<float> DeadSince;
+
+// Spectators: the stretches of projectile paths still on screen, and how far into the server's ring this client has read
+struct ClientTracer
+{
+    var vector A, B;
+    var byte Data;
+    var float Born;
+};
+var array<ClientTracer> Tracers;
+var int TraceSeen;
+var bool bTraceSynced;
 
 // Spectators: each player's hit count as last seen, and until when their marker flashes
 var array<PlayerReplicationInfo> HurtPRIs;
@@ -920,6 +939,7 @@ event PostRender(Canvas C)
     // The spectator overlay is on while the owner spectates and the server sends them everyone
     bSpectatorView = Info.bSpectating && H != None && PC.PlayerReplicationInfo != None && PC.PlayerReplicationInfo.bOnlySpectator;
     SetDefaultNames(H, bSpectatorView);
+    CollectTracers(bSpectatorView, PC.WorldInfo.RealTimeSeconds);
 
     if (ReadMap() == None)
     {
@@ -1063,11 +1083,17 @@ function DrawCursor(Canvas C, ROHUDWidgetComponent CursorComp)
 // One thick line, cut to the map
 function DrawSegment(Canvas C, vector2D A, vector2D B, float Width, color Col)
 {
-    local rotator Rot;
-    local float Len2D;
-
     if (!ClipToMap(A, B))
         return;
+
+    DrawScreenLine(C, A, B, Width, Col);
+}
+
+// One thick line between two points on the screen
+function DrawScreenLine(Canvas C, vector2D A, vector2D B, float Width, color Col)
+{
+    local rotator Rot;
+    local float Len2D;
 
     Len2D = Dist(A, B);
     if (Len2D < 0.5)
@@ -2208,7 +2234,130 @@ function DrawWorld(Canvas C, PlayerController PC, ROHUD H)
     }
 
     ForgetOldDead(Now);
+    DrawTracers(C, H, CamLoc, ViewDir, Scale, Now);
     DrawCameraStrip(C, PC, H, Scale);
+}
+
+// ====================================================
+// Tracers
+// ====================================================
+
+function float TracerLife(byte Data)
+{
+    switch (class'CMMapInfo'.static.TraceKindOf(Data))
+    {
+        case class'CMMapInfo'.const.TRACE_BULLET:  return BULLET_LIFE;
+        case class'CMMapInfo'.const.TRACE_GRENADE: return GRENADE_LIFE;
+    }
+    return SHELL_LIFE;
+}
+
+// Takes the segments the server added since the last look and drops the ones that have faded. Called every frame, also
+// with the map open, so a spectator who opens it doesn't get the last stretch of a firefight all at once.
+function CollectTracers(bool bActive, float Now)
+{
+    local ClientTracer T;
+    local int n, Head;
+
+    if (!bActive)
+    {
+        Tracers.Length = 0;
+        bTraceSynced = false;
+        return;
+    }
+
+    // Starting to spectate, or a new map: what the ring holds is old, so begin from its head
+    Head = Info.TraceHead;
+    if (!bTraceSynced || Head < TraceSeen)
+    {
+        TraceSeen = Head;
+        bTraceSynced = true;
+    }
+
+    for (n = Max(TraceSeen, Head - class'CMMapInfo'.const.MAX_TRACERS); n < Head; n++)
+    {
+        T.A = Info.TraceFrom[n % class'CMMapInfo'.const.MAX_TRACERS];
+        T.B = Info.TraceTo[n % class'CMMapInfo'.const.MAX_TRACERS];
+        T.Data = Info.TraceData[n % class'CMMapInfo'.const.MAX_TRACERS];
+        T.Born = Now;
+        Tracers.AddItem(T);
+    }
+    TraceSeen = Head;
+
+    for (n = Tracers.Length - 1; n >= 0; n--)
+    {
+        if (Now - Tracers[n].Born >= TracerLife(Tracers[n].Data))
+            Tracers.Remove(n, 1);
+    }
+    if (Tracers.Length > MAX_CLIENT_TRACERS)
+        Tracers.Remove(0, Tracers.Length - MAX_CLIENT_TRACERS);
+}
+
+// Cuts a line to the part in front of the camera; false when none of it is
+function bool ClipToView(vector CamLoc, vector ViewDir, out vector A, out vector B)
+{
+    local float DA, DB;
+
+    DA = (A - CamLoc) Dot ViewDir;
+    DB = (B - CamLoc) Dot ViewDir;
+    if (DA < NEAR_PLANE && DB < NEAR_PLANE)
+        return false;
+
+    if (DA < NEAR_PLANE)
+        A = A + (B - A) * ((NEAR_PLANE - DA) / (DB - DA));
+    else if (DB < NEAR_PLANE)
+        B = B + (A - B) * ((NEAR_PLANE - DB) / (DA - DB));
+    return true;
+}
+
+// The paths of bullets, shells, rockets and grenades as lines in the world, in the colour of the team that fired them
+// (white when not known). A new stretch burns white for a moment, then fades out over its kind's life. Bullets are thin,
+// grenades a little thicker and shells and rockets thickest.
+function DrawTracers(Canvas C, ROHUD H, vector CamLoc, vector ViewDir, float Scale, float Now)
+{
+    local vector A, B, SA, SB;
+    local vector2D P1, P2;
+    local color Col;
+    local float Age, Life, Fade, Width, Glow;
+    local byte Kind, Team;
+    local int i;
+
+    for (i = 0; i < Tracers.Length; i++)
+    {
+        Age = Now - Tracers[i].Born;
+        Life = TracerLife(Tracers[i].Data);
+        if (Age >= Life)
+            continue;
+
+        A = Tracers[i].A;
+        B = Tracers[i].B;
+        if (!ClipToView(CamLoc, ViewDir, A, B))
+            continue;
+
+        SA = C.Project(A);
+        SB = C.Project(B);
+        if ((SA.X < 0 && SB.X < 0) || (SA.X > C.ClipX && SB.X > C.ClipX) || (SA.Y < 0 && SB.Y < 0) || (SA.Y > C.ClipY && SB.Y > C.ClipY))
+            continue;
+
+        Kind = class'CMMapInfo'.static.TraceKindOf(Tracers[i].Data);
+        Team = class'CMMapInfo'.static.TraceTeamOf(Tracers[i].Data);
+        Col = TeamColour(H, Team);
+
+        Glow = FClamp(1.0 - Age / TRACER_GLOW, 0.0, 1.0);
+        Col.R = byte(Lerp(float(Col.R), 255.0, Glow));
+        Col.G = byte(Lerp(float(Col.G), 255.0, Glow));
+        Col.B = byte(Lerp(float(Col.B), 255.0, Glow));
+
+        Fade = 1.0 - Age / Life;
+        Col.A = byte(255.0 * FClamp(Fade * 1.5, 0.0, 1.0));
+
+        Width = (Kind == class'CMMapInfo'.const.TRACE_BULLET ? 2.0 : (Kind == class'CMMapInfo'.const.TRACE_GRENADE ? 3.0 : 4.0)) * Scale;
+        P1.X = SA.X;
+        P1.Y = SA.Y;
+        P2.X = SB.X;
+        P2.Y = SB.Y;
+        DrawScreenLine(C, P1, P2, Width, Col);
+    }
 }
 
 // A player's name in Col with a dark shadow, its bottom just above Screen, and their role icon between the two when

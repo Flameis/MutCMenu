@@ -7,7 +7,8 @@
 //    mutator) the 33rd and later never show. While the owner is on a team, the snapshot holds those teammates.
 //  - Map drawings. The server keeps them all in CMMapManager and sends each player the ones they may see, through the
 //    client functions here; the player's own come up through the server functions.
-//  - For a spectator also: the vehicles nobody is in, and the players their camera goes to next and before.
+//  - For a spectator also: the vehicles nobody is in, the players their camera goes to next and before, and the paths
+//    bullets, shells, rockets and grenades fly (tracers).
 class CMMapInfo extends Info;
 
 // ====================================================
@@ -59,6 +60,31 @@ var int VehCount;     // server-side, as SnapCount
 // The players a spectator's camera goes to with "next" (SpecNext[0], then [1]) and "previous", worked out on the server
 // the way the game picks them
 var ROPlayerReplicationInfo SpecNext[2], SpecPrev[2];
+
+// Tracers, for spectators. The server follows every projectile and sends the stretch each flew since the last look as a
+// segment (TraceFrom to TraceTo); the segments go round a ring of MAX_TRACERS and TraceHead counts all that were ever
+// added, so the client takes the ones past the count it has already seen. The server sends them often (TRACE_RATE a
+// second) while the owner spectates, and otherwise leaves the actor at its usual slow rate.
+const MAX_TRACERS = 192;
+const TRACE_BULLET = 0;
+const TRACE_SHELL = 1;   // rockets, tank shells, artillery, bombs and anything else that isn't a bullet or a grenade
+const TRACE_GRENADE = 2; // thrown and launched grenades and charges
+const TRACE_TEAM_STEP = 4;
+const TRACE_NO_TEAM = 2;
+const TRACE_RATE = 20;
+const SLOW_RATE = 4;
+
+struct TraceSegment
+{
+    var vector From, To;
+    var byte Data;       // kind + team * TRACE_TEAM_STEP (team 0 north, 1 south, TRACE_NO_TEAM neither)
+};
+
+var vector TraceFrom[MAX_TRACERS];
+var vector TraceTo[MAX_TRACERS];
+var byte TraceData[MAX_TRACERS];
+var int TraceHead;
+var bool bTracersOff; // server-side: this spectator turned the tracers off (mutate tracers off)
 
 // ====================================================
 // Drawings
@@ -163,7 +189,8 @@ var bool bToolHooked;       // the tool gets its keys from CMMapInputHook (false
 replication
 {
     if (bNetDirty && Role == ROLE_Authority)
-        bSpectating, SnapPRI, SnapLoc, SnapInfo, bScrimAdmin, bDrawingLocked, VehLoc, VehInfo, SpecNext, SpecPrev;
+        bSpectating, SnapPRI, SnapLoc, SnapInfo, bScrimAdmin, bDrawingLocked, VehLoc, VehInfo, SpecNext, SpecPrev,
+        TraceFrom, TraceTo, TraceData, TraceHead;
     if (bNetInitial && Role == ROLE_Authority)
         bDrawingEnabled, bSpectatorOverlay;
 }
@@ -331,6 +358,35 @@ function int SetSnapshot(bool bSpec, out array<SnapEntry> Entries)
     }
     SnapCount = Count;
     return Count;
+}
+
+// ====================================================
+// Tracers (server)
+// ====================================================
+
+static function byte TraceKindOf(byte Data)
+{
+    return Data % TRACE_TEAM_STEP;
+}
+
+static function byte TraceTeamOf(byte Data)
+{
+    return Data / TRACE_TEAM_STEP;
+}
+
+// Adds the first Count segments of Segs (the ones that matter most come first) to the ring
+function AddTracers(out array<TraceSegment> Segs, int Count)
+{
+    local int i, Slot;
+
+    for (i = 0; i < Count && i < Segs.Length; i++)
+    {
+        Slot = TraceHead % MAX_TRACERS;
+        TraceFrom[Slot] = Segs[i].From;
+        TraceTo[Slot] = Segs[i].To;
+        TraceData[Slot] = Segs[i].Data;
+        TraceHead++;
+    }
 }
 
 // ====================================================

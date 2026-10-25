@@ -54,6 +54,9 @@ function InitMutSettings()
 	if (self.myMut == None) { self.SetIntPropertyByName(name(Repl("bDisableEnhancedSpectator", ".", "_")), int(class'MutCMenu'.default.bDisableEnhancedSpectator)); }
 	else { self.SetIntPropertyByName(name(Repl("bDisableEnhancedSpectator", ".", "_")), int(MutCMenu(myMut).bDisableEnhancedSpectator)); }
 
+	if (self.myMut == None) { self.SetIntPropertyByName(name(Repl("bDisableSpectatorTracers", ".", "_")), int(class'MutCMenu'.default.bDisableSpectatorTracers)); }
+	else { self.SetIntPropertyByName(name(Repl("bDisableSpectatorTracers", ".", "_")), int(MutCMenu(myMut).bDisableSpectatorTracers)); }
+
 	if (self.myMut == None) { self.SetIntPropertyByName(name(Repl("bDisableMapDrawing", ".", "_")), int(class'MutCMenu'.default.bDisableMapDrawing)); }
 	else { self.SetIntPropertyByName(name(Repl("bDisableMapDrawing", ".", "_")), int(MutCMenu(myMut).bDisableMapDrawing)); }
 
@@ -118,6 +121,9 @@ function SaveMutSettings()
 	// Overhead map
 	if (self.myMut == None) { self.GetIntPropertyByName(name(Repl("bDisableEnhancedSpectator", ".", "_")), tempValue); class'MutCMenu'.default.bDisableEnhancedSpectator = (self.tempValue != 0); }
 	else { self.GetIntPropertyByName(name(Repl("bDisableEnhancedSpectator", ".", "_")), tempValue); MutCMenu(myMut).bDisableEnhancedSpectator = (self.tempValue != 0); }
+
+	if (self.myMut == None) { self.GetIntPropertyByName(name(Repl("bDisableSpectatorTracers", ".", "_")), tempValue); class'MutCMenu'.default.bDisableSpectatorTracers = (self.tempValue != 0); }
+	else { self.GetIntPropertyByName(name(Repl("bDisableSpectatorTracers", ".", "_")), tempValue); MutCMenu(myMut).bDisableSpectatorTracers = (self.tempValue != 0); }
 
 	if (self.myMut == None) { self.GetIntPropertyByName(name(Repl("bDisableMapDrawing", ".", "_")), tempValue); class'MutCMenu'.default.bDisableMapDrawing = (self.tempValue != 0); }
 	else { self.GetIntPropertyByName(name(Repl("bDisableMapDrawing", ".", "_")), tempValue); MutCMenu(myMut).bDisableMapDrawing = (self.tempValue != 0); }
@@ -185,6 +191,8 @@ defaultproperties
     PropertyMappings.Add((Id=622,Name="bKeepMapDrawingsBetweenRounds",MappingType=PVMT_IdMapped,ValueMappings=((Id=0),(Id=1))))
     Properties.Add((PropertyId=623,Data=(Type=SDT_Int32,Value1=0)))
     PropertyMappings.Add((Id=623,Name="MaxMapDrawingsPerPlayer"))
+    Properties.Add((PropertyId=624,Data=(Type=SDT_Int32,Value1=0)))
+    PropertyMappings.Add((Id=624,Name="bDisableSpectatorTracers",MappingType=PVMT_IdMapped,ValueMappings=((Id=0),(Id=1))))
 
     // Capture the Flag
     Properties.Add((PropertyId=630,Data=(Type=SDT_Int32,Value1=0)))

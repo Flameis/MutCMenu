@@ -2,6 +2,7 @@
 //  - four times a second, the snapshot: every living player for a spectator (with how often each was hurt, those who
 //    have just died, the vehicles nobody is in and who the camera goes to next), or for a player on a team the teammates
 //    the game's map leaves out (it has 32 places per team), including for a few seconds after they die,
+//  - twenty times a second, for spectators, the tracers: the path every bullet, shell, rocket and grenade flies,
 //  - map drawings: every drawing lives here; each player is sent the ones they may see, a few at a time, and is told
 //    when one goes away. When a player's team, squad or role changes they are sent the whole set again for their new
 //    view. Drawings are cleared at the start of each round unless the server keeps them.
@@ -30,6 +31,10 @@ const MAX_ITEMS = 600;         // drawings kept in all; the oldest goes first
 const DEFAULT_PER_PLAYER = 60; // drawings one player may have at once, when the server doesn't say
 const SEND_CHARS = 1500;       // roughly how much is sent to one player per tick (10 ticks a second)
 const REMOVE_IDS = 100;        // removals per call
+const TRACK_STEP = 0.05;       // seconds between looks at the projectiles
+const MAX_TRACKED = 256;       // projectiles followed at once; more are left out
+const MAX_PER_STEP = 24;       // segments one spectator is sent per look (shells and grenades go before bullets)
+const MIN_SEGMENT = 25.0;      // a stretch shorter than this (half a meter) isn't worth a line
 const DEAD_ICON_TIME = 5.0;    // seconds a left-out teammate (or, for spectators, anyone) stays on the map after dying, as the game does
 
 // A living player as last seen, so a spectator can be shown when they are hurt and where they die
@@ -42,6 +47,16 @@ struct WatchedPlayer
     var vector Loc;
     var byte Data;
     var float SeenTime;
+};
+
+// A projectile being followed, so each look can send the stretch it has flown since the last
+struct TrackedShot
+{
+    var Projectile Proj;
+    var vector LastLoc;
+    var vector LastVel;
+    var byte Data;       // as CMMapInfo.TraceSegment.Data
+    var bool bSeen;
 };
 
 // Someone who has just died, shown to spectators for DEAD_ICON_TIME
@@ -61,12 +76,14 @@ var bool bDrawingLocked;      // a scrim admin has stopped players drawing (unti
 var array<LeftOutPlayer> LeftOut;
 var array<WatchedPlayer> Watched;
 var array<DeadPlayer> RecentDead;
+var array<TrackedShot> Tracked;
 
 function PostBeginPlay()
 {
     super.PostBeginPlay();
     SetTimer(0.1, true, 'SendUpdates');
     SetTimer(0.25, true, 'RefreshSnapshots');
+    SetTimer(TRACK_STEP, true, 'TrackProjectiles');
 }
 
 function bool DrawingEnabled()
@@ -77,6 +94,11 @@ function bool DrawingEnabled()
 function bool SpectatorOverlay()
 {
     return Mut == None || !Mut.bDisableEnhancedSpectator;
+}
+
+function bool TracersEnabled()
+{
+    return SpectatorOverlay() && (Mut == None || !Mut.bDisableSpectatorTracers);
 }
 
 function bool IsAdmin(PlayerController PC)
@@ -238,6 +260,154 @@ function RefreshSnapshots()
         Infos[i].SpecNext[1] = None;
         Infos[i].SpecPrev[0] = None;
         Infos[i].SpecPrev[1] = None;
+    }
+}
+
+// ====================================================
+// Tracers
+// ====================================================
+
+// A spectator who is sent tracers: they spectate and haven't turned them off
+function bool WantsTracers(CMMapInfo Info)
+{
+    local PlayerController PC;
+
+    if (Info == None || Info.bDeleteMe || Info.bTracersOff)
+        return false;
+
+    PC = PlayerController(Info.Owner);
+    return PC != None && PC.PlayerReplicationInfo != None && PC.PlayerReplicationInfo.bOnlySpectator;
+}
+
+function int FindTracked(Projectile P)
+{
+    local int i;
+
+    for (i = 0; i < Tracked.Length; i++)
+    {
+        if (Tracked[i].Proj == P)
+            return i;
+    }
+    return INDEX_NONE;
+}
+
+// The kind of path and the team it is for (the team of whoever fired or threw it), packed as TraceSegment.Data
+function byte TraceDataFor(Projectile P)
+{
+    local byte Kind, Team;
+
+    if (ROBullet(P) != None)
+        Kind = class'CMMapInfo'.const.TRACE_BULLET;
+    else if (ROThrowableExplosiveProjectile(P) != None || ROLaunchedGrenadeProjectile(P) != None)
+        Kind = class'CMMapInfo'.const.TRACE_GRENADE;
+    else
+        Kind = class'CMMapInfo'.const.TRACE_SHELL;
+
+    Team = (P.Instigator != None) ? P.Instigator.GetTeamNum() : 255;
+    if (Team > 1)
+        Team = class'CMMapInfo'.const.TRACE_NO_TEAM;
+    return Kind + Team * class'CMMapInfo'.const.TRACE_TEAM_STEP;
+}
+
+// Adds a segment, shells and grenades ahead of bullets, so a firefight's bullets can't crowd them out
+function AddSegment(out array<CMMapInfo.TraceSegment> Segs, vector From, vector To, byte Data)
+{
+    local CMMapInfo.TraceSegment Seg;
+
+    if (VSizeSq(To - From) < MIN_SEGMENT * MIN_SEGMENT)
+        return;
+
+    Seg.From = From;
+    Seg.To = To;
+    Seg.Data = Data;
+    if (class'CMMapInfo'.static.TraceKindOf(Data) == class'CMMapInfo'.const.TRACE_BULLET)
+        Segs.AddItem(Seg);
+    else
+        Segs.InsertItem(0, Seg);
+}
+
+// Every TRACK_STEP: the stretch each projectile has flown since the last look, to every spectator who wants it. A
+// projectile that has gone (it hit something) gets a last stretch on to what it hit, found by tracing along its last
+// heading, since it was destroyed somewhere between two looks.
+function TrackProjectiles()
+{
+    local array<CMMapInfo.TraceSegment> Segs;
+    local Projectile P;
+    local TrackedShot Shot;
+    local vector HitLoc, HitNormal, Gone;
+    local float Age;
+    local bool bWanted;
+    local int i, Index;
+
+    if (TracersEnabled())
+    {
+        for (i = 0; i < Infos.Length && !bWanted; i++)
+            bWanted = WantsTracers(Infos[i]);
+    }
+
+    if (!bWanted)
+    {
+        Tracked.Length = 0;
+        for (i = 0; i < Infos.Length; i++)
+        {
+            if (Infos[i] != None && !Infos[i].bDeleteMe && Infos[i].NetUpdateFrequency != class'CMMapInfo'.const.SLOW_RATE)
+                Infos[i].NetUpdateFrequency = class'CMMapInfo'.const.SLOW_RATE;
+        }
+        return;
+    }
+
+    for (i = 0; i < Tracked.Length; i++)
+        Tracked[i].bSeen = false;
+
+    foreach DynamicActors(class'Projectile', P)
+    {
+        if (P.bDeleteMe || ROFlameProjectile(P) != None)
+            continue;
+
+        Index = FindTracked(P);
+        if (Index == INDEX_NONE)
+        {
+            if (Tracked.Length >= MAX_TRACKED)
+                continue;
+
+            // Seen for the first time: its path starts where it was fired, which is back along its heading by its age
+            Age = FClamp(WorldInfo.TimeSeconds - P.CreationTime, 0.0, TRACK_STEP * 2.0);
+            Shot.Proj = P;
+            Shot.Data = TraceDataFor(P);
+            Shot.LastLoc = P.Location - P.Velocity * Age;
+            Index = Tracked.Length;
+            Tracked.AddItem(Shot);
+        }
+
+        Tracked[Index].bSeen = true;
+        AddSegment(Segs, Tracked[Index].LastLoc, P.Location, Tracked[Index].Data);
+        Tracked[Index].LastLoc = P.Location;
+        Tracked[Index].LastVel = P.Velocity;
+    }
+
+    for (i = Tracked.Length - 1; i >= 0; i--)
+    {
+        if (Tracked[i].bSeen)
+            continue;
+
+        Gone = Tracked[i].LastLoc + Tracked[i].LastVel * TRACK_STEP;
+        if (Trace(HitLoc, HitNormal, Gone, Tracked[i].LastLoc, true) != None)
+            AddSegment(Segs, Tracked[i].LastLoc, HitLoc, Tracked[i].Data);
+        Tracked.Remove(i, 1);
+    }
+
+    for (i = 0; i < Infos.Length; i++)
+    {
+        if (Infos[i] == None || Infos[i].bDeleteMe)
+            continue;
+
+        if (WantsTracers(Infos[i]))
+        {
+            Infos[i].NetUpdateFrequency = class'CMMapInfo'.const.TRACE_RATE;
+            Infos[i].AddTracers(Segs, MAX_PER_STEP);
+        }
+        else if (Infos[i].NetUpdateFrequency != class'CMMapInfo'.const.SLOW_RATE)
+            Infos[i].NetUpdateFrequency = class'CMMapInfo'.const.SLOW_RATE;
     }
 }
 
@@ -776,6 +946,7 @@ function bool HandleCommand(PlayerController PC, array<string> Args)
 {
     local string What;
     local int Count;
+    local CMMapInfo Info;
 
     if (Args.Length == 0)
         return false;
@@ -784,6 +955,25 @@ function bool HandleCommand(PlayerController PC, array<string> Args)
     {
         case "MAPUNDO":
             Undo(PC);
+            return true;
+
+        case "TRACERS":
+            What = Args.Length > 1 ? Caps(Args[1]) : "";
+            Info = FindInfo(PC);
+            if (Info == None)
+                return true;
+            if (What == "ON")
+                Info.bTracersOff = false;
+            else if (What == "OFF")
+                Info.bTracersOff = true;
+            else
+                What = "";
+            if (!TracersEnabled())
+                PrivateMessage(PC, "Spectator tracers are turned off on this server.");
+            else if (What == "")
+                PrivateMessage(PC, "Your tracers are "$(Info.bTracersOff ? "off" : "on")$". Use: mutate tracers on | off");
+            else
+                PrivateMessage(PC, "Tracers "$(Info.bTracersOff ? "off" : "on")$".");
             return true;
 
         case "MAPDRAWING":
