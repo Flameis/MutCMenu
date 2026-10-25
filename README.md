@@ -131,7 +131,7 @@ Fire support lets an admin (or any player, if the server allows it) call in arti
 | `--delay` | `-d` | Waits 10-300 seconds before the first strike |
 | `--direction` | `-b` | Napalm and Canberra only: the way the aircraft flies, as a compass point (`N`, `SW`, `ESE`...) or a bearing from 0 to 360 |
 | `--suppress` | `-q` | Skips the server-wide announcement for this call. You still get a private confirmation |
-| `--look` | `-k` | Targets the spot you are looking at, instead of a grid or mark. This is how a spectator marks a target |
+| `--look` | `-k` | Targets the spot you are looking at, instead of a grid or mark: the first bit of ground or building your view line hits (players and vehicles in the way don't count). This is how a spectator marks a target. Your own game works out the spot and sends it, because the server only knows where a spectator's camera is roughly: before, a spectator watching someone got the strike on that player |
 | `--team` | | Which side the call is for: `--team north` or `--team south`. Spectators have no side, so they must give one. Admins can use it to call for the other team. Everyone else's call is for their own team |
 | `--persist` | `-p` | **Admins only.** Saves the settings you used as the new default for that barrage type |
 

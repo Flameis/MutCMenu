@@ -106,6 +106,10 @@ var vector                      FSMapShown[2];  // The location this mod last pu
 var array<FSActiveStrike>       FSActiveStrikes;
 var array<FSPendingStrike>      FSPendingStrikes;
 var string                      CurrentMutateString; // The command being processed, so argument errors can put it back in the console for editing
+// Where a player is looking, as their own game saw it (see AskClientForLook); set only while their command runs again
+var PlayerController            LookCaller;
+var vector                      LookFromClient, LookNormalFromClient;
+var bool                        bLookFromClientHit;
 var float                       FSNextCallTime[2];
 // =================================================================
 // Initialization
@@ -266,7 +270,8 @@ simulated function Mutate(string mutateString, PlayerController sender)
     // Map drawing commands (mapundo, mapclear, mapdrawing) are for everyone; the map manager checks who may do what
     if (MapManager != None && MapManager.HandleCommand(sender, SplitString(mutateString, " ", true)))
     {
-        super.Mutate(mutateString, sender);
+        if (LookCaller == None)
+            super.Mutate(mutateString, sender);
         return;
     }
 
@@ -510,7 +515,37 @@ simulated function Mutate(string mutateString, PlayerController sender)
 
         }
     }
-    super.Mutate(MutateString, sender);
+    // A command run again with the player's own view (AskClientForLook) has already been passed on the first time
+    if (LookCaller == None)
+        super.Mutate(MutateString, sender);
+}
+
+// Commands that act where the player is looking ask the player's own game where that is, then run again with the
+// answer. The server's idea of a player's view is wrong for a spectator watching someone (it is that player's
+// position, and its line hits that player), so --look fire support landed on the watched player. True when the
+// question was sent and the command should stop for now.
+function bool AskClientForLook(PlayerController Caller)
+{
+    local DummyActor DA;
+
+    if (LookCaller == Caller)
+        return false; // this is the run with the answer
+    DA = FindDummyActor(Caller);
+    if (DA == None)
+        return false;
+    DA.RequestLookTarget(CurrentMutateString);
+    return true;
+}
+
+// The answer from the player's game: their command runs again with it
+function RunWithClientLook(PlayerController Caller, string Command, bool bHit, vector Target, vector Normal)
+{
+    LookCaller = Caller;
+    LookFromClient = Target;
+    LookNormalFromClient = Normal;
+    bLookFromClientHit = bHit;
+    Mutate(Command, Caller);
+    LookCaller = None;
 }
 
 // =================================================================
@@ -560,12 +595,28 @@ function SpawnFlagCommand(PlayerController Sender, array<string> Tokens)
         Faction = class'CMAFlag'.static.FactionForTeam(WorldInfo, Team);
     }
 
-    // Where they are looking, up to 100 meters away, otherwise just in front of them
-    Sender.GetPlayerViewPoint(ViewLoc, ViewRot);
-    if (Trace(HitLoc, HitNorm, ViewLoc + vector(ViewRot) * 5000, ViewLoc, false) != None)
-        Loc = HitLoc + HitNorm * 20;
+    // Where they are looking (their own game says where, for spectators), otherwise just in front of them
+    if (AskClientForLook(Sender))
+        return;
+    if (LookCaller == Sender)
+    {
+        // A little out from the surface, so a flag put against a wall isn't inside it
+        if (bLookFromClientHit)
+            Loc = LookFromClient + LookNormalFromClient * 20;
+        else
+        {
+            PrivateMessage(Sender, "[CMenu] There is nothing in view to put the flag on. Look at the ground.");
+            return;
+        }
+    }
     else
-        Loc = ViewLoc + vector(ViewRot) * 100;
+    {
+        Sender.GetPlayerViewPoint(ViewLoc, ViewRot);
+        if (Trace(HitLoc, HitNorm, ViewLoc + vector(ViewRot) * 5000, ViewLoc, false) != None)
+            Loc = HitLoc + HitNorm * 20;
+        else
+            Loc = ViewLoc + vector(ViewRot) * 100;
+    }
 
     PlaceFlag(Sender, Loc, Faction, !class'CmdOptions'.static.Has(Tokens, "nobeam", "n"));
 }
@@ -1732,15 +1783,22 @@ function bool ResolveStrikeTeam(PlayerController Caller, bool bAdmin, array<stri
     return true;
 }
 
-// Where the caller is looking: a spectator's camera, or a player's view. The spot the view line first hits.
+// Where the caller is looking: the spot their view line first hits on the ground or a building. Their own game's answer
+// when there is one (see AskClientForLook), otherwise the server's view of them (right for a player, not a spectator).
 function bool GetLookTarget(PlayerController Caller, out vector Target)
 {
     local vector ViewLoc, HitLoc, HitNormal;
     local rotator ViewRot;
     local Actor Hit;
 
+    if (LookCaller == Caller)
+    {
+        Target = LookFromClient;
+        return bLookFromClientHit;
+    }
+
     Caller.GetPlayerViewPoint(ViewLoc, ViewRot);
-    Hit = Trace(HitLoc, HitNormal, ViewLoc + vector(ViewRot) * 100000.0, ViewLoc, true);
+    Hit = Trace(HitLoc, HitNormal, ViewLoc + vector(ViewRot) * 100000.0, ViewLoc, false);
     if (Hit == None)
         return false;
 
@@ -1763,6 +1821,10 @@ function FireSupportCommand(PlayerController Caller, string ArgText, array<strin
     local ROGameInfo ROGI;
     local FSProfile Profile;
     local bool bFired;
+
+    // --look: first ask the caller's game where they are looking (the command runs again with the answer)
+    if (class'CmdOptions'.static.Has(Tokens, "look", "k") && AskClientForLook(Caller))
+        return;
 
     Args = SplitString("FIRESUPPORT "$ArgText, " ", true);
 

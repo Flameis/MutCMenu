@@ -93,6 +93,42 @@ reliable client function ClientShowHelp(string Prompt, string Prefix, string Suf
     ShowHelp(Prompt, Prefix, Suffix, LinePrefix);
 }
 
+// A command needs to know where the player is looking. Their own game knows where its camera really is (the server's
+// idea of a spectator's view is the watched player), so it is asked.
+function RequestLookTarget(string Command)
+{
+    PendingLookCommand = Command;
+    ClientSendLookTarget();
+}
+
+// The spot the camera's line first hits on the ground or a building (players and vehicles are passed through, so a
+// spectator's line isn't stopped by the player they watch)
+reliable client function ClientSendLookTarget()
+{
+    local PlayerController PC;
+    local vector ViewLoc, HitLoc, HitNormal;
+    local rotator ViewRot;
+
+    PC = PlayerController(Owner);
+    if (PC == None)
+        return;
+    PC.GetPlayerViewPoint(ViewLoc, ViewRot);
+    if (Trace(HitLoc, HitNormal, ViewLoc + vector(ViewRot) * 100000.0, ViewLoc, false) != None)
+        ServerLookTarget(true, HitLoc, HitNormal);
+    else
+        ServerLookTarget(false, vect(0, 0, 0), vect(0, 0, 1));
+}
+
+reliable server function ServerLookTarget(bool bHit, vector Target, vector Normal)
+{
+    local string Command;
+
+    Command = PendingLookCommand;
+    PendingLookCommand = "";
+    if (Command != "" && MyMut != None && PlayerController(Owner) != None)
+        MyMut.RunWithClientLook(PlayerController(Owner), Command, bHit, Target, Normal);
+}
+
 reliable client function CMenuSetup()
 {
     local PlayerController PC;
