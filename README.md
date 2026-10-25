@@ -165,7 +165,7 @@ Open **Builder Menu** from the main menu. You aim at the spot you want, and conf
 
 | Builder section | What you can do |
 | :--- | :--- |
-| Vehicles | Place vehicles: Cobra, Loach, Huey, Bushranger, plus lists for WW2, Winter War and GOM (Gameplay Overhaul Mutator) vehicles and the GreenMen (GM) helicopters when those mods are loaded, plus the 29th's own helicopters. **Custom** types `mutate cmenu --menu CMenuBVehicles --item ` for you to add any vehicle path. **Delete Vehicle** removes the one you aim at |
+| Vehicles | Place vehicles: Cobra, Loach, Huey, Bushranger, plus lists for WW2, Winter War and GOM (Gameplay Overhaul Mutator) vehicles and the GreenMen (GM) helicopters when those mods are loaded, plus the 29th's own helicopters. The WW2 list is every vehicle WW2 has that can be placed: Crusader Mk III, Ha-Go, LVT, M13, Panzer III, Panzer IV F, SdKfz 251 halftrack, Semovente, Sherman II and III, Stuart, StuG III G, T-34, T-70, and the Universal Carrier with and without its Bren. (Its Churchill can't be placed, and the Kubelwagen, SdKfz 222, Valentine and Willys entries are gone: WW2 doesn't have them.) **Custom** types `mutate cmenu --menu CMenuBVehicles --item ` for you to add any vehicle path. **Delete Vehicle** removes the one you aim at |
 | Structures | Copy buildings or whole areas you are aiming at and paste them somewhere else. Select several meshes, copy the selection, remove the last one, or clear the selection |
 | Static Meshes | Copy, paste and delete single objects. Presets: straight sandbags and an F4 Phantom. Admins also get **Toggle Collision** and **Delete Any Object** |
 | Pickups | Turn a weapon into a pickup on the ground: **Custom** (types `--item ` for you to add the weapon path) or **Copy Held Weapon** (the one in your hands) |
@@ -331,7 +331,7 @@ The map on the spawn selection screen does not show the drawings. Turn the featu
 - **Scales with your screen:** the menu takes up the same part of the screen at any resolution. Its size is set for 1440p; at 1080p it is three quarters of that, at 4K half as big again. The clickable lines in mouse click mode scale with it.
 - **Mouse click mode:** every menu line becomes a clickable button.
 - **Private messages and help in the console:** short replies go to you only; long help opens in the large console.
-- **Loading mod content:** if the server turns it on, CMenu loads extra content packages (MutExtras, GOM 3 and 4, Winter War, WW2) so their weapons and vehicles can be used in the Builder and weapon menu. It switches on Winter War content by itself on Winter War maps and WW2 content on WW2 maps (it goes by the map name).
+- **Loading mod content:** if the server turns it on, CMenu loads extra content packages (MutExtras, GOM 3 and 4, Winter War, WW2) so their weapons and vehicles can be used in the Builder and weapon menu. It switches on Winter War content by itself on Winter War maps and WW2 content on WW2 maps (it goes by the start of the map name: `WWTE`/`WWSU` for Winter War, `RRTE`/`RRSU`/`RRSK`/`DRTE`/`DRSU` for WW2).
 - **Spawn points from the Builder:** custom spawn points are respected when players spawn.
 - **Its own game modes:** CMenu adds its own Territories and Supremacy game mode entries (needed for custom objectives and spawn points to work properly). A server has to pick them as its game mode.
 - **Experimental tank physics:** an optional setting (`bNewTankPhys`).

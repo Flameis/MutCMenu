@@ -80,49 +80,44 @@ function DoPlace()
 
 function AddModOptions()
 {
+    // Every vehicle WW2.u has that can be placed. Its Churchill (_Content) is abstract, so it can't be.
     if (MyDA.bLoadWW2)
     {
-        MenuText.additem("WW2 Churchill Mk VII");
         MenuText.additem("WW2 Crusader Mk III");
         MenuText.additem("WW2 Ha-Go");
-        MenuText.additem("WW2 Kubelwagen");
+        MenuText.additem("WW2 LVT");
+        MenuText.additem("WW2 M13");
         MenuText.additem("WW2 Panzer III");
         MenuText.additem("WW2 Panzer IV F");
-        MenuText.additem("WW2 SdKfz 222 Recon");
         MenuText.additem("WW2 SdKfz 251 Halftrack");
-        
         MenuText.additem("WW2 Semovente");
+
+        MenuText.additem("WW2 Sherman II");
         MenuText.additem("WW2 Sherman III");
-        MenuText.additem("WW2 Stuart M3");
+        MenuText.additem("WW2 Stuart");
         MenuText.additem("WW2 Stug III G");
         MenuText.additem("WW2 T-34");
         MenuText.additem("WW2 T-70");
         MenuText.additem("WW2 UC Bren");
         MenuText.additem("WW2 UC");
 
-        MenuText.additem("WW2 Valentine");
-        MenuText.additem("WW2 Willys");
-
-        MenuCommand.additem("WW2.WW2Vehicle_ChurchillMkVII_Content");
         MenuCommand.additem("WW2.WW2Vehicle_CrusaderMkIII_Content");
         MenuCommand.additem("WW2.WW2Vehicle_HaGo_Content");
-        MenuCommand.additem("WW2.WW2Vehicle_Kubelwagen_Content");
+        MenuCommand.additem("WW2.WW2Vehicle_LVT_Content");
+        MenuCommand.additem("WW2.WW2Vehicle_M13_Content");
         MenuCommand.additem("WW2.WW2Vehicle_PanzerIII_Content");
         MenuCommand.additem("WW2.WW2Vehicle_PanzerIVF_Content");
-        MenuCommand.additem("WW2.WW2Vehicle_SdKfz_222_Recon_Content");
         MenuCommand.additem("WW2.WW2Vehicle_SdKfz_251_Halftrack_Content");
-
         MenuCommand.additem("WW2.WW2Vehicle_Semovente_Content");
+
+        MenuCommand.additem("WW2.WW2Vehicle_ShermanII_Content");
         MenuCommand.additem("WW2.WW2Vehicle_ShermanIII_Content");
-        MenuCommand.additem("WW2.WW2Vehicle_StuartM3_Content");
+        MenuCommand.additem("WW2.WW2Vehicle_Stuart_Content");
         MenuCommand.additem("WW2.WW2Vehicle_StugIIIG_Content");
         MenuCommand.additem("WW2.WW2Vehicle_T34_Content");
         MenuCommand.additem("WW2.WW2Vehicle_T70_Content");
         MenuCommand.additem("WW2.WW2Vehicle_UC_Bren_Content");
         MenuCommand.additem("WW2.WW2Vehicle_UC_Content");
-
-        MenuCommand.additem("WW2.WW2Vehicle_Valentine_Content");
-        MenuCommand.additem("WW2.WW2Vehicle_Willys_Content");
     }
 
     if (MyDA.bLoadWW)

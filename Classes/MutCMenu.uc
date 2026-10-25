@@ -157,16 +157,18 @@ function bool ShouldForceModLoads()
     return bDebugStandalone && WorldInfo.NetMode == NM_Standalone;
 }
 
+// A WW2 or Winter War map has that mod's content loaded anyway, so its vehicles and weapons can be used. Read from the
+// map name's prefix (WW2: RRTE, RRSU, RRSK, DRTE, DRSU; Winter War: WWTE, WWSU), the way the game picks the game mode.
 function ApplyMapModLoads()
 {
-    local string MapName;
+    local string Prefix;
 
-    MapName = WorldInfo.GetMapName(true);
+    Prefix = Caps(Left(WorldInfo.GetMapName(true), 4));
 
-    if (InStr(MapName, "WWTE",,true) != -1 || InStr(MapName, "WWSU",,true) != -1)
+    if (Prefix == "WWTE" || Prefix == "WWSU")
         bLoadWW = true;
 
-    if (InStr(MapName, "RR",,true) != -1 || InStr(MapName, "DR",,true) != -1)
+    if (Prefix == "RRTE" || Prefix == "RRSU" || Prefix == "RRSK" || Prefix == "DRTE" || Prefix == "DRSU")
         bLoadWW2 = true;
 }
 
