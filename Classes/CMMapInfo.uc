@@ -44,12 +44,14 @@ struct SnapEntry
     var ROPlayerReplicationInfo PRI;
     var vector Loc;
     var byte Data;
+    var byte Near;     // 1 while bullets have been passing close by (spectators' warning strobe)
 };
 
 // Fixed arrays because dynamic ones can't be replicated; only the slots that changed are sent. A slot with no PRI is empty.
 var ROPlayerReplicationInfo SnapPRI[MAX_SNAPSHOT];
 var vector SnapLoc[MAX_SNAPSHOT];
 var byte SnapInfo[MAX_SNAPSHOT];
+var byte SnapNear[MAX_SNAPSHOT]; // 1 for a player bullets have just passed close to; the spectator's marker strobes a warning colour
 var bool bSpectating; // the snapshot is the spectator overlay (every living player); otherwise it is left-out teammates
 var int SnapCount;    // server-side: slots in use, so only those past the end need clearing
 
@@ -60,6 +62,12 @@ var int VehCount;     // server-side, as SnapCount
 // The players a spectator's camera goes to with "next" (SpecNext[0], then [1]) and "previous", worked out on the server
 // the way the game picks them
 var ROPlayerReplicationInfo SpecNext[2], SpecPrev[2];
+
+// Near misses, for spectators: a bullet that passes within NEAR_RADIUS of a player (not their own) marks them for
+// NEAR_HOLD seconds, which is longer than the snapshot's four a second so no pass is missed. The marker strobes amber
+// (white is kept for a real hit).
+const NEAR_RADIUS = 150.0; // 3 meters
+const NEAR_HOLD = 0.75;
 
 // Tracers, for spectators. The server follows every projectile and sends the stretch each flew since the last look as a
 // segment (TraceFrom to TraceTo); the segments go round a ring of MAX_TRACERS and TraceHead counts all that were ever
@@ -189,7 +197,7 @@ var bool bToolHooked;       // the tool gets its keys from CMMapInputHook (false
 replication
 {
     if (bNetDirty && Role == ROLE_Authority)
-        bSpectating, SnapPRI, SnapLoc, SnapInfo, bScrimAdmin, bDrawingLocked, VehLoc, VehInfo, SpecNext, SpecPrev,
+        bSpectating, SnapPRI, SnapLoc, SnapInfo, SnapNear, bScrimAdmin, bDrawingLocked, VehLoc, VehInfo, SpecNext, SpecPrev,
         TraceFrom, TraceTo, TraceData, TraceHead;
     if (bNetInitial && Role == ROLE_Authority)
         bDrawingEnabled, bSpectatorOverlay;
@@ -348,6 +356,7 @@ function int SetSnapshot(bool bSpec, out array<SnapEntry> Entries)
         SnapPRI[Count] = Entries[i].PRI;
         SnapLoc[Count] = Entries[i].Loc;
         SnapInfo[Count] = Entries[i].Data;
+        SnapNear[Count] = Entries[i].Near;
         Count++;
     }
 
@@ -355,6 +364,7 @@ function int SetSnapshot(bool bSpec, out array<SnapEntry> Entries)
     {
         SnapPRI[i] = None;
         SnapInfo[i] = 0;
+        SnapNear[i] = 0;
     }
     SnapCount = Count;
     return Count;

@@ -2,7 +2,8 @@
 //  - four times a second, the snapshot: every living player for a spectator (with how often each was hurt, those who
 //    have just died, the vehicles nobody is in and who the camera goes to next), or for a player on a team the teammates
 //    the game's map leaves out (it has 32 places per team), including for a few seconds after they die,
-//  - twenty times a second, for spectators, the tracers: the path every bullet, shell, rocket and grenade flies,
+//  - twenty times a second, for spectators, the tracers: the path every bullet, shell, rocket and grenade flies; the same
+//    look notes players a bullet passes close to, so a spectator's marker for them strobes a warning,
 //  - map drawings: every drawing lives here; each player is sent the ones they may see, a few at a time, and is told
 //    when one goes away. When a player's team, squad or role changes they are sent the whole set again for their new
 //    view. Drawings are cleared at the start of each round unless the server keeps them.
@@ -44,6 +45,7 @@ struct WatchedPlayer
     var Pawn LastPawn;   // health is only compared on the same pawn (getting into a vehicle changes it)
     var int LastHealth;
     var byte HurtCount;
+    var float NearUntil; // bullets passed close by until this time (spectators' warning strobe)
     var vector Loc;
     var byte Data;
     var float SeenTime;
@@ -279,6 +281,60 @@ function bool WantsTracers(CMMapInfo Info)
     return PC != None && PC.PlayerReplicationInfo != None && PC.PlayerReplicationInfo.bOnlySpectator;
 }
 
+// A spectator, whether or not they want tracers
+function bool IsSpectatorInfo(CMMapInfo Info)
+{
+    local PlayerController PC;
+
+    if (Info == None || Info.bDeleteMe)
+        return false;
+
+    PC = PlayerController(Info.Owner);
+    return PC != None && PC.PlayerReplicationInfo != None && PC.PlayerReplicationInfo.bOnlySpectator;
+}
+
+// How far Pt is from the stretch A to B, squared
+static function float DistToSegmentSq(vector Pt, vector A, vector B)
+{
+    local vector AB;
+    local float LenSq, T;
+
+    AB = B - A;
+    LenSq = VSizeSq(AB);
+    if (LenSq < 1.0)
+        return VSizeSq(Pt - A);
+
+    T = FClamp(((Pt - A) Dot AB) / LenSq, 0.0, 1.0);
+    return VSizeSq(Pt - (A + AB * T));
+}
+
+// A bullet flew from A to B: every watched player within NEAR_RADIUS of that stretch, other than whoever fired it, is
+// marked as having bullets close by for NEAR_HOLD seconds
+function NoteNearMiss(vector A, vector B, Pawn Shooter)
+{
+    local int i;
+    local float RadiusSq;
+
+    RadiusSq = class'CMMapInfo'.const.NEAR_RADIUS * class'CMMapInfo'.const.NEAR_RADIUS;
+    for (i = 0; i < Watched.Length; i++)
+    {
+        if (Watched[i].LastPawn == None || Watched[i].LastPawn.bDeleteMe || Watched[i].LastPawn == Shooter)
+            continue;
+
+        if (DistToSegmentSq(Watched[i].LastPawn.Location, A, B) <= RadiusSq)
+            Watched[i].NearUntil = WorldInfo.TimeSeconds + class'CMMapInfo'.const.NEAR_HOLD;
+    }
+}
+
+// 1 while bullets have recently passed close to the watched player, otherwise 0
+function byte NearFlagFor(ROPlayerReplicationInfo PRI)
+{
+    local int Index;
+
+    Index = FindWatched(PRI);
+    return (Index != INDEX_NONE && WorldInfo.TimeSeconds < Watched[Index].NearUntil) ? 1 : 0;
+}
+
 function int FindTracked(Projectile P)
 {
     local int i;
@@ -336,14 +392,21 @@ function TrackProjectiles()
     local TrackedShot Shot;
     local vector HitLoc, HitNormal, Gone;
     local float Age;
-    local bool bWanted;
+    local bool bWanted, bTracers, bNear;
     local int i, Index;
 
+    // Tracers go to spectators who want them; near misses are noted whenever the spectator overlay is on and someone spectates
     if (TracersEnabled())
     {
-        for (i = 0; i < Infos.Length && !bWanted; i++)
-            bWanted = WantsTracers(Infos[i]);
+        for (i = 0; i < Infos.Length && !bTracers; i++)
+            bTracers = WantsTracers(Infos[i]);
     }
+    if (SpectatorOverlay())
+    {
+        for (i = 0; i < Infos.Length && !bNear; i++)
+            bNear = IsSpectatorInfo(Infos[i]);
+    }
+    bWanted = bTracers || bNear;
 
     if (!bWanted)
     {
@@ -380,6 +443,8 @@ function TrackProjectiles()
         }
 
         Tracked[Index].bSeen = true;
+        if (bNear && ROBullet(P) != None)
+            NoteNearMiss(Tracked[Index].LastLoc, P.Location, P.Instigator);
         AddSegment(Segs, Tracked[Index].LastLoc, P.Location, Tracked[Index].Data);
         Tracked[Index].LastLoc = P.Location;
         Tracked[Index].LastVel = P.Velocity;
@@ -401,7 +466,7 @@ function TrackProjectiles()
         if (Infos[i] == None || Infos[i].bDeleteMe)
             continue;
 
-        if (WantsTracers(Infos[i]))
+        if (bTracers && WantsTracers(Infos[i]))
         {
             Infos[i].NetUpdateFrequency = class'CMMapInfo'.const.TRACE_RATE;
             Infos[i].AddTracers(Segs, MAX_PER_STEP);
@@ -625,7 +690,9 @@ function BuildSnapshots(out array<CMMapInfo.SnapEntry> Everyone, out array<CMMap
         if (bOverlay)
         {
             Entry.Data += WatchPlayer(ROPRI, C.Pawn, Entry.Loc, Entry.Data) * class'CMMapInfo'.const.HURT_STEP;
+            Entry.Near = NearFlagFor(ROPRI);
             Everyone.AddItem(Entry);
+            Entry.Near = 0;
             Entry.Data = Entry.Data % class'CMMapInfo'.const.HURT_STEP; // the teammates' maps don't use it
         }
 

@@ -2079,6 +2079,12 @@ function bool StrobeWhite(PlayerReplicationInfo PRI, byte Count, float Now)
     return (int((Now - (FlashUntil[Index] - FLASH_TIME)) / STROBE_STEP) % 2) == 0;
 }
 
+// The warning strobe for a player bullets are passing close to: on for one step, off for the next
+static function bool NearStrobeOn(float Now)
+{
+    return (int(Now / STROBE_STEP) % 2) == 0;
+}
+
 // Borders of the capture objectives built with CMenu, in the colour of the team that holds them (white while nobody does),
 // fainter while the objective is closed. The shape is the one the objective captures in.
 function DrawObjectiveBorders(Canvas C, PlayerController PC)
@@ -2208,9 +2214,13 @@ function DrawWorld(Canvas C, PlayerController PC, ROHUD H)
         if (!ProjectToScreen(C, Head, CamLoc, ViewDir, Screen))
             continue;
 
-        // Strobing white for a couple of seconds after they are hit, like Arma's
+        // Strobing white for a couple of seconds after they are hit, like Arma's; strobing amber while bullets pass close
+        // to them (a hit takes over from the warning)
         if (StrobeWhite(Info.SnapPRI[i], class'CMMapInfo'.static.HurtCountOf(Info.SnapInfo[i]), Now))
             Col = MakeColor(255, 255, 255, 255);
+        else if (Info.SnapNear[i] != 0 && !Flashing(Info.SnapPRI[i], class'CMMapInfo'.static.HurtCountOf(Info.SnapInfo[i]), Now)
+            && NearStrobeOn(Now))
+            Col = MakeColor(255, 190, 0, 255);
         else
             Col = TeamColour(H, Info.SnapInfo[i] & class'CMMapInfo'.const.FLAG_SOUTH);
         Dist2D = VSize(Head - CamLoc);
