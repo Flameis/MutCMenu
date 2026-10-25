@@ -163,6 +163,7 @@ var bool bTracerKeyDown;   // the tracers key was down last frame
 var bool bTracerHold;      // the tracers key is held (without Shift): tracers show until it is let go
 var bool bTracersLatched;  // Shift + the tracers key switched them on until the next time
 var bool bTracersAsked;    // the server has been asked for tracers
+var bool bWasSpectatorView; // the spectator overlay was on last frame
 
 // Spectators: each player's hit count as last seen, and until when their marker flashes
 var array<PlayerReplicationInfo> HurtPRIs;
@@ -958,6 +959,9 @@ event PostRender(Canvas C)
 
     // The spectator overlay is on while the owner spectates and the server sends them everyone
     bSpectatorView = Info.bSpectating && H != None && PC.PlayerReplicationInfo != None && PC.PlayerReplicationInfo.bOnlySpectator;
+    if (bWasSpectatorView && !bSpectatorView)
+        LeaveSpectatorView();
+    bWasSpectatorView = bSpectatorView;
     SetDefaultNames(H, bSpectatorView);
     UpdateTracerRequest(PC, bSpectatorView);
     CollectTracers(bSpectatorView && (bTracersAsked || Info.bTracersOn), PC.WorldInfo.RealTimeSeconds);
@@ -1021,8 +1025,11 @@ event PostRender(Canvas C)
             DrawLabel(C, WorldToScreen(TypeAt), TypeText $ "_", class'CMMapInfo'.static.GetColour(Colour), false);
     }
 
-    // Players over the drawings, so a drawing never hides one
-    DrawSnapshotOnMap(C, H, bSpectatorView);
+    // Players over the drawings, so a drawing never hides one. A snapshot made for the other view (just after joining a team
+    // from spectating, or the other way round, before the server's next one) is left alone: drawn as teammates, a
+    // spectator's snapshot would show the whole server.
+    if (Info.bSpectating == bSpectatorView)
+        DrawSnapshotOnMap(C, H, bSpectatorView);
     if (bSpectatorView)
         DrawFlagsOnMap(C, H);
 
@@ -2561,6 +2568,22 @@ function bool KeyHeld(PlayerController PC, name Key)
 function bool NamesKeyHeld(PlayerController PC)
 {
     return KeyHeld(PC, NamesKey());
+}
+
+// The player stopped spectating (joined a team): everything the spectator overlay keeps for itself is dropped at once, so
+// nothing from it is drawn or kept once they play. The game's own names come back through SetDefaultNames.
+function LeaveSpectatorView()
+{
+    Tracers.Length = 0;
+    bTraceSynced = false;
+    bTracerHold = false;
+    bTracersLatched = false;
+    bTracerKeyDown = false;
+    DeadPRIs.Length = 0;
+    DeadSince.Length = 0;
+    HurtPRIs.Length = 0;
+    HurtCounts.Length = 0;
+    FlashUntil.Length = 0;
 }
 
 // The key spectators use for the tracers: hold it to see them, or hold Shift as well to switch them on and off

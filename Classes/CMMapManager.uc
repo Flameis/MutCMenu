@@ -276,6 +276,10 @@ function RefreshSnapshots()
             continue;
         }
 
+        // No longer a spectator: their tracers stop, whatever their game last asked for
+        if (Infos[i].bTracersOn)
+            Infos[i].SetTracers(false);
+
         if (Team == 0)
             Infos[i].SetSnapshot(false, TeamLeftOut0);
         else if (Team == 1)

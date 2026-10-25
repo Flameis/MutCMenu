@@ -55,10 +55,12 @@ function ROVehicle FindEnterableTank()
 }
 
 // A tank with a free seat, standing still, that is the player's team's or nobody's, and that the game itself wouldn't let
-// this player into (transports the game already lets them use get no second prompt)
+// this player into (transports the game already lets them use get no second prompt). The seat check is HasEmptySeat, which
+// reads the seat state sent to clients: AnySeatAvailable is a server-only function, so on a player's own computer it never
+// ran and the prompt never showed (single player and the host were not affected).
 function bool IsEnterable(ROVehicle ROV)
 {
-    if (ROV == none || ROV.bDeadVehicle || !ROV.AnySeatAvailable() || VSizeSq(ROV.Velocity) >= class'ROVehicle'.const.MAX_SPEED_FOR_ENTRY_SQ)
+    if (ROV == none || ROV.bDeadVehicle || !ROV.HasEmptySeat() || VSizeSq(ROV.Velocity) >= class'ROVehicle'.const.MAX_SPEED_FOR_ENTRY_SQ)
         return false;
     if (ROV.Team != PC.GetTeamNum() && !IsEmpty(ROV))
         return false;
