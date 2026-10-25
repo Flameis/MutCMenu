@@ -266,6 +266,8 @@ simulated function ShowPreviewMesh()
 	if (Host == None)
 		return;
 
+	// Nothing from an earlier item stays on, wherever it was left
+	DetachAllParts();
 	for (i = 0; i < PartComps.Length; i++)
 	{
 		Host.AttachComponent(PartComps[i]);
@@ -291,27 +293,28 @@ simulated function UpdatePreviewMesh()
 	}
 }
 
-simulated function HidePreviewMesh()
+// Every pooled component and the base menu's own two, so nothing from an earlier item is left behind
+simulated function DetachAllParts()
 {
 	local StaticMeshComponent PSM;
 	local SkeletalMeshComponent PSkM;
 
+	foreach StaticPool(PSM)
+		DetachPreview(PSM);
+	foreach SkeletalPool(PSkM)
+		DetachPreview(PSkM);
+	foreach PreviewStaticMesh(PSM)
+		DetachPreview(PSM);
+	foreach PreviewSkeletalMesh(PSkM)
+		DetachPreview(PSkM);
+}
+
+simulated function HidePreviewMesh()
+{
 	if (!bShowPreviewMesh)
 		return;
 
-	// Every pooled component, so nothing from an earlier item is left behind
-	foreach StaticPool(PSM)
-	{
-		PSM.SetHidden(true);
-		if (PreviewHost != None)
-			PreviewHost.DetachComponent(PSM);
-	}
-	foreach SkeletalPool(PSkM)
-	{
-		PSkM.SetHidden(true);
-		if (PreviewHost != None)
-			PreviewHost.DetachComponent(PSkM);
-	}
+	DetachAllParts();
 	PreviewHost = None;
 	bShowPreviewMesh = false;
 }

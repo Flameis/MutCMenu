@@ -327,6 +327,22 @@ simulated function UpdatePreviewMesh() // Update the postion of the Preview Mesh
 	}
 }
 
+// Hides a preview component and takes it off everything it could be on: the host it was put on, the player's pawn and
+// the DummyActor (a spectator's host). Detaching from something it isn't on does nothing.
+simulated function DetachPreview(PrimitiveComponent C)
+{
+	if (C == None)
+		return;
+
+	C.SetHidden(true);
+	if (PreviewHost != None)
+		PreviewHost.DetachComponent(C);
+	if (PC != None && PC.Pawn != None && PC.Pawn != PreviewHost)
+		PC.Pawn.DetachComponent(C);
+	if (MyDA != None && MyDA != PreviewHost)
+		MyDA.DetachComponent(C);
+}
+
 simulated function ShowPreviewMesh()
 {
 	local StaticMeshComponent PSM;
@@ -337,16 +353,21 @@ simulated function ShowPreviewMesh()
 	if (Host == None)
 		return;
 
+	// Only one kind of preview at a time: the other kind is taken off first, wherever it was left
 	if (bPreviewIsSkeletal)
 	{
+		foreach PreviewStaticMesh(PSM)
+			DetachPreview(PSM);
 		foreach PreviewSkeletalMesh(PSkM)
 		{
 			Host.AttachComponent(PSkM);
 			PSkM.SetHidden(false);
 		}
 	}
-	else 
+	else
 	{
+		foreach PreviewSkeletalMesh(PSkM)
+			DetachPreview(PSkM);
 		foreach PreviewStaticMesh(PSM)
 		{
 			Host.AttachComponent(PSM);
@@ -365,25 +386,12 @@ simulated function HidePreviewMesh()
 
 	if (bShowPreviewMesh)
 	{
-		// Detach from the pawn the preview was attached to, which may no longer be the player's current pawn
-		if ( bPreviewIsSkeletal )
-		{
-			foreach PreviewSkeletalMesh(PSkM)
-			{
-				PSkM.SetHidden(true);
-				if (PreviewHost != None)
-					PreviewHost.DetachComponent(PSkM);
-			}
-		}
-		else 
-		{
-			foreach PreviewStaticMesh(PSM)
-			{
-				PSM.SetHidden(true);
-				if (PreviewHost != None)
-					PreviewHost.DetachComponent(PSM);
-			}
-		}
+		// Both kinds, whichever was showing, from the pawn the preview was attached to (which may no longer be the
+		// player's current pawn) and anything else it could be on
+		foreach PreviewSkeletalMesh(PSkM)
+			DetachPreview(PSkM);
+		foreach PreviewStaticMesh(PSM)
+			DetachPreview(PSM);
 		PreviewHost = None;
 		bShowPreviewMesh = false;
 	}
