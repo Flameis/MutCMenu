@@ -12,129 +12,12 @@ var CMenuClickOverlayScene ClickOverlay;
 var array<vector2d>				Corners;
 
 var string PendingHelp; // client-side: help received in pieces, waiting for ClientShowHelp
-
-// WW2 Tank compatibility - stores original ClassIndex when temporarily modifying for vehicle entry
-var byte OriginalClassIndex;
-var bool bInWW2TankEntryCheck;
-var float WW2TankCheckTimer;
+var string PendingLookCommand; // server-side: the command waiting for ServerLookTarget (MutCMenu.AskClientForLook)
 
 replication
 {
     if (bNetDirty)
-        bIsAuthorized, bNewTankPhys, bLoadExtras, bLoadGOM3, bLoadGOM4, bLoadWW, bLoadWW2, bFSPlayersCanCall, OriginalClassIndex, bInWW2TankEntryCheck;
-}
-
-simulated event Tick(float DeltaTime)
-{
-    local ROPlayerController ROPC;
-    local ROPlayerReplicationInfo ROPRI;
-    local ROVehicle TargetVehicle;
-    local vector ViewLocation, HitLocation, HitNormal, TraceEnd, ViewDirection;
-    local rotator ViewRotation;
-    local actor TracedActor;
-    local float TraceLength;
-    
-    super.Tick(DeltaTime);
-    
-    // Only run on client for local player
-    if (WorldInfo.NetMode == NM_DedicatedServer || Owner == none)
-    {
-        // `log("[DummyActor] Tick: Skipping (DedicatedServer or no Owner)");
-        return;
-    }
-    
-    // Only check once per second
-    WW2TankCheckTimer += DeltaTime;
-    if (WW2TankCheckTimer < 1.0)
-    {
-        return;
-    }
-    WW2TankCheckTimer = 0.0;
-    
-    ROPC = ROPlayerController(Owner);
-    if (ROPC == none || ROPC.Pawn == none)
-    {
-        // `log("[DummyActor] Tick: No ROPC or Pawn");
-        return;
-    }
-    
-    ROPRI = ROPlayerReplicationInfo(ROPC.PlayerReplicationInfo);
-    if (ROPRI == none || ROPRI.RoleInfo == none)
-    {
-        // `log("[DummyActor] Tick: No ROPRI or RoleInfo");
-        return;
-    }
-    
-    // Check if player has a tank crew role (ClassIndex 8 or 9, or bIsTankCommander flag)
-    // Use OriginalClassIndex if we've temporarily modified it, otherwise use current ClassIndex
-    if ((bInWW2TankEntryCheck ? OriginalClassIndex : ROPRI.RoleInfo.ClassIndex) != 8 || !ROPRI.RoleInfo.bIsTankCommander)
-    {
-        // Restore original ClassIndex if we modified it
-        if (bInWW2TankEntryCheck)
-        {
-            `log("[DummyActor] Tick: Restoring ClassIndex from"@ROPRI.RoleInfo.ClassIndex@"to"@OriginalClassIndex@"(not tank crew)");
-            ROPRI.RoleInfo.ClassIndex = OriginalClassIndex;
-            bInWW2TankEntryCheck = false;
-        }
-        return;
-    }
-    
-    // Find WW2/WW tank the player is looking at or trying to enter
-    ROPC.GetPlayerViewPoint(ViewLocation, ViewRotation);
-    ViewDirection = Vector(ROPC.Pawn.GetViewRotation());
-    TraceLength = 2000;
-    TraceEnd = ViewLocation + ViewDirection * TraceLength;
-    TracedActor = ROPC.Trace(HitLocation, HitNormal, TraceEnd, ViewLocation, true);
-    TargetVehicle = ROVehicle(TracedActor);
-
-    `log("[DummyActor] Tick: Checking for WW2/WW tank. Looking at:"@TargetVehicle);
-    
-    // Check if this is a WW2 or Winter War tank
-    if (TargetVehicle != none && 
-        (InStr(string(TargetVehicle.Class.Name), "WW2", , true) != -1 || 
-         InStr(string(TargetVehicle.Class.Outer.Name), "WW2", , true) != -1))
-    {
-        `log("[DummyActor] Tick: Looking at WW2/WW tank:"@TargetVehicle);
-        // Temporarily set ClassIndex to 9 to pass WW2 vehicle entry check
-        if (!bInWW2TankEntryCheck)
-        {
-            `log("[DummyActor] Tick: Setting ClassIndex to 9 (was"@ROPRI.RoleInfo.ClassIndex$")");
-            OriginalClassIndex = ROPRI.RoleInfo.ClassIndex;
-            bInWW2TankEntryCheck = true;
-        }
-        ROPRI.RoleInfo.ClassIndex = 9;
-    }
-    else
-    {
-        // Restore original ClassIndex when not near WW2 tanks
-        if (bInWW2TankEntryCheck)
-        {
-            `log("[DummyActor] Tick: Restoring ClassIndex to"@OriginalClassIndex@"(no longer looking at WW2/WW tank)");
-            ROPRI.RoleInfo.ClassIndex = OriginalClassIndex;
-            bInWW2TankEntryCheck = false;
-        }
-    }
-    
-    /* // Also check if player is already in a WW2 tank (for seat switching)
-    if (ROPC.Pawn.IsA('ROVehicle'))
-    {
-        TargetVehicle = ROVehicle(ROPC.Pawn);
-        if (TargetVehicle != none && 
-            (InStr(string(TargetVehicle.Class.Name), "WW2", , true) != -1 || 
-             InStr(string(TargetVehicle.Class.Outer.Name), "WW2", , true) != -1 ||
-             InStr(string(TargetVehicle.Class.Name), "WW", , true) != -1 ||
-             InStr(string(TargetVehicle.Class.Outer.Name), "WinterWar", , true) != -1))
-        {
-            `log("[DummyActor] Tick: Player is inside WW2/WW tank:"@TargetVehicle);
-            if (!bInWW2TankEntryCheck)
-            {
-                `log("[DummyActor] Tick: Setting ClassIndex to 9 for seat switching (was"@ROPRI.RoleInfo.ClassIndex$")");
-                OriginalClassIndex = ROPRI.RoleInfo.ClassIndex;
-                bInWW2TankEntryCheck = true;
-            }
-            ROPRI.RoleInfo.ClassIndex = 9;
-        }
-    } */
+        bIsAuthorized, bNewTankPhys, bLoadExtras, bLoadGOM3, bLoadGOM4, bLoadWW, bLoadWW2, bFSPlayersCanCall;
 }
 
 // Guidance up to this size goes to the chat and the mini console; anything longer goes to the large console
@@ -479,28 +362,64 @@ unreliable server function SpawnVehicle(string VehicleName, vector PlaceLoc, rot
     }
 }
 
-// Server side of the tank entry prompt (TankEntryInteraction). Bypasses vanilla's bInfantryCanUse gate on tanks
-// but keeps the normal TryToDrive checks (free seat, no enemies aboard, not prone, etc.)
+// The role class a tank lets in, for the tanks that let in only one: WW2's (9) and Winter War's (8). 255 for the rest.
+static function byte CrewClassIndexFor(ROVehicle ROV)
+{
+    if (ROV == None)
+        return 255;
+    if (ROV.IsA('WW2VehicleTank'))
+        return 9;
+    if (ROV.IsA('WWVehicleTank'))
+        return 8;
+    return 255;
+}
+
+// Server side of the tank entry prompt (TankEntryInteraction). Gets past the game's gates on tanks (bInfantryCanUse, and
+// the one role class WW2 and Winter War tanks let in) but keeps the normal TryToDrive checks: a free seat, no enemies
+// aboard, not prone, the vehicle's own team lock. Returns whether the player got in.
 reliable server function EnterVehicle(ROVehicle ROV)
 {
-    local ROPlayerController        ROPC;
-    local ROPawn                    ROP;
+    local ROPlayerController ROPC;
 
     ROPC = ROPlayerController(Owner);
-    ROP = ROPC != none ? ROPawn(ROPC.Pawn) : none;
-    if (ROP == none || ROP.Health <= 0 || ROP.bIsProning || ROP.IsProneTransitioning())
-        return;
-
-    // The client picks the tank, so re-validate everything here
-    if (ROV == none || ROV.bDeadVehicle || ROV.Team != ROPC.GetTeamNum() || VSize(ROV.Location - ROP.Location) > 1000
-        || VSizeSq(ROV.Velocity) >= class'ROVehicle'.const.MAX_SPEED_FOR_ENTRY_SQ)
-        return;
-
-    if (ROV.TryToDrive(ROP))
+    if (ROPC != None && TryEnterVehicle(ROPC, ROV))
     {
         ROPC.ClientStartExitVehicleFadeOut();
         ROPC.SetTimer(0.25, false, 'ClientStartExitVehicleFadeIn');
     }
+}
+
+function bool TryEnterVehicle(ROPlayerController ROPC, ROVehicle ROV)
+{
+    local ROPawn ROP;
+    local ROPlayerReplicationInfo ROPRI;
+    local byte CrewIndex, OldIndex;
+    local bool bEntered;
+
+    ROP = (ROPC != none) ? ROPawn(ROPC.Pawn) : none;
+    if (ROP == none || ROP.Health <= 0 || ROP.bIsProning || ROP.IsProneTransitioning())
+        return false;
+
+    // The client picks the tank, so everything is checked again here
+    if (ROV == none || ROV.bDeadVehicle || VSize(ROV.Location - ROP.Location) > 1000
+        || VSizeSq(ROV.Velocity) >= class'ROVehicle'.const.MAX_SPEED_FOR_ENTRY_SQ)
+        return false;
+    if (ROV.Team != ROPC.GetTeamNum() && !class'TankEntryInteraction'.static.IsEmpty(ROV))
+        return false;
+
+    // A WW2 or Winter War tank asks for its crew class: the player's role has it for the moment of getting in only. The
+    // role is shared by everyone playing it, and nothing else runs in between, so nobody else ever sees the change.
+    ROPRI = ROPlayerReplicationInfo(ROPC.PlayerReplicationInfo);
+    CrewIndex = CrewClassIndexFor(ROV);
+    if (CrewIndex != 255 && ROPRI != None && ROPRI.RoleInfo != None)
+    {
+        OldIndex = ROPRI.RoleInfo.ClassIndex;
+        ROPRI.RoleInfo.ClassIndex = CrewIndex;
+        bEntered = ROV.TryToDrive(ROP);
+        ROPRI.RoleInfo.ClassIndex = OldIndex;
+        return bEntered;
+    }
+    return ROV.TryToDrive(ROP);
 }
 
 reliable server function ClearAllVehicles()

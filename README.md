@@ -327,7 +327,7 @@ The map on the spawn selection screen does not show the drawings. Turn the featu
 
 ## 7. Other features
 
-- **Tank entry prompt:** a player who is not tank crew can still climb into a friendly tank. Stand close to it and face it, and an enter prompt appears with your use key (F unless you changed it); press it to get in. *Fixed:* the prompt used to show E and wait for E, because the game binds the use key through a second name ("Interact"), so pressing your real use key did nothing.
+- **Tank entry for everyone:** any player can climb into any tank of their team (or one nobody is in), whatever their role: Vietnam's tanks, GOM's, and WW2 and Winter War tanks. Stand close to it and face it, and an enter prompt appears with your use key (F unless you changed it); press it to get in. All the normal rules still apply: a free seat, no enemies inside, not lying down, the tank standing still. WW2 tanks only let in a role the game's own crew roles have, which no 29th role has, so even tank crew couldn't get in; Winter War tanks let in only tank crew. CMenu gets you past that for the moment of getting in only, and your role is left as it was. *Fixed:* the prompt used to show E and wait for E (the game binds the use key through a second name, "Interact"), and it never offered WW2 tanks at all.
 - **Scales with your screen:** the menu takes up the same part of the screen at any resolution. Its size is set for 1440p; at 1080p it is three quarters of that, at 4K half as big again. The clickable lines in mouse click mode scale with it.
 - **Mouse click mode:** every menu line becomes a clickable button.
 - **Private messages and help in the console:** short replies go to you only; long help opens in the large console.

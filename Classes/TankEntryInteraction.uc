@@ -1,6 +1,7 @@
-// Vanilla blocks infantry from tanks because ROVehicle.bInfantryCanUse is false on them, so ROVehicle.PlayerLookingAtMe never
-// raises the enter prompt and ROPlayerController.ServerUse ignores them. This replaces that gate: shows an enter prompt on any friendly tank for non-crew players
-// and routes the Use keybind to DummyActor.EnterVehicle(), which enters the seat server-side.
+// Lets anyone into a tank. The game keeps players out in two ways: RS2's own tanks have bInfantryCanUse off, so the game
+// never offers them; WW2 and Winter War tanks (WW2VehicleTank, WWVehicleTank) let only one role class in (CanEnterVehicle
+// wants ClassIndex 9 for WW2, which no role here has, and 8 for Winter War). This shows an enter prompt on any tank the
+// player couldn't otherwise get into, and sends the use key to DummyActor.EnterVehicle(), which gets them in on the server.
 class TankEntryInteraction extends Interaction;
 
 var PlayerController PC;
@@ -53,10 +54,27 @@ function ROVehicle FindEnterableTank()
     return Best;
 }
 
+// A tank with a free seat, standing still, that is the player's team's or nobody's, and that the game itself wouldn't let
+// this player into (transports the game already lets them use get no second prompt)
 function bool IsEnterable(ROVehicle ROV)
 {
-    return ROV != none && !ROV.bInfantryCanUse && !ROV.bDeadVehicle && ROV.AnySeatAvailable()
-        && VSizeSq(ROV.Velocity) < class'ROVehicle'.const.MAX_SPEED_FOR_ENTRY_SQ && ROV.Team == PC.GetTeamNum();
+    if (ROV == none || ROV.bDeadVehicle || !ROV.AnySeatAvailable() || VSizeSq(ROV.Velocity) >= class'ROVehicle'.const.MAX_SPEED_FOR_ENTRY_SQ)
+        return false;
+    if (ROV.Team != PC.GetTeamNum() && !IsEmpty(ROV))
+        return false;
+    return !ROV.bInfantryCanUse || !ROV.CanEnterVehicle(PC.Pawn);
+}
+
+static function bool IsEmpty(ROVehicle ROV)
+{
+    local int i;
+
+    for (i = 0; i < ROV.Seats.Length; i++)
+    {
+        if (ROV.GetSeatPRI(i) != None)
+            return false;
+    }
+    return true;
 }
 
 // The first command of a binding: "Use | OnRelease useReleasePlayer" -> "Use"
