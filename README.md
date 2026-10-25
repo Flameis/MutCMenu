@@ -184,7 +184,8 @@ Admins also get "Clear All Vehicles / Meshes / Pickups / Actors" entries to wipe
 Admins can place real flags on a pole for capture the flag drills, from the Builder's Actors menu or with `mutate spawnflag`.
 
 - **Picking it up:** any player of either team picks a flag up by walking onto it. They carry it on their back, and everyone else sees it there. One flag per player.
-- **Dropping it:** the carrier drops it on purpose with `mutate dropflag` (bind it to a key, for example `setbind G mutate dropflag`). It is thrown a short way forward. Whoever dropped it has to wait 3 seconds before they can pick it up again.
+- **Carrier banner and drop key:** while you carry a flag, a gold banner at the top of your screen says "You are carrying the DAK flag" and which key drops it. Press **X** to drop it at once. The key does nothing else while you carry no flag. To use another key, set `DropFlagKey` under `[MutCMenu.FlagCarrierInteraction]` in `MutCMenu_Client.ini` (for example `DropFlagKey=G`).
+- **Dropping it:** the carrier drops it on purpose with the drop key above or with `mutate dropflag` (you can also bind that to a key, for example `setbind G mutate dropflag`). It is thrown a short way forward. Whoever dropped it has to wait 3 seconds before they can pick it up again.
 - **It drops by itself** where the carrier dies (teamkills too), gets into a vehicle or leaves the server.
 - **It never disappears.** A flag that falls out of the map goes back to where it was placed. Every flag also goes back there when the round restarts, or when an admin uses **Reset Flags** (`mutate resetflags`).
 - **Whose flag it is:** every flag belongs to one faction, chosen when it is placed, and keeps it whoever carries it. Admins on either team can place either team's flag.
@@ -222,7 +223,7 @@ Admins can place real flags on a pole for capture the flag drills, from the Buil
 | `finland` (`finnish`, `fin`) | Finnish Army | Finnish, Winter War |
 | `wwredarmy` (`wwsoviet`, `wwussr`) | Red Army | Soviet, Winter War |
 
-*Still to be checked in a real game:* how the flag looks on a player's back and on the ground (its size and position), and whether the cloth waves. These cannot be checked by the automatic tests.
+*Still to be checked in a real game:* how the flag looks on a player's back and on the ground (its size and position), whether the cloth waves, and how the carrier banner looks and reads on screen (the automatic tests only check what it knows and that the key drops the flag). These cannot be checked by the automatic tests.
 
 ## 6. The overhead map
 

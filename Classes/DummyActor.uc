@@ -133,6 +133,7 @@ reliable client function CMenuSetup()
 {
     local PlayerController PC;
     local TankEntryInteraction TankEntry;
+    local FlagCarrierInteraction FlagCarrier;
     local int i;
 
     PC = PlayerController(Owner);
@@ -140,7 +141,8 @@ reliable client function CMenuSetup()
     // A repeat call (a new level, a re-login) must not stack a second copy of every menu on top of the first
     for (i = PC.Interactions.Length - 1; i >= 0; i--)
     {
-        if (CMenu(PC.Interactions[i]) != None || TankEntryInteraction(PC.Interactions[i]) != None)
+        if (CMenu(PC.Interactions[i]) != None || TankEntryInteraction(PC.Interactions[i]) != None
+            || FlagCarrierInteraction(PC.Interactions[i]) != None)
             PC.Interactions.Remove(i, 1);
     }
 
@@ -171,6 +173,11 @@ reliable client function CMenuSetup()
     TankEntry.PC = PC;
     TankEntry.MyDA = self;
     pc.Interactions.additem(TankEntry);
+
+    FlagCarrier = new(pc) class'FlagCarrierInteraction';
+    FlagCarrier.PC = PC;
+    FlagCarrier.MyDA = self;
+    pc.Interactions.additem(FlagCarrier);
 
     // The game's own input goes last, so the menus see their keys first. It is found by name: something else (the
     // MutExtras map drawing tool) may already sit in front of it, and moving that instead would leave the menus behind.
@@ -408,6 +415,13 @@ static function byte CrewClassIndexFor(ROVehicle ROV)
     if (ROV.IsA('WWVehicleTank'))
         return 8;
     return 255;
+}
+
+// Server side of the flag carrier's drop key (FlagCarrierInteraction): the same as "mutate dropflag"
+reliable server function DropCarriedFlag()
+{
+    if (MyMut != None && PlayerController(Owner) != None)
+        MyMut.DropFlagCommand(PlayerController(Owner));
 }
 
 // Server side of the tank entry prompt (TankEntryInteraction). Gets past the game's gates on tanks (bInfantryCanUse, and
