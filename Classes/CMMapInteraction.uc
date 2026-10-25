@@ -52,11 +52,12 @@ const GRENADE_LIFE = 4.0;
 const SHELL_LIFE = 5.0;
 const TRACER_GLOW = 0.15;   // seconds a new stretch burns white before it takes its team's colour
 const MAX_CLIENT_TRACERS = 600;
-// Keeping a firefight from washing the screen out: lines fade out as they come close to the camera, are thinned as more
-// are on screen, never reach full strength, and burn less white
-const TRACER_NEAR_MIN = 100.0;   // unreal units (2 meters): a line this close is at its faintest
-const TRACER_NEAR_MAX = 500.0;   // (10 meters): and from here out at full strength
-const TRACER_NEAR_FLOOR = 0.12;  // how faint a line right beside the camera gets
+// Keeping a firefight from washing the screen out: lines are thinned as more are on screen, never reach full strength,
+// and burn less white. A line right by the camera only fades a little: lines are cut at the screen's edge, so one passing
+// close no longer smears, and fading them hard hid the shots of the player being watched.
+const TRACER_NEAR_MIN = 25.0;    // unreal units (half a meter): a line this close is at its faintest
+const TRACER_NEAR_MAX = 150.0;   // (3 meters): and from here out at full strength
+const TRACER_NEAR_FLOOR = 0.6;   // how faint a line right beside the camera gets
 const TRACER_COMFORT = 100.0;    // lines on screen before the rest start to be thinned
 const TRACER_DENSITY_FLOOR = 0.3;
 const TRACER_MAX_ALPHA = 0.85;
@@ -162,6 +163,8 @@ var bool bTraceSynced;
 var bool bTracerKeyDown;   // the tracers key was down last frame
 var bool bTracerHold;      // the tracers key is held (without Shift): tracers show until it is let go
 var bool bTracersLatched;  // Shift + the tracers key switched them on until the next time
+var bool bNamesKeyDown;    // the names key was down last frame
+var bool bNamesLatched;    // Shift + the names key switched every name on until the next time
 var bool bTracersAsked;    // the server has been asked for tracers
 var bool bWasSpectatorView; // the spectator overlay was on last frame
 
@@ -964,6 +967,7 @@ event PostRender(Canvas C)
     bWasSpectatorView = bSpectatorView;
     SetDefaultNames(H, bSpectatorView);
     UpdateTracerRequest(PC, bSpectatorView);
+    UpdateNamesLatch(PC, bSpectatorView);
     CollectTracers(bSpectatorView && (bTracersAsked || Info.bTracersOn), PC.WorldInfo.RealTimeSeconds);
 
     if (ReadMap() == None)
@@ -2300,7 +2304,7 @@ function DrawWorld(Canvas C, PlayerController PC, ROHUD H)
     ViewDir = vector(CamRot);
     Scale = FMax(1.0, C.ClipY / 1080.0);
     Now = PC.WorldInfo.RealTimeSeconds;
-    bAllNames = NamesKeyHeld(PC);
+    bAllNames = ShowingAllNames(PC);
 
     // The player looked at: nearest the crosshair and close enough to it, and in sight unless within XRAY_NAME_DIST
     Best = -1;
@@ -2570,6 +2574,25 @@ function bool NamesKeyHeld(PlayerController PC)
     return KeyHeld(PC, NamesKey());
 }
 
+// Like the tracers key: pressing the names key with Shift held switches every name on until it is pressed with Shift again
+function UpdateNamesLatch(PlayerController PC, bool bSpectatorView)
+{
+    local bool bHeld;
+
+    bHeld = bSpectatorView && NamesKeyHeld(PC);
+    if (bHeld && !bNamesKeyDown && (KeyHeld(PC, 'LeftShift') || KeyHeld(PC, 'RightShift')))
+        bNamesLatched = !bNamesLatched;
+    bNamesKeyDown = bHeld;
+    if (!bSpectatorView)
+        bNamesLatched = false;
+}
+
+// Every name is shown while the names key is held, or while it is switched on with Shift
+function bool ShowingAllNames(PlayerController PC)
+{
+    return bNamesLatched || NamesKeyHeld(PC);
+}
+
 // The player stopped spectating (joined a team): everything the spectator overlay keeps for itself is dropped at once, so
 // nothing from it is drawn or kept once they play. The game's own names come back through SetDefaultNames.
 function LeaveSpectatorView()
@@ -2579,6 +2602,8 @@ function LeaveSpectatorView()
     bTracerHold = false;
     bTracersLatched = false;
     bTracerKeyDown = false;
+    bNamesLatched = false;
+    bNamesKeyDown = false;
     DeadPRIs.Length = 0;
     DeadSince.Length = 0;
     HurtPRIs.Length = 0;
@@ -2724,10 +2749,12 @@ function DrawCameraStrip(Canvas C, PlayerController PC, ROHUD H, float Scale)
     if (Mode == "")
         Mode = "Spectating";
     // The hold key, after the camera mode
-    if (NamesKeyHeld(PC))
+    if (bNamesLatched)
+        Mode $= "   |   Every name on (Shift+"$NamesKey()$" to switch off)";
+    else if (NamesKeyHeld(PC))
         Mode $= "   |   Showing every name";
     else
-        Mode $= "   |   Hold "$NamesKey()$": every name";
+        Mode $= "   |   Hold "$NamesKey()$": every name (with Shift: switch on)";
     if (bTracersLatched)
         Mode $= "   |   Tracers on (Shift+"$TracersKeyName()$" to switch off)";
     else if (bTracerHold)

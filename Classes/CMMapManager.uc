@@ -90,6 +90,7 @@ var array<WatchedPlayer> Watched;
 var array<DeadPlayer> RecentDead;
 var array<TrackedShot> Tracked;
 var array<FlashWatch> Flashes;
+var array<Pawn> FreshShooters; // who fired a bullet first seen in this look
 
 function PostBeginPlay()
 {
@@ -438,6 +439,9 @@ function int FindFlash(Pawn Shooter, int Guess)
 // server only learns where a shot hit, and never spawns the bullet. So their paths are rebuilt from the shots themselves:
 // every shot raises the shooter's flash count, and the path is a trace from the muzzle along the shooter's aim to the
 // first thing it meets. Penetration and bullet drop are not followed.
+// Bots and a listen server's host do fire real bullets, but one that hits something close (within about 40 meters) is
+// gone before the next look and was never seen. So their shots are rebuilt the same way when no new bullet of theirs
+// was seen in this look.
 function TrackHitscan(out array<CMMapInfo.TraceSegment> Segs, bool bNear, bool bTracers)
 {
     local ROPawn ROP;
@@ -461,7 +465,7 @@ function TrackHitscan(out array<CMMapInfo.TraceSegment> Segs, bool bNear, bool b
 
     foreach WorldInfo.AllPawns(class'ROPawn', ROP)
     {
-        if (ROP.bDeleteMe || ROP.Health <= 0 || ROP.IsLocallyControlled())
+        if (ROP.bDeleteMe || ROP.Health <= 0)
             continue;
 
         Index = FindFlash(ROP, Guess);
@@ -486,9 +490,12 @@ function TrackHitscan(out array<CMMapInfo.TraceSegment> Segs, bool bNear, bool b
             || ROW.CurrentFireMode >= ROW.FireModeUseClientSideHitDetection.Length)
             continue;
 
-        // Only bullets the server did not spawn: a projectile weapon using client side hit detection, firing a bullet
-        if (ROW.WeaponFireTypes[ROW.CurrentFireMode] != EWFT_Projectile || !ROW.FireModeUseClientSideHitDetection[ROW.CurrentFireMode]
-            || !ClassIsChildOf(ROW.GetProjectileClass(), class'ROBullet'))
+        // A projectile weapon firing a bullet
+        if (ROW.WeaponFireTypes[ROW.CurrentFireMode] != EWFT_Projectile || !ClassIsChildOf(ROW.GetProjectileClass(), class'ROBullet'))
+            continue;
+        // Only bullets the server did not spawn, or did spawn but never saw: a remote player using client side hit
+        // detection, or a bot or the host whose new bullet was not seen in this look
+        if (ROP.IsLocallyControlled() ? FreshShooters.Find(ROP) != INDEX_NONE : !ROW.FireModeUseClientSideHitDetection[ROW.CurrentFireMode])
             continue;
 
         // Where the gun points, without a fresh random spread (the real shot's spread isn't known here)
@@ -578,6 +585,7 @@ function TrackProjectiles()
     {
         Tracked.Length = 0;
         Flashes.Length = 0;
+        FreshShooters.Length = 0;
         for (i = 0; i < Infos.Length; i++)
         {
             if (Infos[i] != None && !Infos[i].bDeleteMe && Infos[i].NetUpdateFrequency != class'CMMapInfo'.const.SLOW_RATE)
@@ -588,6 +596,7 @@ function TrackProjectiles()
 
     for (i = 0; i < Tracked.Length; i++)
         Tracked[i].bSeen = false;
+    FreshShooters.Length = 0;
 
     foreach DynamicActors(class'Projectile', P)
     {
@@ -607,6 +616,8 @@ function TrackProjectiles()
             Shot.LastLoc = P.Location - P.Velocity * Age;
             Index = Tracked.Length;
             Tracked.AddItem(Shot);
+            if (ROBullet(P) != None && P.Instigator != None)
+                FreshShooters.AddItem(P.Instigator);
         }
 
         Tracked[Index].bSeen = true;
