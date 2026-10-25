@@ -29,27 +29,27 @@ function bool CheckExceptions(string Command)
     switch (Caps(Params[0]))
     {
         case "FORCECHANGENAME":
-            PromptForText("Force Name Change|Type the new name for this player, e.g. T/5 Scovel [29ID]|Full syntax: mutate forcechangename --player Old Name --name New Name|Short: -p -n   (older form: forcechangename Old Name to New Name)", "mutate "$Command$" --name ");
+            PromptForText("Change Name|--name / -n : the new name for this player (already typed for you, add the name)|Example: --name T/5 Scovel [29ID]|Full command: mutate forcechangename --player Old Name --name New Name   (short -p -n; older form: forcechangename Old Name to New Name)", "mutate "$Command$" --name ");
             return true;
 
         case "FDAO":
             if(bCMenuDebug) `Log("DropAtObj");
-            PromptForText("Drop Player At Objective|Type the objective letter, e.g. A|Full syntax: mutate fdao --player Name --obj A   (short: -p -o)", "mutate "$Command$" --obj ");
+            PromptForText("Drop Player At Objective|--obj / -o : the objective letter (already typed for you, add the letter)|Example: --obj A|Full command: mutate fdao --player Name --obj A   (short -p -o; older form: fdao Name to A)", "mutate "$Command$" --obj ");
             return true;
 
         case "FDAG":
             if(bCMenuDebug) `Log("DropAtGrid");
-            PromptForText("Drop Player At Grid|Type a grid, e.g. E 5 kp 5|Full syntax: mutate fdag --player Name --grid E 5 kp 5   (short: -p -g)", "mutate "$Command$" --grid ");
+            PromptForText("Drop Player At Grid|--grid / -g : the grid square (already typed for you, add the grid)|Example: --grid E 5 kp 5|Full command: mutate fdag --player Name --grid E 5 kp 5   (short -p -g; older form: fdag Name to E 5 kp 5)", "mutate "$Command$" --grid ");
             return true;
 
         case "FORCEUNITPATCH":
             if(bCMenuDebug) `Log("ForceUnitPatch");
-            PromptForText("Change Unit Patch|Type a unit, e.g. DP2S4|Full syntax: mutate forceunitpatch --player Name --unit DP2S4   (short: -p -u)", "mutate "$Command$" --unit ");
+            PromptForText("Change Unit Patch|--unit / -u : the unit (already typed for you, add the unit)|Example: --unit DP2S4|Full command: mutate forceunitpatch --player Name --unit DP2S4   (short -p -u; older form: forceunitpatch Name to DP2S4)", "mutate "$Command$" --unit ");
             return true;
 
         case "FORCERANKPATCH":
             if(bCMenuDebug) `Log("ForceRankPatch");
-            PromptForText("Change Rank Patch|Type a rank, e.g. sgtmaj|Full syntax: mutate forcerankpatch --player Name --rank sgtmaj   (short: -p -r)", "mutate "$Command$" --rank ");
+            PromptForText("Change Rank Patch|--rank / -r : the rank (already typed for you, add the rank)|Example: --rank sgtmaj|Full command: mutate forcerankpatch --player Name --rank sgtmaj   (short -p -r; older form: forcerankpatch Name to sgtmaj)", "mutate "$Command$" --rank ");
             return true;
 
         default:

@@ -700,6 +700,9 @@ function ResolveOptionArgs(PlayerController Sender, out string Command, array<st
         case "CMENU":
             Primary = class'CmdOptions'.static.GetOrPositional(Tokens, "menu", "m");
             Secondary = class'CmdOptions'.static.Get(Tokens, "player", "p");
+            // The Builder's custom vehicle and pickup: the thing to place
+            if (Secondary == "")
+                Secondary = class'CmdOptions'.static.Get(Tokens, "item", "i");
             break;
 
         case "GIVEWEAPON":

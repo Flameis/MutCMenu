@@ -9,7 +9,7 @@ function bool CheckExceptions(string Command)
     {
         case "SETCMENUCOLOR":
             if(bCMenuDebug) `Log("SetCMenuColor");
-            PromptForText("CMenu Color|Type the color as R G B A (alpha is optional), e.g. 255 128 0 255 for orange|Full syntax: mutate setcmenucolor --text R G B A --background R G B A --border R G B A|Short: -t -b -o", "Mutate "$Command$" ");
+            PromptForText("CMenu Color|--text / -t, --background / -b, --border / -o : the colour as R G B A, alpha optional (the option is already typed for you, add the colour)|Example: --text 255 128 0 255 (orange)|Several at once: --text 255 128 0 --background 0 0 0 200 --border 255 255 255|Older form: setcmenutextcolor 255 128 0 255", "Mutate "$Command$" ");
             return true;
 
         case "TOGGLECMENUBACKGROUND":

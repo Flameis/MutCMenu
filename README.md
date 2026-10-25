@@ -25,7 +25,7 @@ CMenu is an on-screen menu for drill leaders and admins. It lets you run a drill
 4. Press the **number keys** (top row or number pad) to pick an entry. **1 to 8** pick an entry, **9** goes to the next page and **0** goes back.
 5. Prefer the mouse? Choose **Toggle Mouse Click Mode** in the main menu and each line becomes a clickable button.
 
-Some entries need a value from you (a player name, a grid square, a time). When you pick one, the menu closes and the large console opens with the command already typed and short instructions above it. Add your value and press Enter. A mistyped fire support command tells you what was wrong and puts the command back so you can fix it.
+Some entries need a value from you (a player name, a grid square, a time). When you pick one, the menu closes and the console opens with the command already typed and short instructions above it. The instructions name the option to type (for example `--grid E 5 kp 5`), and where the option is already typed for you, you only add the value. The older short form (for example just `E 5 kp 5`) still works and is mentioned too. Press Enter when done. A mistyped fire support command tells you what was wrong and puts the command back so you can fix it.
 
 Long help text (for example `mutate firesupporthelp`) opens in the large console so it does not flood the chat. This works on a server too: long help is sent to you in pieces and shown in one go. Short messages arrive as private chat messages that only you see.
 
@@ -330,7 +330,7 @@ Commands can be typed in the console as `mutate <command> --option value` (short
 
 | Command | What it does | Options |
 | :--- | :--- | :--- |
-| `cmenu` | Opens the menu (or a submenu) | `--menu/-m`, `--player/-p` |
+| `cmenu` | Opens the menu (or a submenu). For the Builder's vehicles and pickups, `--item` starts placing that vehicle or weapon (`mutate cmenu --menu CMenuBVehicles --item ROGameContent.ROHeli_OH6_Content`; the older `cmenu CMenuBVehicles to ...` still works) | `--menu/-m`, `--player/-p`, `--item/-i` |
 | `giveweapon` | Gives a weapon | `--weapon/-w`, `--team/-t` (north, south, all; leave out for yourself) |
 | `clearweapons` | Removes weapons | `--team/-t` |
 | `setcmenucolor` | Menu colours | `--text/-t R G B A`, `--background/-b R G B A`, `--border/-o R G B A` |

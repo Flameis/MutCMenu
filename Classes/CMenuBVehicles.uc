@@ -42,7 +42,7 @@ function bool CheckExceptions(string Command)
     switch (Command)
     {
         case "CUSTOM":
-            PromptForText("Please Type Your Desired Vehicle (Example: ROGameContent.ROHeli_AH1G_Content)", "mutate CMENU CMenuBVehicles to ");
+            PromptForText("Custom Vehicle|--item / -i : the full name of the vehicle to place (already typed for you, add the name)|Example: --item ROGameContent.ROHeli_AH1G_Content|Older form: mutate cmenu CMenuBVehicles to ROGameContent.ROHeli_AH1G_Content", "mutate cmenu --menu CMenuBVehicles --item ");
             GoToState('ReadyToPlace',, true);
             return true;
 
