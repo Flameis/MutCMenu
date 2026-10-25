@@ -249,27 +249,63 @@ simulated function NotifyLogout(Controller Exiting)
 // =================================================================
 // Player Start Override
 // =================================================================
+// While a team has a custom spawn (the Builder's CMASpawn), its players spawn there: at the one they picked on the deploy
+// map, or else the first one placed
 function NavigationPoint FindPlayerStart(Controller Player, optional byte InTeam, optional string incomingName)
 {
-    local CMASpawn SMS;
+    local CMASpawn SMS, Chosen, First;
     local NavigationPoint SpawnPoint;
     local ROGameInfo ROGI;
     local vector SpawnLoc;
-    
-    ROGI = ROGameInfo(WorldInfo.Game);
 
-    // Check for custom spawn points defined by CMASpawn actors
+    ROGI = ROGameInfo(WorldInfo.Game);
+    if (ROGI == None || Player == None)
+        return super.FindPlayerStart(Player, InTeam, incomingName);
+
+    Chosen = PickedCustomSpawn(Player);
     foreach AllActors(class'CMASpawn', SMS)
     {
-        if (SMS.TeamIndex == Player.GetTeamNum())
+        if (SMS.TeamIndex == Player.GetTeamNum() && !SMS.bDeleteMe)
         {
-            ROGI.FindSpawnablePointForTunnel(SMS.PSP, SpawnLoc);
-            SpawnPoint = Spawn(class'ROSpawnNavigationPoint',,, SpawnLoc);
-            SMS.MySpawns.AddItem(SpawnPoint);
-            return SpawnPoint;
+            First = SMS;
+            break;
         }
     }
+    if (Chosen == None)
+        Chosen = First;
+
+    if (Chosen != None)
+    {
+        ROGI.FindSpawnablePointForTunnel(Chosen.PSP, SpawnLoc);
+        SpawnPoint = Spawn(class'ROSpawnNavigationPoint',,, SpawnLoc);
+        Chosen.MySpawns.AddItem(SpawnPoint);
+        return SpawnPoint;
+    }
     return super.FindPlayerStart(Player, InTeam, incomingName);
+}
+
+// The custom spawn the player picked on the deploy map, if what they picked is one
+function CMASpawn PickedCustomSpawn(Controller Player)
+{
+    local ROPlayerReplicationInfo ROPRI;
+    local ROTeamInfo ROTI;
+    local CMSpawnLocation Entry;
+    local int Pick;
+
+    ROPRI = ROPlayerReplicationInfo(Player.PlayerReplicationInfo);
+    if (ROPRI == None)
+        return None;
+    ROTI = ROTeamInfo(ROPRI.Team);
+    Pick = ROPRI.SpawnSelection;
+    if (Pick >= 128)
+        Pick -= 128;
+    if (ROTI == None || Pick < 0 || Pick >= `MAX_ACTIVE_SPAWNS)
+        return None;
+
+    Entry = CMSpawnLocation(ROTI.AvailableSpawnLocations[Pick]);
+    if (Entry == None || Entry.ForSpawn == None || Entry.ForSpawn.bDeleteMe || Entry.ForSpawn.TeamIndex != Player.GetTeamNum())
+        return None;
+    return Entry.ForSpawn;
 }
 
 // =================================================================

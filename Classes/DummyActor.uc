@@ -573,7 +573,7 @@ event Destroyed()
     Super.Destroyed();
 }
 
-unreliable server function PlaceSpawn(
+reliable server function PlaceSpawn(
     class<actor>        SpawnClass,
 	optional actor	    SpawnOwner,
 	optional name       SpawnTag,
@@ -586,7 +586,8 @@ unreliable server function PlaceSpawn(
     local CMASpawn SMS;
 
     SMS = Spawn(class'CMASpawn', SpawnOwner, SpawnTag, SpawnLocation, SpawnRotation, ActorTemplate, bNoCollisionFail);
-	SMS.TeamIndex = TeamIdx;
+	if (SMS != None)
+		SMS.SetSpawnTeam(TeamIdx);
 }
 
 unreliable server function SpawnDecal(
