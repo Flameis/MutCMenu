@@ -35,6 +35,7 @@ const REMOVE_IDS = 100;        // removals per call
 const TRACK_STEP = 0.05;       // seconds between looks at the projectiles
 const MAX_TRACKED = 256;       // projectiles followed at once; more are left out
 const MAX_PER_STEP = 24;       // segments one spectator is sent per look (shells and grenades go before bullets)
+const MAX_HITSCAN_RANGE = 20000.0; // 400 meters: the furthest a shot rebuilt from its aim is followed
 const MIN_SEGMENT = 25.0;      // a stretch shorter than this (half a meter) isn't worth a line
 const DEAD_ICON_TIME = 5.0;    // seconds a left-out teammate (or, for spectators, anyone) stays on the map after dying, as the game does
 
@@ -61,6 +62,14 @@ struct TrackedShot
     var bool bSeen;
 };
 
+// A player whose shots are watched through their pawn's flash count, which goes up by one for every shot they fire
+struct FlashWatch
+{
+    var Pawn Shooter;
+    var byte LastCount;
+    var bool bSeen;
+};
+
 // Someone who has just died, shown to spectators for DEAD_ICON_TIME
 struct DeadPlayer
 {
@@ -79,6 +88,7 @@ var array<LeftOutPlayer> LeftOut;
 var array<WatchedPlayer> Watched;
 var array<DeadPlayer> RecentDead;
 var array<TrackedShot> Tracked;
+var array<FlashWatch> Flashes;
 
 function PostBeginPlay()
 {
@@ -205,6 +215,18 @@ static function bool HasMapPlace(ROPlayerReplicationInfo ROPRI, ROTeamInfo ROTI)
     return ROTI != None && ROPRI.TeamPRIArrayIndex < ArrayCount(ROTI.TeamPRIArray) && ROTI.TeamPRIArray[ROPRI.TeamPRIArrayIndex] == ROPRI;
 }
 
+// When a round ends the game puts every controller, spectators too, into its panning map camera (which ignores mouse and
+// movement), and only a player who spawns takes them out of it. A spectator never does, so the next round started with them
+// stuck on the map camera. Spectators are let go of it straight away: they keep their own camera through the end of a round.
+function FreeSpectatorCamera(PlayerController PC)
+{
+    local ROPlayerController ROPC;
+
+    ROPC = ROPlayerController(PC);
+    if (ROPC != None && ROPC.CurrentViewpointSpectateMode != ROVSM_None)
+        ROPC.SetViewpointSpectateMode(ROVSM_None);
+}
+
 function int FindLeftOut(ROPlayerReplicationInfo PRI)
 {
     local int i;
@@ -248,6 +270,7 @@ function RefreshSnapshots()
             Infos[i].SetSnapshot(true, Everyone);
             Infos[i].SetVehicles(EmptyVehicles);
             SetCameraCycle(Infos[i], PC);
+            FreeSpectatorCamera(PC);
             continue;
         }
 
@@ -365,6 +388,98 @@ function byte TraceDataFor(Projectile P)
     return Kind + Team * class'CMMapInfo'.const.TRACE_TEAM_STEP;
 }
 
+function int FindFlash(Pawn Shooter)
+{
+    local int i;
+
+    for (i = 0; i < Flashes.Length; i++)
+    {
+        if (Flashes[i].Shooter == Shooter)
+            return i;
+    }
+    return INDEX_NONE;
+}
+
+// Bullets fired by players on other computers are not projectiles on the server: with client side hit detection the
+// server only learns where a shot hit, and never spawns the bullet. So their paths are rebuilt from the shots themselves:
+// every shot raises the shooter's flash count, and the path is a trace from the muzzle along the shooter's aim to the
+// first thing it meets. Penetration and bullet drop are not followed.
+function TrackHitscan(out array<CMMapInfo.TraceSegment> Segs, bool bNear)
+{
+    local ROPawn ROP;
+    local ROWeapon ROW;
+    local ROMapInfo ROMI;
+    local FlashWatch Watch;
+    local vector Origin, Dir, End, HitLoc, HitNormal;
+    local Actor Hit;
+    local float Range;
+    local int i, Index, Shots;
+    local byte Data, Team;
+
+    ROMI = ROMapInfo(WorldInfo.GetMapInfo());
+    Range = (ROMI != None && ROMI.MaxShootingRange > 0.0) ? ROMI.MaxShootingRange : MAX_HITSCAN_RANGE;
+    Range = FMin(Range, MAX_HITSCAN_RANGE);
+
+    for (i = 0; i < Flashes.Length; i++)
+        Flashes[i].bSeen = false;
+
+    foreach WorldInfo.AllPawns(class'ROPawn', ROP)
+    {
+        if (ROP.bDeleteMe || ROP.Health <= 0 || ROP.IsLocallyControlled())
+            continue;
+
+        Index = FindFlash(ROP);
+        if (Index == INDEX_NONE)
+        {
+            Watch.Shooter = ROP;
+            Watch.LastCount = ROP.FlashCount;
+            Watch.bSeen = true;
+            Flashes.AddItem(Watch);
+            continue;
+        }
+
+        Flashes[Index].bSeen = true;
+        Shots = (int(ROP.FlashCount) - int(Flashes[Index].LastCount) + 256) % 256;
+        Flashes[Index].LastCount = ROP.FlashCount;
+
+        ROW = ROWeapon(ROP.Weapon);
+        if (Shots == 0 || ROW == None || ROW.CurrentFireMode >= ROW.WeaponFireTypes.Length)
+            continue;
+
+        // Only bullets the server did not spawn: a projectile weapon using client side hit detection, firing a bullet
+        if (ROW.WeaponFireTypes[ROW.CurrentFireMode] != EWFT_Projectile || !ROW.FireModeUseClientSideHitDetection[ROW.CurrentFireMode]
+            || !ClassIsChildOf(ROW.GetProjectileClass(), class'ROBullet'))
+            continue;
+
+        Origin = ROW.GetPhysicalFireStartLoc();
+        Dir = ROW.GetAdjustedAimVector(Origin);
+        End = Origin + Dir * Range;
+        Hit = Trace(HitLoc, HitNormal, End, Origin, true);
+        if (Hit == ROP)
+        {
+            // Started inside the shooter: go on from there
+            Origin = HitLoc + Dir * 5.0;
+            Hit = Trace(HitLoc, HitNormal, End, Origin, true);
+        }
+        if (Hit == None)
+            HitLoc = End;
+
+        Team = ROP.GetTeamNum();
+        if (Team > 1)
+            Team = class'CMMapInfo'.const.TRACE_NO_TEAM;
+        Data = class'CMMapInfo'.const.TRACE_BULLET + Team * class'CMMapInfo'.const.TRACE_TEAM_STEP;
+        AddSegment(Segs, Origin, HitLoc, Data);
+        if (bNear)
+            NoteNearMiss(Origin, HitLoc, ROP);
+    }
+
+    for (i = Flashes.Length - 1; i >= 0; i--)
+    {
+        if (!Flashes[i].bSeen)
+            Flashes.Remove(i, 1);
+    }
+}
+
 // Adds a segment, shells and grenades ahead of bullets, so a firefight's bullets can't crowd them out
 function AddSegment(out array<CMMapInfo.TraceSegment> Segs, vector From, vector To, byte Data)
 {
@@ -411,6 +526,7 @@ function TrackProjectiles()
     if (!bWanted)
     {
         Tracked.Length = 0;
+        Flashes.Length = 0;
         for (i = 0; i < Infos.Length; i++)
         {
             if (Infos[i] != None && !Infos[i].bDeleteMe && Infos[i].NetUpdateFrequency != class'CMMapInfo'.const.SLOW_RATE)
@@ -449,6 +565,8 @@ function TrackProjectiles()
         Tracked[Index].LastLoc = P.Location;
         Tracked[Index].LastVel = P.Velocity;
     }
+
+    TrackHitscan(Segs, bNear);
 
     for (i = Tracked.Length - 1; i >= 0; i--)
     {
@@ -1030,9 +1148,9 @@ function bool HandleCommand(PlayerController PC, array<string> Args)
             if (Info == None)
                 return true;
             if (What == "ON")
-                Info.bTracersOff = false;
+                Info.SetTracers(true);
             else if (What == "OFF")
-                Info.bTracersOff = true;
+                Info.SetTracers(false);
             else
                 What = "";
             if (!TracersEnabled())

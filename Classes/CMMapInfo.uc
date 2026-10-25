@@ -92,7 +92,8 @@ var vector TraceFrom[MAX_TRACERS];
 var vector TraceTo[MAX_TRACERS];
 var byte TraceData[MAX_TRACERS];
 var int TraceHead;
-var bool bTracersOff; // server-side: this spectator turned the tracers off (mutate tracers off)
+var bool bTracersOn; // replicated: the tracers are being sent to this spectator, so their game shows them (mirror of !bTracersOff)
+var bool bTracersOff; // server-side: this spectator is not sent tracers. On until they ask for them: the tracers key, or mutate tracers on
 
 // ====================================================
 // Drawings
@@ -198,7 +199,7 @@ replication
 {
     if (bNetDirty && Role == ROLE_Authority)
         bSpectating, SnapPRI, SnapLoc, SnapInfo, SnapNear, bScrimAdmin, bDrawingLocked, VehLoc, VehInfo, SpecNext, SpecPrev,
-        TraceFrom, TraceTo, TraceData, TraceHead;
+        TraceFrom, TraceTo, TraceData, TraceHead, bTracersOn;
     if (bNetInitial && Role == ROLE_Authority)
         bDrawingEnabled, bSpectatorOverlay;
 }
@@ -697,6 +698,18 @@ static function DecodePoints(string S, out array<vector2D> Out)
 // Server side: drawings coming up from the player
 // ====================================================
 
+// The spectator's tracers key: send them the tracers, or stop sending
+reliable server function ServerSetTracers(bool bOn)
+{
+    SetTracers(bOn);
+}
+
+function SetTracers(bool bOn)
+{
+    bTracersOff = !bOn;
+    bTracersOn = bOn;
+}
+
 reliable server function ServerBeginItem(byte Kind, byte Colour, byte Channel, byte Icon, string Text, string Points, int Token, bool bMore)
 {
     Pending.bActive = true;
@@ -834,6 +847,7 @@ reliable client function ClientClearAll()
 defaultproperties
 {
     RemoteRole=ROLE_SimulatedProxy
+    bTracersOff=true
     bOnlyRelevantToOwner=true
     bReplicateMovement=false
     bSkipActorPropertyReplication=false // the owner has to reach the client, or its server functions can't be called

@@ -40,6 +40,7 @@ const A_CLEAR_CHANNEL = 7;
 const A_CLEAR_ALL = 8;
 const A_HIDE = 9;
 const A_SPEC_TEAMS = 10;
+const A_PLAYER_NAMES = 11;
 
 const CONFIRM_TIME = 4.0;   // seconds a clear button waits for its second click
 const FLASH_TIME = 2.5;     // seconds a spectator's marker over a player strobes white after they are hit
@@ -51,6 +52,15 @@ const GRENADE_LIFE = 4.0;
 const SHELL_LIFE = 5.0;
 const TRACER_GLOW = 0.15;   // seconds a new stretch burns white before it takes its team's colour
 const MAX_CLIENT_TRACERS = 600;
+// Keeping a firefight from washing the screen out: lines fade out as they come close to the camera, are thinned as more
+// are on screen, never reach full strength, and burn less white
+const TRACER_NEAR_MIN = 100.0;   // unreal units (2 meters): a line this close is at its faintest
+const TRACER_NEAR_MAX = 500.0;   // (10 meters): and from here out at full strength
+const TRACER_NEAR_FLOOR = 0.12;  // how faint a line right beside the camera gets
+const TRACER_COMFORT = 100.0;    // lines on screen before the rest start to be thinned
+const TRACER_DENSITY_FLOOR = 0.3;
+const TRACER_MAX_ALPHA = 0.85;
+const TRACER_GLOW_MAX = 0.6;     // how much of the way to white a new line burns
 const NEAR_PLANE = 20.0;    // unreal units; a line is cut here where it passes behind the camera
 
 // Which teams' drawings a spectator sees
@@ -96,7 +106,9 @@ struct SentItem
 };
 
 var config bool bToolsHidden; // the player folded the toolbar away
+var config bool bNoPlayerNames; // the player turned off the name shown when the cursor is over a player on the map (on when not set)
 var config name ShowNamesKey; // spectators hold it to see every name on screen; LeftAlt when not set (prone, which spectators don't use)
+var config name TracersKey;   // spectators hold it to see the tracers, or tap it with Shift held to switch them on and off; RightControl when not set
 var config byte SavedColour, SavedIcon;
 
 var byte Tool, Colour, Icon, Channel;
@@ -147,6 +159,12 @@ struct ClientTracer
 var array<ClientTracer> Tracers;
 var int TraceSeen;
 var bool bTraceSynced;
+var bool bTracerKeyDown;   // the tracers key was down last frame
+var bool bTracerHold;      // the tracers key is held (without Shift): tracers show until it is let go
+var bool bTracersLatched;  // Shift + the tracers key switched them on until the next time
+var bool bTracersAsked;    // the server has been asked for tracers
+var bool bTestKeys;          // the test harness stands in for the keyboard with TestKeys
+var array<name> TestKeys;
 
 // Spectators: each player's hit count as last seen, and until when their marker flashes
 var array<PlayerReplicationInfo> HurtPRIs;
@@ -533,6 +551,10 @@ function PressButton(ToolButton B)
             break;
         case A_SPEC_TEAMS:
             SpecTeams = (SpecTeams + 1) % 3;
+            break;
+        case A_PLAYER_NAMES:
+            bNoPlayerNames = !bNoPlayerNames;
+            SaveConfig();
             break;
     }
 }
@@ -926,7 +948,7 @@ event PostRender(Canvas C)
     local int i, Hover;
     local CMMapInfo.ClientMapItem Preview;
     local ROHUDWidgetComponent CursorComp;
-    local bool bSpectatorView;
+    local bool bSpectatorView, bNameHover;
 
     PC = PlayerController(Outer);
     if (C == None || PC == None || Info == None || Info.bDeleteMe)
@@ -939,7 +961,8 @@ event PostRender(Canvas C)
     // The spectator overlay is on while the owner spectates and the server sends them everyone
     bSpectatorView = Info.bSpectating && H != None && PC.PlayerReplicationInfo != None && PC.PlayerReplicationInfo.bOnlySpectator;
     SetDefaultNames(H, bSpectatorView);
-    CollectTracers(bSpectatorView, PC.WorldInfo.RealTimeSeconds);
+    UpdateTracerRequest(PC, bSpectatorView);
+    CollectTracers(bSpectatorView && (bTracersAsked || Info.bTracersOn), PC.WorldInfo.RealTimeSeconds);
 
     if (ReadMap() == None)
     {
@@ -1005,6 +1028,9 @@ event PostRender(Canvas C)
     if (bSpectatorView)
         DrawFlagsOnMap(C, H);
 
+    // The name of the player under the cursor, whether or not drawing is on
+    bNameHover = DrawPlayerHover(C, PC, H, bSpectatorView);
+
     if (!Info.bDrawingEnabled)
     {
         SetMapState("map drawing is off on this server");
@@ -1015,7 +1041,7 @@ event PostRender(Canvas C)
     SetMapState("drawn");
 
     // Who drew what under the cursor; the eraser also shows what it would take
-    if (bCursor && !bToolsHidden && !bDragging && !OverPanel(Mouse) && InMap(Mouse))
+    if (bCursor && !bNameHover && !bToolsHidden && !bDragging && !OverPanel(Mouse) && InMap(Mouse))
     {
         Hover = PickItem(Mouse, Tool == TOOL_ERASER);
         if (Hover != INDEX_NONE)
@@ -1038,6 +1064,74 @@ event PostRender(Canvas C)
         DrawCursor(C, CursorComp);
         PopLayer(C);
     }
+}
+
+// The map is open and the cursor is over a player's icon: their name next to the cursor, in their team's colour. Players
+// see the teammates the game draws on their map (and the ones it leaves out); spectators see everyone. Off when the player
+// turned "Player names" off in the toolbar. Returns true when a name was shown.
+function bool DrawPlayerHover(Canvas C, PlayerController PC, ROHUD H, bool bSpectatorView)
+{
+    local ROPlayerReplicationInfo ROPRI, MyPRI, Best;
+    local ROTeamInfo Team;
+    local vector2D S;
+    local float X, Y, Z, BestDist, D, Radius;
+    local int i;
+    local byte BestTeam;
+    local color Col;
+
+    if (bNoPlayerNames || !bCursor || bDragging || OverPanel(Mouse) || !InMap(Mouse))
+        return false;
+
+    MyPRI = ROPlayerReplicationInfo(PC.PlayerReplicationInfo);
+    Radius = (PICK_RADIUS + 4.0) * UIScale;
+    BestDist = Radius;
+
+    // The players the game's own map shows: living teammates, not the player
+    if (!bSpectatorView && MyPRI != None)
+    {
+        Team = ROTeamInfo(MyPRI.Team);
+        if (Team != None)
+        {
+            for (i = 0; i < `MAX_PLAYERS_PER_TEAM; i++)
+            {
+                ROPRI = Team.TeamPRIArray[i];
+                if (ROPRI == None || ROPRI == MyPRI || ROPRI.bDead || ROPRI.RoleInfo == None)
+                    continue;
+                Team.GetTeamLocationEntry(i, X, Y, Z);
+                S = WorldToScreen(V2(X, Y));
+                D = Dist(S, Mouse);
+                if (D < BestDist)
+                {
+                    BestDist = D;
+                    Best = ROPRI;
+                    BestTeam = Team.GetTeamNum();
+                }
+            }
+        }
+    }
+
+    // The ones sent by the server: everyone to a spectator, and the teammates past the game's 32
+    for (i = 0; i < class'CMMapInfo'.const.MAX_SNAPSHOT; i++)
+    {
+        ROPRI = Info.SnapPRI[i];
+        if (ROPRI == None || ROPRI == MyPRI || (Info.SnapInfo[i] & class'CMMapInfo'.const.FLAG_DEAD) != 0)
+            continue;
+        S = WorldToScreen(V2(Info.SnapLoc[i].X, Info.SnapLoc[i].Y));
+        D = Dist(S, Mouse);
+        if (D < BestDist)
+        {
+            BestDist = D;
+            Best = ROPRI;
+            BestTeam = Info.SnapInfo[i] & class'CMMapInfo'.const.FLAG_SOUTH;
+        }
+    }
+
+    if (Best == None)
+        return false;
+
+    Col = bSpectatorView ? TeamColour(H, BestTeam) : MakeColor(255, 255, 255, 255);
+    DrawLabel(C, V2(Mouse.X + 18 * UIScale, Mouse.Y + 22 * UIScale), Best.PlayerName, Col, true);
+    return true;
 }
 
 // The canvas draws everything with the same texture together, in the order each texture was first used. So text drawn
@@ -1591,6 +1685,8 @@ function DrawToolbar(Canvas C, PlayerController PC)
         AddButton(X, Y, Inner, BtnH, A_SPEC_TEAMS, 0, SpecTeamsLabel(PC), SpecTeams != SPEC_BOTH);
         Y += BtnH + Gap;
     }
+    AddButton(X, Y, Inner, BtnH, A_PLAYER_NAMES, 0, bNoPlayerNames ? "Player names: off" : "Player names: on", !bNoPlayerNames);
+    Y += BtnH + Gap;
     Y += Gap;
     MarkArmedButton(PC);
 
@@ -2227,8 +2323,9 @@ function DrawWorld(Canvas C, PlayerController PC, ROHUD H)
 
         if (i == Best)
         {
-            // Close up, the role they picked is shown under the name, as the game does for friendlies
-            DrawNameTag(C, Info.SnapPRI[i], Screen, Col, Scale, Dist2D <= ROLE_ICON_DIST, 1.0);
+            // Close up, the role they picked is shown under the name, as the game does for friendlies. With the names key held
+        // it is shown at any distance, as it is for everyone else then.
+            DrawNameTag(C, Info.SnapPRI[i], Screen, Col, Scale, bAllNames || Dist2D <= ROLE_ICON_DIST, 1.0);
         }
         else if (bAllNames)
         {
@@ -2328,9 +2425,11 @@ function DrawTracers(Canvas C, ROHUD H, vector CamLoc, vector ViewDir, float Sca
     local vector A, B, SA, SB;
     local vector2D P1, P2;
     local color Col;
-    local float Age, Life, Fade, Width, Glow;
+    local float Age, Life, Fade, Width, Glow, Density, Near;
     local byte Kind, Team;
     local int i;
+
+    Density = FClamp(TRACER_COMFORT / FMax(1.0, float(Tracers.Length)), TRACER_DENSITY_FLOOR, 1.0);
 
     for (i = 0; i < Tracers.Length; i++)
     {
@@ -2344,6 +2443,10 @@ function DrawTracers(Canvas C, ROHUD H, vector CamLoc, vector ViewDir, float Sca
         if (!ClipToView(CamLoc, ViewDir, A, B))
             continue;
 
+        // A line that passes right by the camera fills the screen with its colour, so it fades the closer it gets
+        Near = Sqrt(class'CMMapManager'.static.DistToSegmentSq(CamLoc, A, B));
+        Near = FClamp((Near - TRACER_NEAR_MIN) / (TRACER_NEAR_MAX - TRACER_NEAR_MIN), TRACER_NEAR_FLOOR, 1.0);
+
         SA = C.Project(A);
         SB = C.Project(B);
         if ((SA.X < 0 && SB.X < 0) || (SA.X > C.ClipX && SB.X > C.ClipX) || (SA.Y < 0 && SB.Y < 0) || (SA.Y > C.ClipY && SB.Y > C.ClipY))
@@ -2353,13 +2456,13 @@ function DrawTracers(Canvas C, ROHUD H, vector CamLoc, vector ViewDir, float Sca
         Team = class'CMMapInfo'.static.TraceTeamOf(Tracers[i].Data);
         Col = TeamColour(H, Team);
 
-        Glow = FClamp(1.0 - Age / TRACER_GLOW, 0.0, 1.0);
+        Glow = FClamp(1.0 - Age / TRACER_GLOW, 0.0, 1.0) * TRACER_GLOW_MAX;
         Col.R = byte(Lerp(float(Col.R), 255.0, Glow));
         Col.G = byte(Lerp(float(Col.G), 255.0, Glow));
         Col.B = byte(Lerp(float(Col.B), 255.0, Glow));
 
         Fade = 1.0 - Age / Life;
-        Col.A = byte(255.0 * FClamp(Fade * 1.5, 0.0, 1.0));
+        Col.A = byte(255.0 * TRACER_MAX_ALPHA * FClamp(Fade * 1.5, 0.0, 1.0) * Density * Near);
 
         Width = (Kind == class'CMMapInfo'.const.TRACE_BULLET ? 2.0 : (Kind == class'CMMapInfo'.const.TRACE_GRENADE ? 3.0 : 4.0)) * Scale;
         P1.X = SA.X;
@@ -2416,9 +2519,55 @@ function name NamesKey()
     return (ShowNamesKey != '') ? ShowNamesKey : 'LeftAlt';
 }
 
+function bool KeyHeld(PlayerController PC, name Key)
+{
+    if (bTestKeys)
+        return TestKeys.Find(Key) != INDEX_NONE;
+    return PC != None && PC.PlayerInput != None && PC.PlayerInput.PressedKeys.Find(Key) != INDEX_NONE;
+}
+
 function bool NamesKeyHeld(PlayerController PC)
 {
-    return PC != None && PC.PlayerInput != None && PC.PlayerInput.PressedKeys.Find(NamesKey()) != INDEX_NONE;
+    return KeyHeld(PC, NamesKey());
+}
+
+// The key spectators use for the tracers: hold it to see them, or hold Shift as well to switch them on and off
+function name TracersKeyName()
+{
+    return (TracersKey != '') ? TracersKey : 'RightControl';
+}
+
+// Works out whether this spectator wants tracers and tells the server when that changes. Tracers are off until asked for,
+// so a firefight is not covered in lines. Pressing the key on its own shows them for as long as it is held; pressing it
+// with Shift held switches them on until the key is pressed with Shift again.
+function UpdateTracerRequest(PlayerController PC, bool bSpectatorView)
+{
+    local bool bHeld, bWant;
+
+    bHeld = bSpectatorView && KeyHeld(PC, TracersKeyName());
+    if (bHeld && !bTracerKeyDown)
+    {
+        if (KeyHeld(PC, 'LeftShift') || KeyHeld(PC, 'RightShift'))
+            bTracersLatched = !bTracersLatched;
+        else
+            bTracerHold = true;
+    }
+    if (!bHeld)
+        bTracerHold = false;
+    bTracerKeyDown = bHeld;
+    if (!bSpectatorView)
+        bTracersLatched = false;
+
+    bWant = bSpectatorView && (bTracerHold || bTracersLatched);
+    if (bWant == bTracersAsked)
+        return;
+
+    bTracersAsked = bWant;
+    if (bWant)
+        bTraceSynced = false; // start from what is sent now, not what the ring still holds from before
+    else
+        Tracers.Length = 0;
+    Info.ServerSetTracers(bWant);
 }
 
 function DrawDeathInWorld(Canvas C, ROHUD H, PlayerReplicationInfo PRI, vector Loc, vector CamLoc, vector ViewDir, float Scale, float Now)
@@ -2523,6 +2672,14 @@ function DrawCameraStrip(Canvas C, PlayerController PC, ROHUD H, float Scale)
         Mode $= "   |   Showing every name";
     else
         Mode $= "   |   Hold "$NamesKey()$": every name";
+    if (bTracersLatched)
+        Mode $= "   |   Tracers on (Shift+"$TracersKeyName()$" to switch off)";
+    else if (bTracerHold)
+        Mode $= "   |   Showing tracers";
+    else if (Info.bTracersOn)
+        Mode $= "   |   Tracers on";
+    else
+        Mode $= "   |   Hold "$TracersKeyName()$": tracers (with Shift: switch on)";
 
     if (Info.SpecPrev[1] != None) { Texts.AddItem(Info.SpecPrev[1].PlayerName); Cols.AddItem(PRIColour(H, Info.SpecPrev[1])); Texts.AddItem("  <  "); Cols.AddItem(MakeColor(160, 160, 160, 255)); }
     if (Info.SpecPrev[0] != None) { Texts.AddItem(Info.SpecPrev[0].PlayerName); Cols.AddItem(PRIColour(H, Info.SpecPrev[0])); Texts.AddItem("  <  "); Cols.AddItem(MakeColor(160, 160, 160, 255)); }
