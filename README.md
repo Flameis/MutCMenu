@@ -154,7 +154,7 @@ Examples:
 **Rules**
 - Players can only call fire support if the server turns it on (`bFSPlayersCanCall`). When they can, they can use every option above except `--persist`.
 - Player calls have a cooldown per team (`FSPlayerCooldown`). Admins ignore the cooldown.
-- Players cannot target "no artillery" zones. Admin strikes can, including the area outside the combat area. Admin aircraft are not removed for flying outside the map.
+- Players cannot target "no artillery" zones (there are none while Realism Match mode is on). Admin strikes can, including the area outside the combat area. Admin aircraft are not removed for flying outside the map.
 - Strikes follow the server's friendly fire, like any weapon: they hurt the caller's team when friendly fire is on (for example after Realism Match goes LIVE) and not when it is off (for example in the briefing). The caller is always hurt by their own strike. A server can make strikes never hurt the caller's team with `bFSNoFriendlyFire`.
 - Calls are announced to the whole server unless the server is set to silent (`bFSSilent`) or the caller uses `--suppress`.
 - Warnings (wrong grid, cooldown, no permission) come back to the caller as private messages.
