@@ -163,8 +163,6 @@ var bool bTracerKeyDown;   // the tracers key was down last frame
 var bool bTracerHold;      // the tracers key is held (without Shift): tracers show until it is let go
 var bool bTracersLatched;  // Shift + the tracers key switched them on until the next time
 var bool bTracersAsked;    // the server has been asked for tracers
-var bool bTestKeys;          // the test harness stands in for the keyboard with TestKeys
-var array<name> TestKeys;
 
 // Spectators: each player's hit count as last seen, and until when their marker flashes
 var array<PlayerReplicationInfo> HurtPRIs;
@@ -624,7 +622,7 @@ function FinishTyping()
 }
 
 // The character a key types (US keyboard), or "" for keys that don't type
-function string KeyChar(name Key, bool bShifted)
+static function string KeyChar(name Key, bool bShifted)
 {
     local string S;
     local int Digit;
@@ -1073,9 +1071,12 @@ function bool DrawPlayerHover(Canvas C, PlayerController PC, ROHUD H, bool bSpec
 {
     local ROPlayerReplicationInfo ROPRI, MyPRI, Best;
     local ROTeamInfo Team;
+    local Pawn P;
+    local array<ROPlayerReplicationInfo> SeenPRIs;
+    local array<vector> SeenLocs;
     local vector2D S;
     local float X, Y, Z, BestDist, D, Radius;
-    local int i;
+    local int i, Seen;
     local byte BestTeam;
     local color Col;
 
@@ -1092,12 +1093,29 @@ function bool DrawPlayerHover(Canvas C, PlayerController PC, ROHUD H, bool bSpec
         Team = ROTeamInfo(MyPRI.Team);
         if (Team != None)
         {
+            // Teammates this game can see are drawn by the game where their pawn is; the team's location list can lag
+            foreach PC.WorldInfo.AllPawns(class'Pawn', P)
+            {
+                if (P.Health > 0 && ROPlayerReplicationInfo(P.PlayerReplicationInfo) != None && P.PlayerReplicationInfo.Team == Team)
+                {
+                    SeenPRIs.AddItem(ROPlayerReplicationInfo(P.PlayerReplicationInfo));
+                    SeenLocs.AddItem(P.Location);
+                }
+            }
+
             for (i = 0; i < `MAX_PLAYERS_PER_TEAM; i++)
             {
                 ROPRI = Team.TeamPRIArray[i];
                 if (ROPRI == None || ROPRI == MyPRI || ROPRI.bDead || ROPRI.RoleInfo == None)
                     continue;
-                Team.GetTeamLocationEntry(i, X, Y, Z);
+                Seen = SeenPRIs.Find(ROPRI);
+                if (Seen != INDEX_NONE)
+                {
+                    X = SeenLocs[Seen].X;
+                    Y = SeenLocs[Seen].Y;
+                }
+                else
+                    Team.GetTeamLocationEntry(i, X, Y, Z);
                 S = WorldToScreen(V2(X, Y));
                 D = Dist(S, Mouse);
                 if (D < BestDist)
@@ -1130,7 +1148,8 @@ function bool DrawPlayerHover(Canvas C, PlayerController PC, ROHUD H, bool bSpec
         return false;
 
     Col = bSpectatorView ? TeamColour(H, BestTeam) : MakeColor(255, 255, 255, 255);
-    DrawLabel(C, V2(Mouse.X + 18 * UIScale, Mouse.Y + 22 * UIScale), Best.PlayerName, Col, true);
+    // Up and to the right of the cursor, so the cursor (which hangs down and right from its tip) never covers it
+    DrawLabel(C, V2(Mouse.X + 14 * UIScale, Mouse.Y - 16 * UIScale), Best.PlayerName, Col, true);
     return true;
 }
 
@@ -1203,6 +1222,12 @@ function DrawScreenLine(Canvas C, vector2D A, vector2D B, float Width, color Col
 // Liang-Barsky: cuts the segment to the map rectangle, false when none of it is on the map
 function bool ClipToMap(out vector2D A, out vector2D B)
 {
+    return ClipToRect(A, B, MapLeft, MapTop, MapW, MapH);
+}
+
+// Liang-Barsky: cuts the segment to a rectangle, false when none of it is inside
+function bool ClipToRect(out vector2D A, out vector2D B, float Left, float Top, float W, float H)
+{
     local float T0, T1, DX, DY, P[4], Q[4], R;
     local int i;
 
@@ -1210,10 +1235,10 @@ function bool ClipToMap(out vector2D A, out vector2D B)
     T1 = 1.0;
     DX = B.X - A.X;
     DY = B.Y - A.Y;
-    P[0] = -DX; Q[0] = A.X - MapLeft;
-    P[1] = DX;  Q[1] = MapLeft + MapW - A.X;
-    P[2] = -DY; Q[2] = A.Y - MapTop;
-    P[3] = DY;  Q[3] = MapTop + MapH - A.Y;
+    P[0] = -DX; Q[0] = A.X - Left;
+    P[1] = DX;  Q[1] = Left + W - A.X;
+    P[2] = -DY; Q[2] = A.Y - Top;
+    P[3] = DY;  Q[3] = Top + H - A.Y;
 
     for (i = 0; i < 4; i++)
     {
@@ -1944,7 +1969,12 @@ function DrawSnapshotOnMap(Canvas C, ROHUD H, bool bSpectatorView)
                 continue;
             MapTex = OM.DeadPlayerIcon;
             Size = OM.DeadPlayerIconSize * IconComp.ScaleX;
-            Col = MakeColor(255, 255, 255, Alpha);
+            // Spectators see it in the dead player's team colour; teammates see it white, as the game draws its own
+            if (bSpectatorView)
+                Col = TeamColour(H, Packed & class'CMMapInfo'.const.FLAG_SOUTH);
+            else
+                Col = MakeColor(255, 255, 255, 255);
+            Col.A = Alpha;
         }
         else
         {
@@ -2297,7 +2327,7 @@ function DrawWorld(Canvas C, PlayerController PC, ROHUD H)
         // Someone who has just died: the game's death icon over their body, fading as it does on the map
         if ((Info.SnapInfo[i] & class'CMMapInfo'.const.FLAG_DEAD) != 0)
         {
-            DrawDeathInWorld(C, H, Info.SnapPRI[i], Info.SnapLoc[i], CamLoc, ViewDir, Scale, Now);
+            DrawDeathInWorld(C, H, Info.SnapPRI[i], Info.SnapLoc[i], CamLoc, ViewDir, Scale, Now, TeamColour(H, Info.SnapInfo[i] & class'CMMapInfo'.const.FLAG_SOUTH));
             continue;
         }
         DeadPRIs.RemoveItem(Info.SnapPRI[i]); // alive again, so their next death fades from the start
@@ -2469,6 +2499,10 @@ function DrawTracers(Canvas C, ROHUD H, vector CamLoc, vector ViewDir, float Sca
         P1.Y = SA.Y;
         P2.X = SB.X;
         P2.Y = SB.Y;
+        // A line that runs off the screen (one end close to the camera projects thousands of pixels away) is cut at the
+        // screen's edge first: drawn whole, the huge stretched tile smeared across the edge of the screen
+        if (!ClipToRect(P1, P2, -Width, -Width, C.ClipX + Width * 2, C.ClipY + Width * 2))
+            continue;
         DrawScreenLine(C, P1, P2, Width, Col);
     }
 }
@@ -2521,8 +2555,6 @@ function name NamesKey()
 
 function bool KeyHeld(PlayerController PC, name Key)
 {
-    if (bTestKeys)
-        return TestKeys.Find(Key) != INDEX_NONE;
     return PC != None && PC.PlayerInput != None && PC.PlayerInput.PressedKeys.Find(Key) != INDEX_NONE;
 }
 
@@ -2570,7 +2602,8 @@ function UpdateTracerRequest(PlayerController PC, bool bSpectatorView)
     Info.ServerSetTracers(bWant);
 }
 
-function DrawDeathInWorld(Canvas C, ROHUD H, PlayerReplicationInfo PRI, vector Loc, vector CamLoc, vector ViewDir, float Scale, float Now)
+// The game's death icon over the body, in the colour of the dead player's team
+function DrawDeathInWorld(Canvas C, ROHUD H, PlayerReplicationInfo PRI, vector Loc, vector CamLoc, vector ViewDir, float Scale, float Now, color Col)
 {
     local Texture2D Tex;
     local vector Screen;
@@ -2587,7 +2620,7 @@ function DrawDeathInWorld(Canvas C, ROHUD H, PlayerReplicationInfo PRI, vector L
         return;
 
     Size = FClamp(26000.0 / FMax(VSize(Loc - CamLoc), 1.0), 16.0, 32.0) * Scale;
-    C.SetDrawColor(255, 255, 255, Alpha);
+    C.SetDrawColor(Col.R, Col.G, Col.B, Alpha);
     C.SetPos(Screen.X - Size * 0.5, Screen.Y - Size);
     C.DrawTile(Tex, Size, Size, 0, 0, Tex.SizeX, Tex.SizeY);
 }

@@ -92,8 +92,7 @@ var vector TraceFrom[MAX_TRACERS];
 var vector TraceTo[MAX_TRACERS];
 var byte TraceData[MAX_TRACERS];
 var int TraceHead;
-var bool bTracersOn; // replicated: the tracers are being sent to this spectator, so their game shows them (mirror of !bTracersOff)
-var bool bTracersOff; // server-side: this spectator is not sent tracers. On until they ask for them: the tracers key, or mutate tracers on
+var bool bTracersOn; // the spectator asked for tracers (the tracers key, or mutate tracers on); off until they do. Sent to them so their game shows them
 
 // ====================================================
 // Drawings
@@ -706,7 +705,6 @@ reliable server function ServerSetTracers(bool bOn)
 
 function SetTracers(bool bOn)
 {
-    bTracersOff = !bOn;
     bTracersOn = bOn;
 }
 
@@ -847,7 +845,6 @@ reliable client function ClientClearAll()
 defaultproperties
 {
     RemoteRole=ROLE_SimulatedProxy
-    bTracersOff=true
     bOnlyRelevantToOwner=true
     bReplicateMovement=false
     bSkipActorPropertyReplication=false // the owner has to reach the client, or its server functions can't be called
