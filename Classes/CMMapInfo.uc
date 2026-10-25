@@ -7,6 +7,7 @@
 //    mutator) the 33rd and later never show. While the owner is on a team, the snapshot holds those teammates.
 //  - Map drawings. The server keeps them all in CMMapManager and sends each player the ones they may see, through the
 //    client functions here; the player's own come up through the server functions.
+//  - For a spectator also: the vehicles nobody is in, and the players their camera goes to next and before.
 class CMMapInfo extends Info;
 
 // ====================================================
@@ -14,12 +15,14 @@ class CMMapInfo extends Info;
 // ====================================================
 
 // Packed into SnapInfo: bit 0 is the team (0 north, 1 south), bit 1 is set for squad and team leaders, bit 2 for a
-// player who has just died (left on the map for a few seconds, as the game does), and what the player is in goes on
-// top as KIND * KIND_STEP
+// player who has just died (left on the map for a few seconds, as the game does), bits 3 to 5 are what the player is in
+// (KIND * KIND_STEP), and bits 6 and 7 count the times they were hurt (0 to 3, then round again), so a spectator's
+// client can see a new hit as the count changing
 const FLAG_SOUTH = 1;
 const FLAG_LEADER = 2;
 const FLAG_DEAD = 4;
 const KIND_STEP = 8;
+const HURT_STEP = 64;
 const KIND_INFANTRY = 0;
 const KIND_TANK = 1;
 const KIND_TRANSPORT = 2;
@@ -28,6 +31,12 @@ const KIND_COBRA = 4;
 const KIND_LOACH = 5;
 const KIND_GUNSHIP = 6;
 const MAX_SNAPSHOT = 128;
+
+// Vehicles nobody is in, for spectators. VehInfo is 0 for an empty slot, otherwise VEH_PRESENT + KIND * KIND_STEP + the
+// team (0 north, 1 south, 2 neither).
+const MAX_VEHICLES = 48;
+const VEH_PRESENT = 128;
+const VEH_NO_TEAM = 2;
 
 struct SnapEntry
 {
@@ -42,6 +51,14 @@ var vector SnapLoc[MAX_SNAPSHOT];
 var byte SnapInfo[MAX_SNAPSHOT];
 var bool bSpectating; // the snapshot is the spectator overlay (every living player); otherwise it is left-out teammates
 var int SnapCount;    // server-side: slots in use, so only those past the end need clearing
+
+var vector VehLoc[MAX_VEHICLES];
+var byte VehInfo[MAX_VEHICLES];
+var int VehCount;     // server-side, as SnapCount
+
+// The players a spectator's camera goes to with "next" (SpecNext[0], then [1]) and "previous", worked out on the server
+// the way the game picks them
+var ROPlayerReplicationInfo SpecNext[2], SpecPrev[2];
 
 // ====================================================
 // Drawings
@@ -146,7 +163,7 @@ var bool bToolHooked;       // the tool gets its keys from CMMapInputHook (false
 replication
 {
     if (bNetDirty && Role == ROLE_Authority)
-        bSpectating, SnapPRI, SnapLoc, SnapInfo, bScrimAdmin, bDrawingLocked;
+        bSpectating, SnapPRI, SnapLoc, SnapInfo, bScrimAdmin, bDrawingLocked, VehLoc, VehInfo, SpecNext, SpecPrev;
     if (bNetInitial && Role == ROLE_Authority)
         bDrawingEnabled, bSpectatorOverlay;
 }
@@ -262,6 +279,32 @@ static function byte GetKind(Pawn P, ROTeamInfo ROTI)
     return ROVehicle(P) != None ? KIND_TRANSPORT : KIND_INFANTRY;
 }
 
+static function byte KindOf(byte Data)
+{
+    return (Data / KIND_STEP) & 7;
+}
+
+static function byte HurtCountOf(byte Data)
+{
+    return Data / HURT_STEP;
+}
+
+// The empty vehicles, from Entries (Data packed as VehInfo)
+function SetVehicles(out array<SnapEntry> Entries)
+{
+    local int i, Count;
+
+    for (i = 0; i < Entries.Length && Count < MAX_VEHICLES; i++)
+    {
+        VehLoc[Count] = Entries[i].Loc;
+        VehInfo[Count] = Entries[i].Data;
+        Count++;
+    }
+    for (i = Count; i < VehCount; i++)
+        VehInfo[i] = 0;
+    VehCount = Count;
+}
+
 // Fills the snapshot from Entries, leaving out the owner themselves; returns how many went in
 function int SetSnapshot(bool bSpec, out array<SnapEntry> Entries)
 {
@@ -362,6 +405,28 @@ static function bool CanErase(PlayerReplicationInfo Viewer, bool bAdmin, byte Te
 
     ROPRI = ROPlayerReplicationInfo(Viewer);
     return Squad != SQUAD_ALL && ROPRI != None && ROPRI.bIsSquadLeader && ROPRI.SquadIndex == Squad;
+}
+
+// Who may clear everything on a channel: anyone their own drawings, squad leaders their squad, the commander their team,
+// scrim admins any channel
+static function bool CanClearChannel(PlayerReplicationInfo PRI, byte Channel, bool bAdmin)
+{
+    local ROPlayerReplicationInfo ROPRI;
+
+    ROPRI = ROPlayerReplicationInfo(PRI);
+    if (ROPRI == None)
+        return false;
+    if (bAdmin || Channel == CH_PERSONAL)
+        return true;
+
+    switch (Channel)
+    {
+        case CH_SQUAD:
+            return InSquad(PRI) && (ROPRI.bIsSquadLeader || IsCommander(PRI));
+        case CH_TEAM:
+            return PlayingTeam(PRI) != 255 && IsCommander(PRI);
+    }
+    return false;
 }
 
 // Anyone may draw for themselves, their squad or their team (spectators: themselves and the spectators) unless a scrim

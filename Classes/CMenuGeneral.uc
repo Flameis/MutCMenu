@@ -1,5 +1,9 @@
 class CMenuGeneral extends CMenu;
 
+var float ClearAskedTime; // when "Admin Clear Every Map Drawing" was first picked; it clears when picked again soon after
+
+const CLEAR_CONFIRM_TIME = 5.0;
+
 function Initialize()
 {
     if (bIsAuthorized)
@@ -23,18 +27,29 @@ function bool CheckExceptions(string Command)
     {
         case "DROPATGRID":
             if(bCMenuDebug) `Log("DropAtGrid");
-            PromptForText("Drop At Grid|Grid letter A-J, number 1-10 and an optional keypad 1-9|Example: E 5 kp 5   (or: --grid E 5 kp 5, short -g)", "Mutate "$Command$" ");
+            PromptForText("Drop At Grid|--grid / -g : grid letter A-J, number 1-10 and an optional keypad 1-9|Example: --grid E 5 kp 5   (or just E 5 kp 5)", "Mutate "$Command$" ");
             return true;
             
         case "DROPATOBJ":
             if(bCMenuDebug) `Log("DropAtObj");
-            PromptForText("Drop At Objective|The objective letter|Example: A   (or: --obj A, short -o)", "Mutate "$Command$" ");
+            PromptForText("Drop At Objective|--obj / -o : the objective letter|Example: --obj A   (or just A)", "Mutate "$Command$" ");
             return true;
 
         case "CHANGENAME":
             if(bCMenuDebug) `Log("CHANGENAME");
-            PromptForText("Change Name|Type your desired name|Example: T/4 Scovel [29ID]   (or: --name T/4 Scovel [29ID], short -n)", "Mutate "$Command$" ");
+            PromptForText("Change Name|--name / -n : the name you want|Example: --name T/4 Scovel [29ID]   (or just T/4 Scovel [29ID])", "Mutate "$Command$" ");
             return true;
+
+        // Asks first: picked once it only says to pick it again
+        case "MAPCLEAR ALL":
+            if (PC.WorldInfo.RealTimeSeconds - ClearAskedTime > CLEAR_CONFIRM_TIME)
+            {
+                ClearAskedTime = PC.WorldInfo.RealTimeSeconds;
+                MessageSelf("[Map] Are you sure? Pick Admin Clear Every Map Drawing again within "$int(CLEAR_CONFIRM_TIME)$" seconds to clear every drawing for everyone.");
+                return true;
+            }
+            ClearAskedTime = -100;
+            return false; // runs mutate mapclear all
 
         case "SUICIDE":
         case "SAY /NOTREADY":
@@ -92,6 +107,7 @@ function bool CheckExceptions(string Command)
 
 defaultproperties
 {
+    ClearAskedTime=-100
     MenuName="GENERAL"
 
     MenuText(0)="Respawn"

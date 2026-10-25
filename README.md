@@ -56,7 +56,7 @@ The starting point. It lists General Commands, Builder, Weapons, CMenu Settings,
 | Set Team Ready / Not Ready | Tells the match system your team is ready |
 | Admin Toggle Fly | (Admins) fly around freely |
 | Admin Stop Players Drawing On The Map / Admin Let Players Draw On The Map | (Admins) turns map drawing off or back on for players (see section 6) |
-| Admin Clear Every Map Drawing | (Admins) clears every drawing on the map for everyone |
+| Admin Clear Every Map Drawing | (Admins) clears every drawing on the map for everyone. It asks first: pick it again within 5 seconds to clear |
 
 ### Manage Players (admin only)
 Pick a player, then choose what to do to them:
@@ -233,10 +233,17 @@ CMenu adds these to the overhead map. None of them replaces the game's screen (i
 Spectators normally only see players near them. With CMenu, spectators get:
 
 - **Everyone on the overhead map:** a marker for every living player, using the game's own player and vehicle icons (tank, truck, each helicopter) in the team colour. Squad and team leaders get the leader icon.
-- **Triangles over players:** a small triangle in the team colour sitting just above the head of every player in view.
+- **Empty vehicles on the map:** vehicles nobody is in are shown too, with the game's icon for that kind of vehicle in its team's colour (grey if it has no team), a little faded so they stand apart from vehicles with a crew.
+- **Deaths on the map:** someone who dies shows the game's death icon where they fell, like the base game does for teammates. It stays for 2 seconds, then fades out over 3.
+- **Capture the Flag flags on the map:** every flag is shown, whichever team could normally see it, as a small flag in the colour of the team it belongs to, labelled with what is happening to it: "PAVN flag: at its spot", "PAVN flag: carried by Smith" or "PAVN flag: dropped".
+- **Triangles over players:** a small triangle in the team colour sitting just above the head of every player in view. When that player is hit, the triangle **flashes white** for a moment, like in Arma.
+- **Death icon over the body:** someone who dies gets the game's death icon over their body instead of the triangle, fading out after a few seconds.
 - **Names when you look at someone:** the player nearest the middle of your screen shows their **name in their team colour** instead of the triangle. When that player is close (within about 40 meters), the **role icon they picked** is shown under the name in the team colour, like the base game does for friendlies.
+- **Camera strip:** low in the middle of the screen, a strip shows your camera mode (first person, third person, third person with a free camera, free roam or map camera), who you are watching (with their vehicle, if they are in one), and the two players "previous" goes back to and the two "next" goes on to, in their team colours. Next and previous are worked out on the server the same way the game picks them. They are left out in free roam and the map cameras, where next and previous do not go to players.
 - **The game's own name display is turned off** while you spectate, so the two do not double up, and put back when you stop spectating. Your saved setting is never changed.
-- **A clean map:** while the map is open, the names and triangles are hidden.
+- **A clean map:** while the map is open, the names, triangles and the camera strip are hidden.
+
+*How the flash, death icons, empty vehicles, flags and the camera strip look can only be checked by playing.*
 
 Turn it off with `bDisableEnhancedSpectator`.
 
@@ -281,9 +288,16 @@ While you drag a line, arrow, circle or box, its length, bearing or size in mete
 | Draw for | Who sees what you draw next. Click to change (see below) |
 | Undo | Takes away your newest drawing |
 | Clear mine | Takes away all of your drawings |
-| Clear all for ... | Squad leaders, the commander and scrim admins: clears everything they may erase in the chosen group |
+| Clear all for ... | Clears every drawing in the group picked under "Draw for". Squad: only the squad leader. Team: only the commander. Scrim admins: any group. Everyone sees the button, but it is greyed out and does nothing for those who may not use it |
 | Clear every drawing | Scrim admins only: clears the map for everyone |
 | Hide drawings | Hides all drawings on your own map (nothing changes for anyone else) |
+| Teams shown | Spectators only: show both teams' drawings, or only North's or only South's (the button uses the map's own team names). Drawings for everyone, for spectators and your own always show |
+
+**Clearing asks first:** every clear button (Clear mine, Clear all for, Clear every drawing) turns red and asks "Are you sure?" on the first click. Click it again within 4 seconds to clear. Clicking anything else, or waiting, cancels it.
+
+**Spectators can tell the teams apart:** a spectator sees both teams' drawings, each with a soft edge in the colour of the team it was drawn for (a wider line under lines and shapes, a square under markers, a box under text).
+
+**Toolbar text and markers no longer vanish:** typing a label on the map, or placing a marker, used to make the toolbar's text or its marker icons disappear, because the game drew them under the buttons. The toolbar is now drawn in its own layer above the map. *This can only be checked by playing.*
 
 Holding the mouse over a drawing shows who drew it and who it is for.
 
@@ -302,7 +316,7 @@ The other team never sees your team's drawings. Spectators see every drawing exc
 
 **Stopping players drawing:** a scrim admin can turn drawing off for players with `mutate mapdrawing off`, or **Admin Stop Players Drawing On The Map** in General Commands. Everyone is told. Players then cannot draw anything, not even for themselves, until a scrim admin turns it back on (`mutate mapdrawing on` or **Admin Let Players Draw On The Map**). Drawings already on the map stay, and players can still undo and clear their own. Scrim admins can always draw. It is back on after a map change.
 
-**Who can erase what:** everyone can erase their own drawings. Squad leaders can also erase their squad's, the commander the whole team's, and scrim admins anything.
+**Who can erase what:** everyone can erase their own drawings. Squad leaders can also erase their squad's, the commander the whole team's, and scrim admins anything. Clearing a whole group follows the same rule: only the squad leader clears the squad's drawings, only the commander the team's.
 
 **Limits:** each player can have 60 drawings at once (the server can change this); when you go over, your oldest one goes. A freehand line holds up to 200 points; a longer one carries on as a new line. Drawing very fast is slowed down so nobody floods the map. Drawings are cleared when a new round starts, unless the server keeps them, and what you drew only for yourself goes when you leave.
 
@@ -349,7 +363,7 @@ Commands can be typed in the console as `mutate <command> --option value` (short
 | `resetflags` | (Admin) Sends every flag back to where it was placed | none |
 | `removeflags` | (Admin) Removes every flag | none |
 | `mapundo` | Takes away your newest map drawing | none |
-| `mapclear` | Clears map drawings: `mine` (anyone), `squad` or `team` (what you may erase there: squad leaders, the commander, scrim admins), `north`, `south`, `spectators` or `everyone` (scrim admins), `all` or nothing (every drawing; scrim admins) | `mine`, `squad`, `team`, `north`, `south`, `spectators`, `everyone`, `all` |
+| `mapclear` | Clears map drawings: `mine` (anyone), `squad` (the squad leader), `team` (the commander), `north`, `south`, `spectators` or `everyone` (scrim admins), `all` or nothing (every drawing; scrim admins). Scrim admins can clear any of them. Typed commands do not ask "are you sure?" | `mine`, `squad`, `team`, `north`, `south`, `spectators`, `everyone`, `all` |
 | `mapdrawing` | `off` stops players drawing on the map, `on` lets them again (scrim admins). On its own it says whether players can draw | `on`, `off` |
 
 Commands shared with the Realism Match and Paradrops mutators (`scrimadminlogin`, `changename`, `whois`, the match commands and the paradrop commands) work through CMenu too.

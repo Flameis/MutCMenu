@@ -1,5 +1,6 @@
 // Server side of MutCMenu's overhead map additions. Each player has a CMMapInfo, and this fills them in:
-//  - four times a second, the snapshot: every living player for a spectator, or for a player on a team the teammates
+//  - four times a second, the snapshot: every living player for a spectator (with how often each was hurt, those who
+//    have just died, the vehicles nobody is in and who the camera goes to next), or for a player on a team the teammates
 //    the game's map leaves out (it has 32 places per team), including for a few seconds after they die,
 //  - map drawings: every drawing lives here; each player is sent the ones they may see, a few at a time, and is told
 //    when one goes away. When a player's team, squad or role changes they are sent the whole set again for their new
@@ -29,7 +30,28 @@ const MAX_ITEMS = 600;         // drawings kept in all; the oldest goes first
 const DEFAULT_PER_PLAYER = 60; // drawings one player may have at once, when the server doesn't say
 const SEND_CHARS = 1500;       // roughly how much is sent to one player per tick (10 ticks a second)
 const REMOVE_IDS = 100;        // removals per call
-const DEAD_ICON_TIME = 5.0;    // seconds a left-out teammate stays on the map after dying, as the game does
+const DEAD_ICON_TIME = 5.0;    // seconds a left-out teammate (or, for spectators, anyone) stays on the map after dying, as the game does
+
+// A living player as last seen, so a spectator can be shown when they are hurt and where they die
+struct WatchedPlayer
+{
+    var ROPlayerReplicationInfo PRI;
+    var Pawn LastPawn;   // health is only compared on the same pawn (getting into a vehicle changes it)
+    var int LastHealth;
+    var byte HurtCount;
+    var vector Loc;
+    var byte Data;
+    var float SeenTime;
+};
+
+// Someone who has just died, shown to spectators for DEAD_ICON_TIME
+struct DeadPlayer
+{
+    var ROPlayerReplicationInfo PRI;
+    var vector Loc;
+    var byte Data;
+    var float DeathTime;
+};
 
 var MutCMenu Mut;
 var array<MapDrawItem> Items; // in ID order, oldest first
@@ -37,6 +59,8 @@ var array<CMMapInfo> Infos;
 var int NextID;
 var bool bDrawingLocked;      // a scrim admin has stopped players drawing (until they allow it again or the map changes)
 var array<LeftOutPlayer> LeftOut;
+var array<WatchedPlayer> Watched;
+var array<DeadPlayer> RecentDead;
 
 function PostBeginPlay()
 {
@@ -172,13 +196,15 @@ function int FindLeftOut(ROPlayerReplicationInfo PRI)
 function RefreshSnapshots()
 {
     local PlayerController PC;
-    local array<CMMapInfo.SnapEntry> Everyone, TeamLeftOut0, TeamLeftOut1, Nobody;
+    local array<CMMapInfo.SnapEntry> Everyone, TeamLeftOut0, TeamLeftOut1, Nobody, EmptyVehicles;
     local int i;
     local byte Team;
     local bool bOverlay;
 
     bOverlay = SpectatorOverlay();
     BuildSnapshots(Everyone, TeamLeftOut0, TeamLeftOut1);
+    if (bOverlay)
+        BuildEmptyVehicles(EmptyVehicles);
 
     for (i = Infos.Length - 1; i >= 0; i--)
     {
@@ -194,13 +220,201 @@ function RefreshSnapshots()
 
         Team = class'CMMapInfo'.static.PlayingTeam(PC.PlayerReplicationInfo);
         if (PC.PlayerReplicationInfo.bOnlySpectator && bOverlay)
+        {
             Infos[i].SetSnapshot(true, Everyone);
-        else if (Team == 0)
+            Infos[i].SetVehicles(EmptyVehicles);
+            SetCameraCycle(Infos[i], PC);
+            continue;
+        }
+
+        if (Team == 0)
             Infos[i].SetSnapshot(false, TeamLeftOut0);
         else if (Team == 1)
             Infos[i].SetSnapshot(false, TeamLeftOut1);
         else
             Infos[i].SetSnapshot(false, Nobody);
+        Infos[i].SetVehicles(Nobody);
+        Infos[i].SpecNext[0] = None;
+        Infos[i].SpecNext[1] = None;
+        Infos[i].SpecPrev[0] = None;
+        Infos[i].SpecPrev[1] = None;
+    }
+}
+
+// Vehicles nobody sits in, which the game's map shows nobody. Their team is the vehicle's own (255: neither).
+function BuildEmptyVehicles(out array<CMMapInfo.SnapEntry> Vehicles)
+{
+    local ROVehicle ROV;
+    local CMMapInfo.SnapEntry Entry;
+    local int i;
+    local bool bManned;
+
+    Vehicles.Length = 0;
+    foreach WorldInfo.AllPawns(class'ROVehicle', ROV)
+    {
+        if (ROV.bDeleteMe || ROV.bDeadVehicle || ROV.Health <= 0)
+            continue;
+
+        bManned = ROV.Driver != None || ROV.PlayerReplicationInfo != None;
+        for (i = 0; i < ROV.Seats.Length && !bManned; i++)
+            bManned = ROV.GetSeatPRI(i) != None;
+        if (bManned)
+            continue;
+
+        Entry.PRI = None;
+        Entry.Loc = ROV.Location;
+        Entry.Data = class'CMMapInfo'.const.VEH_PRESENT + class'CMMapInfo'.static.GetKind(ROV, None) * class'CMMapInfo'.const.KIND_STEP
+            + (ROV.Team < 2 ? int(ROV.Team) : class'CMMapInfo'.const.VEH_NO_TEAM);
+        Vehicles.AddItem(Entry);
+    }
+}
+
+// The players the game would put the spectator's camera on with "next" and "previous", in the order it goes through
+// them (ROPlayerController.GetCamPRIs): the players list without the spectator, the chat and WebAdmin stand-ins and
+// anyone with no team; then only those with a pawn the spectator may watch, going round from the one they watch now.
+// Only for the camera modes that follow a player; free roaming and the map cameras get none.
+function SetCameraCycle(CMMapInfo Info, PlayerController PC)
+{
+    local ROPlayerController ROPC;
+    local array<PlayerReplicationInfo> List;
+    local PlayerReplicationInfo PRI;
+    local int i, Current, Index, Found;
+    local byte MyTeam;
+
+    Info.SpecNext[0] = None;
+    Info.SpecNext[1] = None;
+    Info.SpecPrev[0] = None;
+    Info.SpecPrev[1] = None;
+
+    ROPC = ROPlayerController(PC);
+    if (ROPC == None || WorldInfo.GRI == None || ROPC.CurrentSpectateMode == SMODE_Roaming || ROPC.CurrentSpectateMode == SMODE_Viewpoint)
+        return;
+
+    MyTeam = `NEUTRAL_TEAM_INDEX;
+    if (PC.PlayerReplicationInfo.Team != None)
+        MyTeam = PC.PlayerReplicationInfo.Team.TeamIndex;
+    for (i = 0; i < WorldInfo.GRI.PRIArray.Length; i++)
+    {
+        PRI = WorldInfo.GRI.PRIArray[i];
+        if (PRI == None || PRI == PC.PlayerReplicationInfo || PRI.PlayerName == "<<TeamChatProxy>>" || PRI.PlayerName == "<<WebAdmin>>"
+            || PRI.Team == None || PRI.Team.TeamIndex == `NEUTRAL_TEAM_INDEX || (MyTeam != `NEUTRAL_TEAM_INDEX && PRI.Team.TeamIndex != MyTeam))
+            continue;
+        List.AddItem(PRI);
+    }
+    if (List.Length == 0)
+        return;
+
+    Current = Max(0, List.Find(PC.RealViewTarget));
+
+    // Next twice, then previous twice, each step from the one found before; never the one being watched again
+    Index = Current;
+    for (Found = 0; Found < 2; Found++)
+    {
+        Index = NextWatchable(PC, List, Index, 1);
+        if (Index == INDEX_NONE || Index == Current)
+            break;
+        Info.SpecNext[Found] = ROPlayerReplicationInfo(List[Index]);
+    }
+    Index = Current;
+    for (Found = 0; Found < 2; Found++)
+    {
+        Index = NextWatchable(PC, List, Index, -1);
+        if (Index == INDEX_NONE || Index == Current)
+            break;
+        Info.SpecPrev[Found] = ROPlayerReplicationInfo(List[Index]);
+    }
+}
+
+// The next player in List after From (Dir 1, or -1 for before) that the camera can go to, or INDEX_NONE
+function int NextWatchable(PlayerController PC, array<PlayerReplicationInfo> List, int From, int Dir)
+{
+    local int i, Index;
+    local Controller C;
+
+    Index = From;
+    for (i = 0; i < List.Length; i++)
+    {
+        Index = (Index + Dir + List.Length) % List.Length;
+        C = Controller(List[Index].Owner);
+        if (C != None && C.Pawn != None && WorldInfo.Game.CanSpectate(PC, List[Index]))
+            return Index;
+    }
+    return INDEX_NONE;
+}
+
+function int FindWatched(ROPlayerReplicationInfo PRI)
+{
+    local int i;
+
+    for (i = 0; i < Watched.Length; i++)
+    {
+        if (Watched[i].PRI == PRI)
+            return i;
+    }
+    return INDEX_NONE;
+}
+
+// Counts the player's hits: a drop in health on the same pawn since the last look. Returns the count, 0 to 3.
+function byte WatchPlayer(ROPlayerReplicationInfo PRI, Pawn P, vector Loc, byte Data)
+{
+    local int Index;
+
+    Index = FindWatched(PRI);
+    if (Index == INDEX_NONE)
+    {
+        Index = Watched.Length;
+        Watched.Length = Index + 1;
+        Watched[Index].PRI = PRI;
+    }
+
+    if (Watched[Index].LastPawn == P && P.Health < Watched[Index].LastHealth)
+        Watched[Index].HurtCount = (Watched[Index].HurtCount + 1) % 4;
+    Watched[Index].LastPawn = P;
+    Watched[Index].LastHealth = P.Health;
+    Watched[Index].Loc = Loc;
+    Watched[Index].Data = Data;
+    Watched[Index].SeenTime = WorldInfo.TimeSeconds;
+    return Watched[Index].HurtCount;
+}
+
+// Players watched before who weren't alive this time have died (or left, or stopped playing): spectators see them dead
+// where their body is for a few seconds. Those still within that time go into Everyone.
+function UpdateRecentDead(out array<CMMapInfo.SnapEntry> Everyone)
+{
+    local CMMapInfo.SnapEntry Entry;
+    local DeadPlayer Dead;
+    local int i;
+
+    for (i = Watched.Length - 1; i >= 0; i--)
+    {
+        if (Watched[i].SeenTime == WorldInfo.TimeSeconds)
+            continue;
+
+        if (Watched[i].PRI != None && !Watched[i].PRI.bDeleteMe && class'CMMapInfo'.static.PlayingTeam(Watched[i].PRI) != 255)
+        {
+            Dead.PRI = Watched[i].PRI;
+            Dead.Loc = (Watched[i].LastPawn != None && !Watched[i].LastPawn.bDeleteMe) ? Watched[i].LastPawn.Location : Watched[i].Loc;
+            Dead.Data = (Watched[i].Data & class'CMMapInfo'.const.FLAG_SOUTH) + class'CMMapInfo'.const.FLAG_DEAD;
+            Dead.DeathTime = WorldInfo.TimeSeconds;
+            RecentDead.AddItem(Dead);
+        }
+        Watched.Remove(i, 1);
+    }
+
+    for (i = RecentDead.Length - 1; i >= 0; i--)
+    {
+        // Gone, alive again, or dead long enough
+        if (RecentDead[i].PRI == None || RecentDead[i].PRI.bDeleteMe || FindWatched(RecentDead[i].PRI) != INDEX_NONE
+            || WorldInfo.TimeSeconds - RecentDead[i].DeathTime > DEAD_ICON_TIME)
+        {
+            RecentDead.Remove(i, 1);
+            continue;
+        }
+
+        Entry.PRI = RecentDead[i].PRI;
+        Entry.Loc = RecentDead[i].Loc;
+        Entry.Data = RecentDead[i].Data;
+        Everyone.AddItem(Entry);
     }
 }
 
@@ -239,7 +453,11 @@ function BuildSnapshots(out array<CMMapInfo.SnapEntry> Everyone, out array<CMMap
             Entry.Data += class'CMMapInfo'.const.FLAG_LEADER;
 
         if (bOverlay)
+        {
+            Entry.Data += WatchPlayer(ROPRI, C.Pawn, Entry.Loc, Entry.Data) * class'CMMapInfo'.const.HURT_STEP;
             Everyone.AddItem(Entry);
+            Entry.Data = Entry.Data % class'CMMapInfo'.const.HURT_STEP; // the teammates' maps don't use it
+        }
 
         if (HasMapPlace(ROPRI, ROTI))
             continue;
@@ -261,6 +479,9 @@ function BuildSnapshots(out array<CMMapInfo.SnapEntry> Everyone, out array<CMMap
         LeftOut[Index].SeenTime = WorldInfo.TimeSeconds;
         LeftOut[Index].DeathTime = 0;
     }
+
+    if (bOverlay)
+        UpdateRecentDead(Everyone);
 
     // Left-out teammates who weren't alive this time: just died (shown dead for a moment), left, or got a place
     for (i = LeftOut.Length - 1; i >= 0; i--)
@@ -465,10 +686,17 @@ function int Clear(PlayerController PC, byte Mode, byte Channel)
 
     if (Mode == 1)
     {
-        // Clearing isn't drawing, so the lock doesn't stop it; an admin may name any channel
-        if (!class'CMMapInfo'.static.ResolveChannel(PRI, Channel, bAdmin, false, Team, Squad))
+        // Only squad leaders clear their squad, the commander their team and scrim admins anything. Clearing isn't
+        // drawing, so the lock doesn't stop it.
+        if (!class'CMMapInfo'.static.CanClearChannel(PRI, Channel, bAdmin)
+            || !class'CMMapInfo'.static.ResolveChannel(PRI, Channel, bAdmin, false, Team, Squad))
         {
-            PrivateMessage(PC, "You can't clear "$class'CMMapInfo'.static.ChannelName(Channel)$".");
+            if (Channel == class'CMMapInfo'.const.CH_SQUAD)
+                PrivateMessage(PC, "Only the squad leader can clear the squad's drawings.");
+            else if (Channel == class'CMMapInfo'.const.CH_TEAM)
+                PrivateMessage(PC, "Only the commander can clear the team's drawings.");
+            else
+                PrivateMessage(PC, "You can't clear "$class'CMMapInfo'.static.ChannelName(Channel)$".");
             return 0;
         }
     }

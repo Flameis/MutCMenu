@@ -430,6 +430,11 @@ function DrawMenu(ROCanvas MenuCanvas, int MenuX, int MenuY, string title, array
 		MenuCanvas.DrawText("0. Exit", false, MenuScale, MenuScale);
 
 	MenuHeight = Y;
+
+	// Take off the layers pushed above, or everything drawn after the menu (the map tools, other menus) stays in them
+	MenuCanvas.PopDepthSortPriority();
+	if (bDrawBackground)
+		MenuCanvas.PopDepthSortPriority();
 }
 
 function MessageSelf(string Message)

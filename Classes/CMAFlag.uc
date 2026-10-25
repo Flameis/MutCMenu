@@ -84,9 +84,14 @@ var repnotify Pawn          Carrier;
 var repnotify byte          FlagStyle;
 var repnotify bool          bShowBeam;
 
+// For spectators' maps (MutCMenu's map Interaction), which show every flag and what is happening to it. The carrier's
+// player info, because the carrier's pawn may be too far away for a spectator's game to know it.
+var int                     Faction;
+var PlayerReplicationInfo   CarrierPRI;
+var bool                    bAtHome;        // Where it was placed (and not moved since)
+
 // Server-side
 var MutCMenu                MyMut;          // Its bCTFSilent decides whether pickups and drops are announced
-var int                     Faction;
 var vector                  HomeLocation;
 var vector                  LastCarrierLocation;
 var Pawn                    LastDropper;
@@ -103,7 +108,7 @@ var StaticMeshComponent     PoleMesh, BeamMesh;
 replication
 {
     if (bNetDirty && Role == ROLE_Authority)
-        Carrier, FlagStyle, bShowBeam;
+        Carrier, FlagStyle, bShowBeam, Faction, CarrierPRI, bAtHome;
 }
 
 simulated function PostBeginPlay()
@@ -113,6 +118,7 @@ simulated function PostBeginPlay()
     if (Role == ROLE_Authority)
     {
         HomeLocation = Location;
+        bAtHome = true;
         SetTimer(0.2, true, 'CheckPickup');
     }
 }
@@ -384,6 +390,8 @@ function bool CanKeepCarrying(Pawn P)
 function PickUp(Pawn P)
 {
     Carrier = P;
+    CarrierPRI = P.PlayerReplicationInfo;
+    bAtHome = false;
     LastCarrierLocation = P.Location;
     SetPhysics(PHYS_None);
     Velocity = vect(0, 0, 0);
@@ -465,6 +473,7 @@ function Drop(optional bool bThrow)
     }
 
     Carrier = None;
+    CarrierPRI = None;
     CarrierChanged();
     LastDropper = P;
     DropperNoPickupUntil = WorldInfo.TimeSeconds + DropperDelay;
@@ -493,6 +502,8 @@ function ReturnHome()
         Carrier = None;
         CarrierChanged();
     }
+    CarrierPRI = None;
+    bAtHome = true;
     LastDropper = None;
     NoPickupUntil = WorldInfo.TimeSeconds + 1.0;
     SetLocation(HomeLocation);

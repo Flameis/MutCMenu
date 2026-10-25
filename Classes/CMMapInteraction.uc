@@ -39,6 +39,15 @@ const A_CLEAR_MINE = 6;
 const A_CLEAR_CHANNEL = 7;
 const A_CLEAR_ALL = 8;
 const A_HIDE = 9;
+const A_SPEC_TEAMS = 10;
+
+const CONFIRM_TIME = 4.0;   // seconds a clear button waits for its second click
+const FLASH_TIME = 0.4;     // seconds a spectator's marker over a player flashes white when they are hit
+
+// Which teams' drawings a spectator sees
+const SPEC_BOTH = 0;
+const SPEC_NORTH = 1;
+const SPEC_SOUTH = 2;
 
 const LINE_WIDTH = 3.0;     // pixels at 1080p
 const ICON_SIZE = 26.0;     // marker size, pixels at 1080p
@@ -61,6 +70,8 @@ struct ToolButton
     var byte Action, Arg;
     var string Label;
     var bool bSelected;
+    var bool bDisabled; // greyed out: the player may not use it
+    var bool bDanger;   // red: a clear waiting for its second click
 };
 
 // An own drawing on its way to the server, shown until it comes back
@@ -77,6 +88,9 @@ var config byte SavedColour, SavedIcon;
 var byte Tool, Colour, Icon, Channel;
 var bool bChannelPicked;       // the player picked Channel themselves, so it is only changed when no longer allowed
 var bool bHideDrawings;
+var byte SpecTeams;            // spectators: SPEC_BOTH, SPEC_NORTH or SPEC_SOUTH
+var byte ArmedAction;          // a clear button clicked once, waiting for the second click; 255 for none
+var float ArmedTime;
 var array<ToolButton> Buttons; // laid out every frame; clicks use the last frame's
 var array<SentItem> Sent;
 var int NextToken;
@@ -105,9 +119,14 @@ var byte SavedNames;       // the player's own setting for it, put back afterwar
 var byte SavedClassNames;  // the same for the HUD class's default, which the game may read instead
 var byte SavedServerNames; // and the server's setting as this client was told it
 
-// Left-out teammates who have just died: when this client first saw them dead, for the fade
+// Players who have just died: when this client first saw them dead, for the fade
 var array<PlayerReplicationInfo> DeadPRIs;
 var array<float> DeadSince;
+
+// Spectators: each player's hit count as last seen, and until when their marker flashes
+var array<PlayerReplicationInfo> HurtPRIs;
+var array<byte> HurtCounts;
+var array<float> FlashUntil;
 
 // ====================================================
 // The map
@@ -390,8 +409,40 @@ function int ButtonAt(vector2D S)
     return INDEX_NONE;
 }
 
+// A clear takes two clicks: the first turns the button red ("are you sure?"), the second within CONFIRM_TIME clears
+function bool Confirmed(byte Action)
+{
+    local float Now;
+
+    Now = PlayerController(Outer).WorldInfo.RealTimeSeconds;
+    if (ArmedAction == Action && Now - ArmedTime <= CONFIRM_TIME)
+    {
+        ArmedAction = 255;
+        return true;
+    }
+    ArmedAction = Action;
+    ArmedTime = Now;
+    return false;
+}
+
+function bool IsClearAction(byte Action)
+{
+    return Action == A_CLEAR_MINE || Action == A_CLEAR_CHANNEL || Action == A_CLEAR_ALL;
+}
+
 function PressButton(ToolButton B)
 {
+    if (B.bDisabled)
+        return;
+
+    if (IsClearAction(B.Action))
+    {
+        if (!Confirmed(B.Action))
+            return;
+    }
+    else
+        ArmedAction = 255;
+
     switch (B.Action)
     {
         case A_PANEL:
@@ -431,7 +482,22 @@ function PressButton(ToolButton B)
         case A_HIDE:
             bHideDrawings = !bHideDrawings;
             break;
+        case A_SPEC_TEAMS:
+            SpecTeams = (SpecTeams + 1) % 3;
+            break;
     }
+}
+
+// A spectator who picked one team doesn't see the other team's drawings; everything else is always shown
+function bool ItemShown(CMMapInfo.ClientMapItem Item, PlayerReplicationInfo Viewer)
+{
+    if (Viewer == None || !Viewer.bOnlySpectator)
+        return true;
+    if (SpecTeams == SPEC_NORTH)
+        return Item.Team != class'CMMapInfo'.const.TEAM_SOUTH;
+    if (SpecTeams == SPEC_SOUTH)
+        return Item.Team != class'CMMapInfo'.const.TEAM_NORTH;
+    return true;
 }
 
 function SelectTool(byte NewTool)
@@ -666,6 +732,8 @@ function int PickItem(vector2D S, bool bErasable)
     BestD = PICK_RADIUS * UIScale;
     for (i = 0; i < Info.Items.Length; i++)
     {
+        if (!ItemShown(Info.Items[i], PC.PlayerReplicationInfo))
+            continue;
         if (bErasable && !class'CMMapInfo'.static.CanErase(PC.PlayerReplicationInfo, Info.bScrimAdmin, Info.Items[i].Team, Info.Items[i].Squad, Info.Items[i].OwnerID))
             continue;
 
@@ -846,8 +914,21 @@ event PostRender(Canvas C)
 
         if (!bHideDrawings)
         {
+            // A spectator sees every team's drawings, each with an edge in the colour of the team it is for. The edges
+            // all go first, so none is drawn over a drawing.
+            if (PC.PlayerReplicationInfo != None && PC.PlayerReplicationInfo.bOnlySpectator)
+            {
+                for (i = 0; i < Info.Items.Length; i++)
+                {
+                    if (Info.Items[i].Team < 2 && ItemShown(Info.Items[i], PC.PlayerReplicationInfo))
+                        DrawGlow(C, Info.Items[i], TeamColour(H, Info.Items[i].Team));
+                }
+            }
             for (i = 0; i < Info.Items.Length; i++)
-                DrawItem(C, Info.Items[i], false);
+            {
+                if (ItemShown(Info.Items[i], PC.PlayerReplicationInfo))
+                    DrawItem(C, Info.Items[i], false);
+            }
             for (i = 0; i < Sent.Length; i++)
                 DrawItem(C, Sent[i].Item, false);
         }
@@ -868,6 +949,8 @@ event PostRender(Canvas C)
 
     // Players over the drawings, so a drawing never hides one
     DrawSnapshotOnMap(C, H, bSpectatorView);
+    if (bSpectatorView)
+        DrawFlagsOnMap(C, H);
 
     if (!Info.bDrawingEnabled)
         return;
@@ -891,7 +974,31 @@ event PostRender(Canvas C)
     // The game drew its cursor before this; draw it again so it stays on top of the toolbar and the drawings
     CursorComp = MapWidget.HUDComponents[class'ROHUDWidgetOverheadMap'.const.ROOMT_MousePointer];
     if (bCursor && CursorComp != None)
+    {
+        PushLayer(C, true);
         DrawCursor(C, CursorComp);
+        PopLayer(C);
+    }
+}
+
+// The canvas draws everything with the same texture together, in the order each texture was first used. So text drawn
+// after a box could end up under it when the same font had been used earlier in the frame (a label typed on the map took
+// the toolbar's text with it, a marker on the map the toolbar's marker icons). The toolbar and other boxes with text on
+// them are drawn in two layers above the map: the boxes (bTop false), then what goes on them (bTop true).
+function PushLayer(Canvas C, bool bTop)
+{
+    if (ROCanvas(C) == None)
+        return;
+    if (bTop)
+        ROCanvas(C).PushDepthSortPriority(DSP_Insane);
+    else
+        ROCanvas(C).PushDepthSortPriority(DSP_SkyHigh);
+}
+
+function PopLayer(Canvas C)
+{
+    if (ROCanvas(C) != None)
+        ROCanvas(C).PopDepthSortPriority();
 }
 
 function DrawCursor(Canvas C, ROHUDWidgetComponent CursorComp)
@@ -975,7 +1082,8 @@ function bool ClipToMap(out vector2D A, out vector2D B)
     return true;
 }
 
-function DrawItem(Canvas C, CMMapInfo.ClientMapItem Item, bool bHighlight)
+// With GlowWidth, a line, arrow, circle or box is drawn that wide in GlowCol instead (the team edge for spectators)
+function DrawItem(Canvas C, CMMapInfo.ClientMapItem Item, bool bHighlight, optional float GlowWidth, optional color GlowCol)
 {
     local vector2D A, B, Prev, Next, Dir;
     local float Width, R, HeadLen, Ang;
@@ -987,6 +1095,11 @@ function DrawItem(Canvas C, CMMapInfo.ClientMapItem Item, bool bHighlight)
 
     Col = bHighlight ? MakeColor(255, 255, 255, 200) : class'CMMapInfo'.static.GetColour(Item.Colour);
     Width = LINE_WIDTH * UIScale + (bHighlight ? 4.0 : 0.0);
+    if (GlowWidth > 0)
+    {
+        Col = GlowCol;
+        Width = GlowWidth;
+    }
     A = WorldToScreen(Item.Points[0]);
 
     switch (Item.Kind)
@@ -1047,6 +1160,43 @@ function DrawItem(Canvas C, CMMapInfo.ClientMapItem Item, bool bHighlight)
         DrawSegment(C, A, B, Width, Col);
         A = B;
     }
+}
+
+// The edge in a team's colour behind a drawing, so a spectator can tell whose it is: a wider line under lines and
+// shapes, a square under a marker, a box under text
+function DrawGlow(Canvas C, CMMapInfo.ClientMapItem Item, color Col)
+{
+    local vector2D A;
+    local float Size, XL, YL, S;
+
+    if (Item.Points.Length == 0)
+        return;
+
+    Col.A = 150;
+    A = WorldToScreen(Item.Points[0]);
+    switch (Item.Kind)
+    {
+        case class'CMMapInfo'.const.KIND_MARKER:
+            if (!InMap(A))
+                return;
+            Size = ICON_SIZE * UIScale * 1.35;
+            C.SetDrawColor(Col.R, Col.G, Col.B, Col.A);
+            C.SetPos(A.X - Size * 0.5, A.Y - Size * 0.5);
+            C.DrawTile(C.DefaultTexture, Size, Size, 0, 0, C.DefaultTexture.SizeX, C.DefaultTexture.SizeY);
+            return;
+
+        case class'CMMapInfo'.const.KIND_TEXT:
+            if (!InMap(A))
+                return;
+            S = UIScale * 1.1;
+            C.Font = class'Engine'.static.GetSmallFont();
+            C.TextSize(Item.Text, XL, YL);
+            C.SetDrawColor(Col.R, Col.G, Col.B, Col.A);
+            C.SetPos(A.X - 3 * UIScale, A.Y - YL * S * 0.5 - 2 * UIScale);
+            C.DrawTile(C.DefaultTexture, XL * S + 6 * UIScale, YL * S + 4 * UIScale, 0, 0, C.DefaultTexture.SizeX, C.DefaultTexture.SizeY);
+            return;
+    }
+    DrawItem(C, Item, false, LINE_WIDTH * UIScale + 5 * UIScale, Col);
 }
 
 // The game's own map icons where there is one, read from the running map so WW2, Winter War and GOM get theirs
@@ -1128,9 +1278,13 @@ function DrawLabel(Canvas C, vector2D At, string Text, color Col, bool bBox)
 
     if (bBox)
     {
+        // The box and its text in the layers above the map, or the text could end up under the box (see PushLayer)
+        PushLayer(C, false);
         C.SetDrawColor(0, 0, 0, 180);
         C.SetPos(At.X - 4 * UIScale, At.Y - YL * 0.5 - 2 * UIScale);
         C.DrawTile(C.DefaultTexture, XL + 8 * UIScale, YL + 4 * UIScale, 0, 0, C.DefaultTexture.SizeX, C.DefaultTexture.SizeY);
+        PopLayer(C);
+        PushLayer(C, true);
     }
     else
     {
@@ -1142,6 +1296,8 @@ function DrawLabel(Canvas C, vector2D At, string Text, color Col, bool bBox)
     C.SetDrawColor(Col.R, Col.G, Col.B, 255);
     C.SetPos(At.X, At.Y - YL * 0.5);
     C.DrawText(Text, false, S, S);
+    if (bBox)
+        PopLayer(C);
 }
 
 // Length and direction of what is being dragged, next to the cursor. 50 unreal units = 1 meter.
@@ -1181,7 +1337,7 @@ function DrawMeasure(Canvas C)
 // Toolbar
 // ====================================================
 
-function AddButton(float X, float Y, float W, float H, byte Action, byte Arg, string Label, bool bSelected)
+function AddButton(float X, float Y, float W, float H, byte Action, byte Arg, string Label, bool bSelected, optional bool bDisabled)
 {
     local ToolButton B;
 
@@ -1193,7 +1349,54 @@ function AddButton(float X, float Y, float W, float H, byte Action, byte Arg, st
     B.Arg = Arg;
     B.Label = Label;
     B.bSelected = bSelected;
+    B.bDisabled = bDisabled;
     Buttons.AddItem(B);
+}
+
+// What the spectators' team button says: which teams' drawings are shown, in the map's own team names
+function string SpecTeamsLabel(PlayerController PC)
+{
+    switch (SpecTeams)
+    {
+        case SPEC_NORTH: return "Teams shown: "$class'CMAFlag'.static.TeamWord(PC.WorldInfo, 0);
+        case SPEC_SOUTH: return "Teams shown: "$class'CMAFlag'.static.TeamWord(PC.WorldInfo, 1);
+    }
+    return "Teams shown: both";
+}
+
+// The clear button clicked once turns red and asks to be clicked again, until CONFIRM_TIME is up
+function MarkArmedButton(PlayerController PC)
+{
+    local int i;
+
+    if (ArmedAction == 255)
+        return;
+    if (PC.WorldInfo.RealTimeSeconds - ArmedTime > CONFIRM_TIME)
+    {
+        ArmedAction = 255;
+        return;
+    }
+
+    for (i = 0; i < Buttons.Length; i++)
+    {
+        if (Buttons[i].Action != ArmedAction || Buttons[i].bDisabled)
+            continue;
+        Buttons[i].bDanger = true;
+        Buttons[i].Label = (Buttons[i].W > PanelW * 0.6) ? "Are you sure? Click again" : "Are you sure?";
+        return;
+    }
+    ArmedAction = 255; // the button isn't there any more (the channel changed to one they can't clear)
+}
+
+// The buttons' backgrounds in the lower layer, then their labels and icons in the upper one (see PushLayer)
+function DrawButtonLayers(Canvas C)
+{
+    PushLayer(C, false);
+    DrawButtons(C, false);
+    PopLayer(C);
+    PushLayer(C, true);
+    DrawButtons(C, true);
+    PopLayer(C);
 }
 
 function string ToolName(byte Which)
@@ -1262,7 +1465,7 @@ function DrawToolbar(Canvas C, PlayerController PC)
     {
         PanelH = BtnH;
         AddButton(PanelX, PanelY, PanelW, BtnH, A_PANEL, 0, "Map drawing tools", false);
-        DrawButtons(C);
+        DrawButtonLayers(C);
         return;
     }
 
@@ -1304,36 +1507,48 @@ function DrawToolbar(Canvas C, PlayerController PC)
     AddButton(X, Y, BtnW, BtnH, A_UNDO, 0, "Undo", false);
     AddButton(X + BtnW + Gap, Y, BtnW, BtnH, A_CLEAR_MINE, 0, "Clear mine", false);
     Y += BtnH + Gap;
-    if (class'CMMapInfo'.static.IsLeader(PRI, Info.bScrimAdmin))
-    {
-        AddButton(X, Y, Inner, BtnH, A_CLEAR_CHANNEL, 0, "Clear all for "$class'CMMapInfo'.static.ChannelName(Channel), false);
-        Y += BtnH + Gap;
-    }
+    // Shown to everyone, greyed out for those who may not clear the channel picked: squad leaders clear their squad,
+    // the commander the team, scrim admins anything
+    AddButton(X, Y, Inner, BtnH, A_CLEAR_CHANNEL, 0, "Clear all for "$class'CMMapInfo'.static.ChannelName(Channel), false,
+        !class'CMMapInfo'.static.CanClearChannel(PRI, Channel, Info.bScrimAdmin));
+    Y += BtnH + Gap;
     if (Info.bScrimAdmin)
     {
         AddButton(X, Y, Inner, BtnH, A_CLEAR_ALL, 0, "Clear every drawing", false);
         Y += BtnH + Gap;
     }
     AddButton(X, Y, Inner, BtnH, A_HIDE, 0, bHideDrawings ? "Show drawings" : "Hide drawings", bHideDrawings);
-    Y += BtnH + Gap * 2;
+    Y += BtnH + Gap;
+    if (PRI != None && PRI.bOnlySpectator)
+    {
+        AddButton(X, Y, Inner, BtnH, A_SPEC_TEAMS, 0, SpecTeamsLabel(PC), SpecTeams != SPEC_BOTH);
+        Y += BtnH + Gap;
+    }
+    Y += Gap;
+    MarkArmedButton(PC);
 
     // The hint line under the buttons
     Y += BtnH;
     PanelH = Y + Pad - PanelY;
 
+    PushLayer(C, false);
     C.SetDrawColor(0, 0, 0, 170);
     C.SetPos(PanelX, PanelY);
     C.DrawTile(C.DefaultTexture, PanelW, PanelH, 0, 0, C.DefaultTexture.SizeX, C.DefaultTexture.SizeY);
+    PopLayer(C);
 
-    DrawButtons(C);
+    DrawButtonLayers(C);
 
+    PushLayer(C, true);
     C.SetDrawColor(220, 220, 220, 255);
     C.TextSize(ToolHint(PC), XL, YL);
     C.SetPos(X, Y - BtnH * 0.5 - YL * TextScale * 0.5);
     C.DrawText(ToolHint(PC), false, TextScale * 0.9, TextScale * 0.9);
+    PopLayer(C);
 }
 
-function DrawButtons(Canvas C)
+// bTop false: the frames and backgrounds; true: the icons and labels on them
+function DrawButtons(Canvas C, bool bTop)
 {
     local int i;
     local float XL, YL, Inset;
@@ -1343,26 +1558,34 @@ function DrawButtons(Canvas C)
 
     for (i = 0; i < Buttons.Length; i++)
     {
-        bHover = bCursor && Mouse.X >= Buttons[i].X && Mouse.X <= Buttons[i].X + Buttons[i].W
+        bHover = bCursor && !Buttons[i].bDisabled && Mouse.X >= Buttons[i].X && Mouse.X <= Buttons[i].X + Buttons[i].W
             && Mouse.Y >= Buttons[i].Y && Mouse.Y <= Buttons[i].Y + Buttons[i].H;
 
-        // Selected: an amber frame. Hovered: a lighter background.
-        if (Buttons[i].bSelected)
+        if (!bTop)
         {
-            C.SetDrawColor(230, 170, 40, 255);
-            C.SetPos(Buttons[i].X - 2, Buttons[i].Y - 2);
-            C.DrawTile(C.DefaultTexture, Buttons[i].W + 4, Buttons[i].H + 4, 0, 0, C.DefaultTexture.SizeX, C.DefaultTexture.SizeY);
-        }
+            // Selected: an amber frame. Hovered: a lighter background. Waiting for a second click: red. Greyed out: darker.
+            if (Buttons[i].bSelected)
+            {
+                C.SetDrawColor(230, 170, 40, 255);
+                C.SetPos(Buttons[i].X - 2, Buttons[i].Y - 2);
+                C.DrawTile(C.DefaultTexture, Buttons[i].W + 4, Buttons[i].H + 4, 0, 0, C.DefaultTexture.SizeX, C.DefaultTexture.SizeY);
+            }
 
-        if (Buttons[i].Action == A_COLOUR)
-            Col = class'CMMapInfo'.static.GetColour(Buttons[i].Arg);
-        else if (bHover)
-            Col = MakeColor(90, 90, 90, 230);
-        else
-            Col = MakeColor(45, 45, 45, 230);
-        C.SetDrawColor(Col.R, Col.G, Col.B, Col.A);
-        C.SetPos(Buttons[i].X, Buttons[i].Y);
-        C.DrawTile(C.DefaultTexture, Buttons[i].W, Buttons[i].H, 0, 0, C.DefaultTexture.SizeX, C.DefaultTexture.SizeY);
+            if (Buttons[i].Action == A_COLOUR)
+                Col = class'CMMapInfo'.static.GetColour(Buttons[i].Arg);
+            else if (Buttons[i].bDanger)
+                Col = bHover ? MakeColor(230, 50, 40, 240) : MakeColor(190, 30, 25, 240);
+            else if (Buttons[i].bDisabled)
+                Col = MakeColor(30, 30, 30, 200);
+            else if (bHover)
+                Col = MakeColor(90, 90, 90, 230);
+            else
+                Col = MakeColor(45, 45, 45, 230);
+            C.SetDrawColor(Col.R, Col.G, Col.B, Col.A);
+            C.SetPos(Buttons[i].X, Buttons[i].Y);
+            C.DrawTile(C.DefaultTexture, Buttons[i].W, Buttons[i].H, 0, 0, C.DefaultTexture.SizeX, C.DefaultTexture.SizeY);
+            continue;
+        }
 
         if (Buttons[i].Action == A_ICON)
         {
@@ -1385,7 +1608,10 @@ function DrawButtons(Canvas C)
             continue;
 
         C.TextSize(Buttons[i].Label, XL, YL);
-        C.SetDrawColor(255, 255, 255, 255);
+        if (Buttons[i].bDisabled)
+            C.SetDrawColor(110, 110, 110, 255);
+        else
+            C.SetDrawColor(255, 255, 255, 255);
         C.SetPos(Buttons[i].X + (Buttons[i].W - XL * TextScale) * 0.5, Buttons[i].Y + (Buttons[i].H - YL * TextScale) * 0.5);
         C.DrawText(Buttons[i].Label, false, TextScale, TextScale);
     }
@@ -1459,7 +1685,7 @@ function Texture2D MapIcon(ROHUDWidgetOverheadMap OM, byte Packed, PlayerReplica
     }
 
     SizeModifier = bSpectatorView ? OM.InfantrySize : OM.TransportSize;
-    switch (Packed / class'CMMapInfo'.const.KIND_STEP)
+    switch (class'CMMapInfo'.static.KindOf(Packed))
     {
         case class'CMMapInfo'.const.KIND_TANK:
             SizeModifier = bSpectatorView ? OM.InfantrySize : OM.TankSize;
@@ -1536,6 +1762,10 @@ function DrawSnapshotOnMap(Canvas C, ROHUD H, bool bSpectatorView)
     MyPRI = ROPlayerReplicationInfo(PC.PlayerReplicationInfo);
     Now = PC.WorldInfo.RealTimeSeconds;
 
+    // Under the players, so a crew getting in is drawn on top
+    if (bSpectatorView)
+        DrawEmptyVehicles(C, H, OM, BaseSize);
+
     for (i = 0; i < class'CMMapInfo'.const.MAX_SNAPSHOT; i++)
     {
         ROPRI = Info.SnapPRI[i];
@@ -1604,7 +1834,25 @@ function DrawSnapshotOnMap(Canvas C, ROHUD H, bool bSpectatorView)
         }
     }
 
-    // Forget players who stayed dead long enough to have faded
+    ForgetOldDead(Now);
+    C.Font = class'Engine'.static.GetSmallFont();
+}
+
+// Forget players who stayed dead long enough to have faded, and the hit counts of players who left
+function ForgetOldDead(float Now)
+{
+    local int i;
+
+    for (i = HurtPRIs.Length - 1; i >= 0; i--)
+    {
+        if (HurtPRIs[i] == None)
+        {
+            HurtPRIs.Remove(i, 1);
+            HurtCounts.Remove(i, 1);
+            FlashUntil.Remove(i, 1);
+        }
+    }
+
     for (i = DeadPRIs.Length - 1; i >= 0; i--)
     {
         if (DeadPRIs[i] == None || Now - DeadSince[i] > 10.0)
@@ -1613,7 +1861,143 @@ function DrawSnapshotOnMap(Canvas C, ROHUD H, bool bSpectatorView)
             DeadSince.Remove(i, 1);
         }
     }
-    C.Font = class'Engine'.static.GetSmallFont();
+}
+
+// Spectators: the vehicles nobody is in, with the game's icon for the kind in the vehicle's team colour (grey when it
+// has none), faded so they stand apart from vehicles with a crew
+function DrawEmptyVehicles(Canvas C, ROHUD H, ROHUDWidgetOverheadMap OM, float BaseSize)
+{
+    local int i;
+    local byte Data, Team;
+    local float Size, SizeModifier;
+    local Texture2D Tex;
+    local color Col;
+    local vector Loc;
+    local vector2D S;
+
+    Size = BaseSize * OM.InfantrySize;
+    for (i = 0; i < class'CMMapInfo'.const.MAX_VEHICLES; i++)
+    {
+        Data = Info.VehInfo[i];
+        if (Data < class'CMMapInfo'.const.VEH_PRESENT)
+            continue;
+        Loc = Info.VehLoc[i];
+        if (Loc.X < MinWX || Loc.X > MaxWX || Loc.Y < MinWY || Loc.Y > MaxWY)
+            continue;
+
+        Tex = MapIcon(OM, class'CMMapInfo'.static.KindOf(Data) * class'CMMapInfo'.const.KIND_STEP, None, true, SizeModifier);
+        if (Tex == None)
+            continue;
+
+        Team = Data & 3;
+        Col = (Team < 2) ? TeamColour(H, Team) : MakeColor(190, 190, 190, 255);
+        S = WorldToScreen(V2(Loc.X, Loc.Y));
+        C.SetDrawColor(Col.R, Col.G, Col.B, 140);
+        C.SetPos(S.X - Size * 0.5, S.Y - Size * 0.5);
+        C.DrawTile(Tex, Size, Size, 0, 0, Tex.SizeX, Tex.SizeY);
+    }
+}
+
+// The team whose flag this faction's is on this map, 255 for neither
+static function int FlagTeam(WorldInfo WI, int Faction)
+{
+    if (class'CMAFlag'.static.FactionForTeam(WI, 0) == Faction)
+        return 0;
+    if (class'CMAFlag'.static.FactionForTeam(WI, 1) == Faction)
+        return 1;
+    return 255;
+}
+
+// What is happening to a flag, as a spectator's map says it
+static function string FlagStatus(CMAFlag F)
+{
+    if (F.CarrierPRI != None)
+        return "carried by "$F.CarrierPRI.PlayerName;
+    if (F.bAtHome)
+        return "at its spot";
+    return "dropped";
+}
+
+// Spectators: every Capture the Flag flag, wherever it is and whoever's team could see it, with what is happening to it
+function DrawFlagsOnMap(Canvas C, ROHUD H)
+{
+    local PlayerController PC;
+    local CMAFlag F;
+    local vector2D S;
+    local color Col;
+    local int Team;
+    local float Size;
+    local string FlagName;
+
+    PC = PlayerController(Outer);
+    Size = ICON_SIZE * UIScale;
+    foreach PC.DynamicActors(class'CMAFlag', F)
+    {
+        if (F.bDeleteMe || F.Location.X < MinWX || F.Location.X > MaxWX || F.Location.Y < MinWY || F.Location.Y > MaxWY)
+            continue;
+
+        Team = FlagTeam(PC.WorldInfo, F.Faction);
+        Col = (Team < 2) ? TeamColour(H, Team) : MakeColor(255, 255, 255, 255);
+        S = WorldToScreen(V2(F.Location.X, F.Location.Y));
+        DrawFlagIcon(C, S, Size, Col);
+
+        FlagName = (F.Faction >= 0 && F.Faction < F.Factions.Length) ? F.Factions[F.Faction].Label$" flag" : "Flag";
+        DrawLabel(C, V2(S.X + Size * 0.6, S.Y - Size * 0.2), FlagName$": "$FlagStatus(F), Col, false);
+    }
+}
+
+// A small flag on a pole, the pole's foot at At
+function DrawFlagIcon(Canvas C, vector2D At, float Size, color Col)
+{
+    local float PoleW, ClothW, ClothH, Top;
+
+    PoleW = FMax(2.0, Size * 0.09);
+    ClothW = Size * 0.6;
+    ClothH = Size * 0.4;
+    Top = At.Y - Size * 0.5;
+
+    C.SetDrawColor(0, 0, 0, 220);
+    C.SetPos(At.X - PoleW * 0.5 - 1, Top - 1);
+    C.DrawTile(C.DefaultTexture, PoleW + 2, Size + 2, 0, 0, C.DefaultTexture.SizeX, C.DefaultTexture.SizeY);
+    C.SetPos(At.X + PoleW * 0.5 - 1, Top - 1);
+    C.DrawTile(C.DefaultTexture, ClothW + 2, ClothH + 2, 0, 0, C.DefaultTexture.SizeX, C.DefaultTexture.SizeY);
+
+    C.SetDrawColor(230, 230, 230, 255);
+    C.SetPos(At.X - PoleW * 0.5, Top);
+    C.DrawTile(C.DefaultTexture, PoleW, Size, 0, 0, C.DefaultTexture.SizeX, C.DefaultTexture.SizeY);
+    C.SetDrawColor(Col.R, Col.G, Col.B, 255);
+    C.SetPos(At.X + PoleW * 0.5, Top);
+    C.DrawTile(C.DefaultTexture, ClothW, ClothH, 0, 0, C.DefaultTexture.SizeX, C.DefaultTexture.SizeY);
+}
+
+// The icon the game puts where a player died, from the running map (WW2, Winter War and GOM may have their own)
+function Texture2D DeathIcon(ROHUD H)
+{
+    if (H != None && H.OverheadMapWidget != None && H.OverheadMapWidget.DeadPlayerIcon != None)
+        return H.OverheadMapWidget.DeadPlayerIcon;
+    return class'ROHUDWidgetOverheadMap'.default.DeadPlayerIcon;
+}
+
+// Spectators: true while the player's marker flashes white after a hit. The server counts their hits; a new count is a
+// new hit. The first count seen for a player is only remembered.
+function bool Flashing(PlayerReplicationInfo PRI, byte Count, float Now)
+{
+    local int Index;
+
+    Index = HurtPRIs.Find(PRI);
+    if (Index == INDEX_NONE)
+    {
+        HurtPRIs.AddItem(PRI);
+        HurtCounts.AddItem(Count);
+        FlashUntil.AddItem(0);
+        return false;
+    }
+    if (HurtCounts[Index] != Count)
+    {
+        HurtCounts[Index] = Count;
+        FlashUntil[Index] = Now + FLASH_TIME;
+    }
+    return Now < FlashUntil[Index];
 }
 
 // Borders of the capture objectives built with CMenu, in the colour of the team that holds them
@@ -1686,7 +2070,7 @@ function DrawWorld(Canvas C, PlayerController PC, ROHUD H)
     local rotator CamRot;
     local Pawn P;
     local int i, Best;
-    local float D, BestD, Scale, Size, W, TH, Dist2D, NameScale, IconSize, IconBottom;
+    local float D, BestD, Scale, Size, W, TH, Dist2D, NameScale, IconSize, IconBottom, Now;
     local color Col;
     local string PlayerName;
     local Texture2D RoleIcon;
@@ -1694,13 +2078,14 @@ function DrawWorld(Canvas C, PlayerController PC, ROHUD H)
     PC.GetPlayerViewPoint(CamLoc, CamRot);
     ViewDir = vector(CamRot);
     Scale = FMax(1.0, C.ClipY / 1080.0);
+    Now = PC.WorldInfo.RealTimeSeconds;
 
     // The player looked at: nearest the crosshair, close enough to it and not behind a wall
     Best = -1;
     BestD = C.ClipX * NAME_RADIUS;
     for (i = 0; i < class'CMMapInfo'.const.MAX_SNAPSHOT; i++)
     {
-        if (Info.SnapPRI[i] == None)
+        if (Info.SnapPRI[i] == None || (Info.SnapInfo[i] & class'CMMapInfo'.const.FLAG_DEAD) != 0)
             continue;
         P = FindPawn(PC, Info.SnapPRI[i]);
         if (P != None && P == PC.ViewTarget)
@@ -1722,6 +2107,15 @@ function DrawWorld(Canvas C, PlayerController PC, ROHUD H)
     {
         if (Info.SnapPRI[i] == None)
             continue;
+
+        // Someone who has just died: the game's death icon over their body, fading as it does on the map
+        if ((Info.SnapInfo[i] & class'CMMapInfo'.const.FLAG_DEAD) != 0)
+        {
+            DrawDeathInWorld(C, H, Info.SnapPRI[i], Info.SnapLoc[i], CamLoc, ViewDir, Scale, Now);
+            continue;
+        }
+        DeadPRIs.RemoveItem(Info.SnapPRI[i]); // alive again, so their next death fades from the start
+
         P = FindPawn(PC, Info.SnapPRI[i]);
         if (P != None && P == PC.ViewTarget)
             continue;
@@ -1730,7 +2124,11 @@ function DrawWorld(Canvas C, PlayerController PC, ROHUD H)
         if (!ProjectToScreen(C, Head, CamLoc, ViewDir, Screen))
             continue;
 
-        Col = TeamColour(H, Info.SnapInfo[i] & class'CMMapInfo'.const.FLAG_SOUTH);
+        // White for a moment when they are hit, like Arma's
+        if (Flashing(Info.SnapPRI[i], class'CMMapInfo'.static.HurtCountOf(Info.SnapInfo[i]), Now))
+            Col = MakeColor(255, 255, 255, 255);
+        else
+            Col = TeamColour(H, Info.SnapInfo[i] & class'CMMapInfo'.const.FLAG_SOUTH);
         Dist2D = VSize(Head - CamLoc);
 
         if (i == Best)
@@ -1772,6 +2170,160 @@ function DrawWorld(Canvas C, PlayerController PC, ROHUD H)
             DrawTriangle(C, Screen.X, Screen.Y, Size, Col);
         }
     }
+
+    ForgetOldDead(Now);
+    DrawCameraStrip(C, PC, H, Scale);
+}
+
+function DrawDeathInWorld(Canvas C, ROHUD H, PlayerReplicationInfo PRI, vector Loc, vector CamLoc, vector ViewDir, float Scale, float Now)
+{
+    local Texture2D Tex;
+    local vector Screen;
+    local float Size;
+    local byte Alpha;
+
+    Alpha = DeadAlpha(PRI, Now);
+    Tex = DeathIcon(H);
+    if (Alpha == 0 || Tex == None)
+        return;
+
+    Loc.Z += 30; // a little above the body
+    if (!ProjectToScreen(C, Loc, CamLoc, ViewDir, Screen))
+        return;
+
+    Size = FClamp(26000.0 / FMax(VSize(Loc - CamLoc), 1.0), 16.0, 32.0) * Scale;
+    C.SetDrawColor(255, 255, 255, Alpha);
+    C.SetPos(Screen.X - Size * 0.5, Screen.Y - Size);
+    C.DrawTile(Tex, Size, Size, 0, 0, Tex.SizeX, Tex.SizeY);
+}
+
+// ====================================================
+// Spectator camera strip
+// ====================================================
+
+function string CameraModeName(PlayerController PC)
+{
+    local ROPlayerController ROPC;
+
+    ROPC = ROPlayerController(PC);
+    if (ROPC == None)
+        return "";
+
+    switch (ROPC.CurrentSpectateMode)
+    {
+        case SMODE_PawnFreeCam:     return "Third person, free camera";
+        case SMODE_PawnThirdPerson: return "Third person";
+        case SMODE_PawnFirstPerson: return "First person";
+        case SMODE_Roaming:         return "Free roam";
+        case SMODE_Viewpoint:       return "Map camera";
+    }
+    return "";
+}
+
+// Who (and what vehicle) the camera is on: "Smith", "Smith (M113 ACAV)", or "M113 ACAV" for a vehicle nobody is in
+function string ViewedName(PlayerController PC, out PlayerReplicationInfo PRI)
+{
+    local Pawn P;
+    local Vehicle V;
+    local string VehicleName;
+
+    PRI = None;
+    P = Pawn(PC.ViewTarget);
+    if (P == None || P == PC.Pawn)
+        return "";
+
+    PRI = P.PlayerReplicationInfo;
+    V = Vehicle(P);
+    if (ROWeaponPawn(P) != None)
+        V = ROWeaponPawn(P).MyVehicle;
+    if (PRI == None && V != None)
+        PRI = V.PlayerReplicationInfo;
+    if (ROVehicle(V) != None)
+        VehicleName = ROVehicle(V).GetHumanReadableName();
+
+    if (PRI == None)
+        return VehicleName;
+    if (VehicleName != "")
+        return PRI.PlayerName$" ("$VehicleName$")";
+    return PRI.PlayerName;
+}
+
+function color PRIColour(ROHUD H, PlayerReplicationInfo PRI)
+{
+    if (PRI != None && PRI.Team != None && PRI.Team.TeamIndex < 2)
+        return TeamColour(H, PRI.Team.TeamIndex);
+    return MakeColor(255, 255, 255, 255);
+}
+
+// Low in the middle of the screen: the camera mode, then the two players "previous" goes back to, the one watched now
+// and the two "next" goes on to
+function DrawCameraStrip(Canvas C, PlayerController PC, ROHUD H, float Scale)
+{
+    local array<string> Texts;
+    local array<color> Cols;
+    local array<float> Widths;
+    local PlayerReplicationInfo Current;
+    local string Mode, Watched;
+    local float S, ModeS, XL, YL, ModeW, ModeH, Total, X, Y, BoxW, BoxH, Pad;
+    local int i;
+    local color Dim;
+
+    Mode = CameraModeName(PC);
+    Watched = ViewedName(PC, Current);
+    if (Mode == "" && Watched == "")
+        return;
+
+    if (Info.SpecPrev[1] != None) { Texts.AddItem(Info.SpecPrev[1].PlayerName); Cols.AddItem(PRIColour(H, Info.SpecPrev[1])); Texts.AddItem("  <  "); Cols.AddItem(MakeColor(160, 160, 160, 255)); }
+    if (Info.SpecPrev[0] != None) { Texts.AddItem(Info.SpecPrev[0].PlayerName); Cols.AddItem(PRIColour(H, Info.SpecPrev[0])); Texts.AddItem("  <  "); Cols.AddItem(MakeColor(160, 160, 160, 255)); }
+    if (Watched != "")            { Texts.AddItem(Watched); Cols.AddItem(MakeColor(255, 255, 255, 255)); }
+    if (Info.SpecNext[0] != None) { Texts.AddItem("  >  "); Cols.AddItem(MakeColor(160, 160, 160, 255)); Texts.AddItem(Info.SpecNext[0].PlayerName); Cols.AddItem(PRIColour(H, Info.SpecNext[0])); }
+    if (Info.SpecNext[1] != None) { Texts.AddItem("  >  "); Cols.AddItem(MakeColor(160, 160, 160, 255)); Texts.AddItem(Info.SpecNext[1].PlayerName); Cols.AddItem(PRIColour(H, Info.SpecNext[1])); }
+
+    C.Font = class'Engine'.static.GetSmallFont();
+    S = 1.25 * Scale;
+    ModeS = 1.0 * Scale;
+    Pad = 6 * Scale;
+    for (i = 0; i < Texts.Length; i++)
+    {
+        C.TextSize(Texts[i], XL, YL);
+        Widths.AddItem(XL * S);
+        Total += XL * S;
+    }
+    C.TextSize("Ag", XL, YL);
+    C.TextSize(Mode, ModeW, ModeH);
+    ModeW *= ModeS;
+    ModeH *= ModeS;
+
+    BoxW = FMax(Total, ModeW) + Pad * 4;
+    BoxH = ModeH + YL * S + Pad * 3;
+    X = (C.ClipX - BoxW) * 0.5;
+    Y = C.ClipY * 0.80;
+
+    PushLayer(C, false);
+    C.SetDrawColor(0, 0, 0, 150);
+    C.SetPos(X, Y);
+    C.DrawTile(C.DefaultTexture, BoxW, BoxH, 0, 0, C.DefaultTexture.SizeX, C.DefaultTexture.SizeY);
+    PopLayer(C);
+
+    PushLayer(C, true);
+    C.SetDrawColor(200, 200, 200, 255);
+    C.SetPos((C.ClipX - ModeW) * 0.5, Y + Pad);
+    C.DrawText(Mode, false, ModeS, ModeS);
+
+    X = (C.ClipX - Total) * 0.5;
+    Y += Pad * 2 + ModeH;
+    for (i = 0; i < Texts.Length; i++)
+    {
+        // The players either side a little dimmer than the one watched
+        Dim = Cols[i];
+        if (Texts[i] != Watched)
+            Dim.A = 200;
+        C.SetDrawColor(Dim.R, Dim.G, Dim.B, Dim.A);
+        C.SetPos(X, Y);
+        C.DrawText(Texts[i], false, S, S);
+        X += Widths[i];
+    }
+    PopLayer(C);
 }
 
 // Filled triangle pointing down at (X, Y), with a black edge
