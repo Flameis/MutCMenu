@@ -15,6 +15,7 @@ var config name DropFlagKey; // X when not set
 
 const CHECK_INTERVAL = 0.25;
 const DROP_COOLDOWN = 0.5;
+const TEXT_SCALE = 0.6;     // Banner size next to the full-size font, at 1080p
 
 function name DropKey()
 {
@@ -50,7 +51,7 @@ function UpdateCarried()
 function PostRender(Canvas HUDCanvas)
 {
     local string Title, Prompt;
-    local float XL, YL, Pulse, BoxW, BoxH, X, Y;
+    local float XL, YL, PXL, Pulse, BoxW, BoxH, X, Y, TextScale, UIScale, Border;
     local int Faction;
 
     if (PC == None)
@@ -66,10 +67,19 @@ function PostRender(Canvas HUDCanvas)
     // A slow pulse, so it is noticed without being a strobe
     Pulse = 0.5 + 0.5 * Sin(PC.WorldInfo.TimeSeconds * 3.0);
 
+    // Sized for a 1080p screen and scaled with the screen height, so it looks the same at any resolution
+    UIScale = HUDCanvas.ClipY / 1080.0;
+    TextScale = TEXT_SCALE * UIScale;
+    Border = FMax(1.0, 3.0 * UIScale);
+
     HUDCanvas.Font = Font'VN_UI_Mega_Fonts.Font_VN_Mega_36';
     HUDCanvas.StrLen(Title, XL, YL);
-    BoxW = FMax(XL, 400.0) + 40.0;
-    BoxH = YL * 2.0 + 30.0;
+    HUDCanvas.StrLen(Prompt, PXL, YL);
+    XL *= TextScale; // StrLen measures at full size
+    PXL *= TextScale;
+    YL *= TextScale;
+    BoxW = FMax(XL, 400.0 * UIScale * TEXT_SCALE) + 40.0 * UIScale * TEXT_SCALE;
+    BoxH = YL * 2.0 + 30.0 * UIScale * TEXT_SCALE;
     X = (HUDCanvas.ClipX - BoxW) * 0.5;
     Y = HUDCanvas.ClipY * 0.12;
 
@@ -79,22 +89,21 @@ function PostRender(Canvas HUDCanvas)
     HUDCanvas.DrawRect(BoxW, BoxH);
     HUDCanvas.SetDrawColor(255, 200, 40, byte(110 + 145 * Pulse));
     HUDCanvas.SetPos(X, Y);
-    HUDCanvas.DrawRect(BoxW, 3);
-    HUDCanvas.SetPos(X, Y + BoxH - 3);
-    HUDCanvas.DrawRect(BoxW, 3);
+    HUDCanvas.DrawRect(BoxW, Border);
+    HUDCanvas.SetPos(X, Y + BoxH - Border);
+    HUDCanvas.DrawRect(BoxW, Border);
     HUDCanvas.SetPos(X, Y);
-    HUDCanvas.DrawRect(3, BoxH);
-    HUDCanvas.SetPos(X + BoxW - 3, Y);
-    HUDCanvas.DrawRect(3, BoxH);
+    HUDCanvas.DrawRect(Border, BoxH);
+    HUDCanvas.SetPos(X + BoxW - Border, Y);
+    HUDCanvas.DrawRect(Border, BoxH);
 
     HUDCanvas.SetDrawColor(255, 215, 80, 255);
-    HUDCanvas.SetPos((HUDCanvas.ClipX - XL) * 0.5, Y + 10.0);
-    HUDCanvas.DrawText(Title, false);
+    HUDCanvas.SetPos((HUDCanvas.ClipX - XL) * 0.5, Y + 10.0 * UIScale * TEXT_SCALE);
+    HUDCanvas.DrawText(Title, false, TextScale, TextScale);
 
     HUDCanvas.SetDrawColor(255, 255, 255, 255);
-    HUDCanvas.StrLen(Prompt, XL, YL);
-    HUDCanvas.SetPos((HUDCanvas.ClipX - XL) * 0.5, Y + 20.0 + YL);
-    HUDCanvas.DrawText(Prompt, false);
+    HUDCanvas.SetPos((HUDCanvas.ClipX - PXL) * 0.5, Y + 20.0 * UIScale * TEXT_SCALE + YL);
+    HUDCanvas.DrawText(Prompt, false, TextScale, TextScale);
 }
 
 function bool InputKey(int ControllerId, name Key, EInputEvent EventType, float AmountDepressed = 1.f, bool bGamepad = FALSE)
