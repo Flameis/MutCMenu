@@ -13,7 +13,6 @@ class MutCMenu extends ROMutator
 const HELP_PART_CHARS = 400;
 
 var array<DummyActor>           DummyActors;
-var array<vector2d>			    Corners;
 
 var array<string>               LoggedInMutatorAdmins; // list of the names of all the players that are currently logged in as a mutator admin
 var int                         NumObjs;
@@ -67,6 +66,8 @@ var config bool                 bDisableSpectatorTracers;      // Turn off the b
 var config bool                 bDisableMapDrawing;            // Turn off drawing on the overhead map
 var config bool                 bKeepMapDrawingsBetweenRounds; // Keep drawings when a new round starts (they are cleared by default)
 var config int                  MaxMapDrawingsPerPlayer;       // Drawings one player can have at once before their oldest goes; 0 or missing means 60
+var config int                  CTFMaxFlagsPerPlayer;          // Flags one player (not an admin) can have placed at once; 0 or missing means 4
+var config int                  CTFPlaceCooldown;              // Seconds a player (not an admin) waits between placing flags; 0 or missing means 5
 var CMMapManager                MapManager;
 
 // An aircraft strike waiting out its first strike delay
@@ -421,7 +422,8 @@ simulated function Mutate(string mutateString, PlayerController sender)
             break;
 
         case "CLEARCORNERS":
-            Corners.Remove(0, Corners.Length);
+            if (FindDummyActor(sender) != None)
+                FindDummyActor(sender).ServerClearCorners();
             break;
 
         case "DELNORTHSPAWNS":
@@ -644,8 +646,9 @@ function string FlagTeamChoices()
 function CMAFlag PlaceFlag(PlayerController Sender, vector Loc, int Faction, optional bool bBeam = true)
 {
     local CMAFlag F;
+    local DummyActor DA;
 
-    if (!FlagAllowed(Sender, Faction))
+    if (!FlagAllowed(Sender, Faction) || !FlagLimitAllows(Sender))
         return None;
 
     F = Spawn(class'CMAFlag',,, Loc + vect(0, 0, 50),,, true);
@@ -656,12 +659,61 @@ function CMAFlag PlaceFlag(PlayerController Sender, vector Loc, int Faction, opt
     }
 
     F.MyMut = self;
+    F.PlacerID = (Sender.PlayerReplicationInfo != None) ? Sender.PlayerReplicationInfo.PlayerID : -1;
+    DA = FindDummyActor(Sender);
+    if (DA != None)
+        DA.LastFlagTime = WorldInfo.TimeSeconds;
     F.SetBeam(bBeam);
     F.SetFaction(Faction);
     F.SetPhysics(PHYS_Falling);
 
     FlagAnnounce(Sender.PlayerReplicationInfo.PlayerName$" placed the "$F.Label()$" flag");
     return F;
+}
+
+// Anyone can place flags, so players (not admins) have a limit on how many they have out and a wait between them
+function int FlagLimit()
+{
+    return CTFMaxFlagsPerPlayer > 0 ? CTFMaxFlagsPerPlayer : 4;
+}
+
+function int FlagCooldown()
+{
+    return CTFPlaceCooldown > 0 ? CTFPlaceCooldown : 5;
+}
+
+function bool FlagLimitAllows(PlayerController Sender)
+{
+    local CMAFlag F;
+    local DummyActor DA;
+    local int Count;
+    local float Wait;
+
+    if (IsAuthorized(Sender) || Sender.PlayerReplicationInfo == None)
+        return true;
+
+    DA = FindDummyActor(Sender);
+    if (DA != None && DA.LastFlagTime > 0)
+    {
+        Wait = DA.LastFlagTime + FlagCooldown() - WorldInfo.TimeSeconds;
+        if (Wait > 0)
+        {
+            PrivateMessage(Sender, "[CMenu] Wait "$(int(Wait) + 1)$" more second"$(int(Wait) + 1 == 1 ? "" : "s")$" before placing another flag");
+            return false;
+        }
+    }
+
+    foreach DynamicActors(class'CMAFlag', F)
+    {
+        if (F.PlacerID == Sender.PlayerReplicationInfo.PlayerID)
+            Count++;
+    }
+    if (Count >= FlagLimit())
+    {
+        PrivateMessage(Sender, "[CMenu] You already have "$Count$" flags out, the most a player can have. An admin can remove them with Remove Flags");
+        return false;
+    }
+    return true;
 }
 
 // A WW2 or Winter War flag needs bLoadWW2 / bLoadWW, unless the map is from that mod (then its content is loaded anyway).

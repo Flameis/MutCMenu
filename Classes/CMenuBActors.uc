@@ -148,7 +148,7 @@ function bool CheckExceptions(string Command)
 				$"--flag / -f : exactly one flag by name, even if no team on the map has it. Names: "$class'CMAFlag'.static.FactionNames()$"|"
 				$"--nobeam / -n : leave out the beam above the flag|"
 				$"Example: --team south|Example: --flag dak|Example: --flag ss --nobeam|Example: -t 1 -n|"
-				$"WW2 and Winter War flags on a map from another game need bLoadWW2 / bLoadWW.", "mutate spawnflag ");
+				$"WW2 and Winter War flags on a map from another game need bLoadWW2 / bLoadWW.", "mutate spawnflag ", , "team,flag,nobeam!");
 			return true;
 
 		case "CTFFLAGNORTH":
@@ -174,7 +174,7 @@ function bool CheckExceptions(string Command)
 
 function DoPlace()
 {
-	local Vector2D Point2D;
+	local array<Vector2D> NoCorners;
 
 	switch (LastCmd)
 	{
@@ -187,20 +187,13 @@ function DoPlace()
 			return;
 
 		case "SETCORNER":
-			Point2D.X = PlaceLoc.X;
-			Point2D.Y = PlaceLoc.Y;
-			Corners.AddItem(Point2D);
-			MyDA.ServerMarkCorner(PlaceLoc, PlaceRot); // The server stands the pole up and tells you
+			MyDA.ServerMarkCorner(PlaceLoc, PlaceRot); // The server keeps the corner, stands the pole up and tells you
 			return;
 
 		case "SPAWNOBJ":
-			if (Corners.Length < 3)
-			{
-				MessageSelf("An objective needs at least three corners. Use Mark Corner for each one first.");
-				return;
-			}
-			MyDA.ServerSpawnObjective(PlaceLoc, Corners);
-			Corners.Remove(0, Corners.Length);
+			// The corners are the ones the server kept from Mark Corner; it says when there are not enough
+			NoCorners.Length = 0;
+			MyDA.ServerSpawnObjective(PlaceLoc, NoCorners);
 			return;
 
 		case "REDDECAL":
@@ -340,7 +333,7 @@ defaultproperties
     MenuText.Add("Delete South Spawns")
 	MenuText.Add("Mark Corner")
 	MenuText.Add("Spawn Obj")
-	// MenuText.Add("Clear Corners")
+	MenuText.Add("Clear Corners")
     // MenuText.Add("Clear Objs")
     MenuText.Add("Clear All")
     MenuText.Add("M2 Turret")
@@ -356,7 +349,7 @@ defaultproperties
     MenuCommand.Add("DELSOUTHSPAWNS")
 	MenuCommand.Add("SETCORNER")
 	MenuCommand.Add("SPAWNOBJ")
-	// MenuCommand.Add("CLEARCORNERS")
+	MenuCommand.Add("CLEARCORNERS")
     // MenuCommand.Add("CLEAROBJS")
     MenuCommand.Add("CLEARALLACTORS")
 	MenuCommand.Add("TURRETM2")

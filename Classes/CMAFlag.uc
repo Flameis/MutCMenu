@@ -91,6 +91,7 @@ var PlayerReplicationInfo   CarrierPRI;
 var bool                    bAtHome;        // Where it was placed (and not moved since)
 
 // Server-side
+var int                     PlacerID;       // The PlayerID of whoever placed it (-1 when not known), for the per-player flag limit
 var MutCMenu                MyMut;          // Its bCTFSilent decides whether pickups and drops are announced
 var vector                  HomeLocation;
 var vector                  LastCarrierLocation;

@@ -66,6 +66,12 @@ function InitMutSettings()
 	if (self.myMut == None) { self.SetIntPropertyByName(name(Repl("MaxMapDrawingsPerPlayer", ".", "_")), class'MutCMenu'.default.MaxMapDrawingsPerPlayer); }
 	else { self.SetIntPropertyByName(name(Repl("MaxMapDrawingsPerPlayer", ".", "_")), MutCMenu(myMut).MaxMapDrawingsPerPlayer); }
 
+	// Capture the Flag
+	if (self.myMut == None) { self.SetIntPropertyByName(name(Repl("CTFMaxFlagsPerPlayer", ".", "_")), class'MutCMenu'.default.CTFMaxFlagsPerPlayer); }
+	else { self.SetIntPropertyByName(name(Repl("CTFMaxFlagsPerPlayer", ".", "_")), MutCMenu(myMut).CTFMaxFlagsPerPlayer); }
+	if (self.myMut == None) { self.SetIntPropertyByName(name(Repl("CTFPlaceCooldown", ".", "_")), class'MutCMenu'.default.CTFPlaceCooldown); }
+	else { self.SetIntPropertyByName(name(Repl("CTFPlaceCooldown", ".", "_")), MutCMenu(myMut).CTFPlaceCooldown); }
+
 }
 
 /**
@@ -134,6 +140,12 @@ function SaveMutSettings()
 	if (self.myMut == None) { self.GetIntPropertyByName(name(Repl("MaxMapDrawingsPerPlayer", ".", "_")), tempValue); class'MutCMenu'.default.MaxMapDrawingsPerPlayer = Max(self.tempValue, 0); }
 	else { self.GetIntPropertyByName(name(Repl("MaxMapDrawingsPerPlayer", ".", "_")), tempValue); MutCMenu(myMut).MaxMapDrawingsPerPlayer = Max(self.tempValue, 0); }
 
+	// Capture the Flag
+	if (self.myMut == None) { self.GetIntPropertyByName(name(Repl("CTFMaxFlagsPerPlayer", ".", "_")), tempValue); class'MutCMenu'.default.CTFMaxFlagsPerPlayer = Max(self.tempValue, 0); }
+	else { self.GetIntPropertyByName(name(Repl("CTFMaxFlagsPerPlayer", ".", "_")), tempValue); MutCMenu(myMut).CTFMaxFlagsPerPlayer = Max(self.tempValue, 0); }
+	if (self.myMut == None) { self.GetIntPropertyByName(name(Repl("CTFPlaceCooldown", ".", "_")), tempValue); class'MutCMenu'.default.CTFPlaceCooldown = Max(self.tempValue, 0); }
+	else { self.GetIntPropertyByName(name(Repl("CTFPlaceCooldown", ".", "_")), tempValue); MutCMenu(myMut).CTFPlaceCooldown = Max(self.tempValue, 0); }
+
     if (self.myMut != None)
 		self.myMut.SaveConfig();
 	else
@@ -197,4 +209,8 @@ defaultproperties
     // Capture the Flag
     Properties.Add((PropertyId=630,Data=(Type=SDT_Int32,Value1=0)))
     PropertyMappings.Add((Id=630,Name="bCTFSilent",MappingType=PVMT_IdMapped,ValueMappings=((Id=0),(Id=1))))
+    Properties.Add((PropertyId=631,Data=(Type=SDT_Int32,Value1=0)))
+    PropertyMappings.Add((Id=631,Name="CTFMaxFlagsPerPlayer"))
+    Properties.Add((PropertyId=632,Data=(Type=SDT_Int32,Value1=0)))
+    PropertyMappings.Add((Id=632,Name="CTFPlaceCooldown"))
 }

@@ -12,6 +12,7 @@ var string TargetName;
 
 var array<vector2d>				Corners;               // Server side: the corners this player has marked so far
 var array<CMAStaticMesh>			CornerMarkers;         // and the poles standing on them
+var float                       LastFlagTime;          // Server side: when this player last placed a CTF flag (for the wait between flags)
 
 var string PendingHelp; // client-side: help received in pieces, waiting for ClientShowHelp
 var string PendingLookCommand; // server-side: the command waiting for ServerLookTarget (MutCMenu.AskClientForLook)
@@ -494,6 +495,18 @@ reliable server function ServerMarkCorner(vector PlaceLoc, rotator PlaceRot)
     if (MyMut == None || PC == None)
         return;
 
+    // Only admins build objectives, so only they mark corners (each one stands a pole for everyone)
+    if (!MyMut.IsAuthorized(PC))
+    {
+        MyMut.PrivateMessage(PC, "[CMenu] Only admins can mark objective corners");
+        return;
+    }
+    if (Corners.Length >= class'CMAObjective'.const.MAX_CORNER_COUNT)
+    {
+        MyMut.PrivateMessage(PC, "[CMenu] An objective can have at most "$class'CMAObjective'.const.MAX_CORNER_COUNT$" corners. Use Spawn Obj, or Clear Corners to start again");
+        return;
+    }
+
     Point2d.x = PlaceLoc.x;
     Point2d.y = PlaceLoc.y;
 
@@ -535,6 +548,20 @@ function ClearCornerMarkers()
     }
     CornerMarkers.Remove(0, CornerMarkers.Length);
     Corners.Remove(0, Corners.Length);
+}
+
+// The Builder's Clear Corners (and mutate clearcorners): start the corners again
+reliable server function ServerClearCorners()
+{
+    local PlayerController PC;
+    local int Count;
+
+    PC = PlayerController(Owner);
+    if (MyMut == None || PC == None)
+        return;
+    Count = Corners.Length;
+    ClearCornerMarkers();
+    MyMut.PrivateMessage(PC, "[CMenu] Cleared "$Count$" marked corner"$(Count == 1 ? "" : "s"));
 }
 
 event Destroyed()
@@ -650,7 +677,7 @@ reliable server function ServerSpawnObjective(vector SpawnLocation, array<Vector
 
     if (ObjectiveCorners.Length < 3)
     {
-        MyMut.PrivateMessage(PC, "[CMenu] An objective needs at least three marked corners");
+        MyMut.PrivateMessage(PC, "[CMenu] An objective needs at least three marked corners; you have marked "$Corners.Length$". Use Mark Corner at each corner first");
         return;
     }
 
