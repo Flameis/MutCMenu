@@ -4,6 +4,7 @@ var MutCMenu                     MyMut;
 
 var bool bIsAuthorized, bNewTankPhys, bLoadExtras, bLoadGOM3, bLoadGOM4, bLoadWW, bLoadWW2, bFSPlayersCanCall;
 var bool bClickModeActive;
+var bool bTankPromptForAll; // the server lets anyone use the tank entry prompt, not only tank crew
 var vector2D ClickCursor;     // where the menus' mouse pointer was left, so the next menu opens with it there
 var bool bClickCursorKnown;
 var string TargetName;
@@ -20,7 +21,7 @@ var string PendingLookCommand; // server-side: the command waiting for ServerLoo
 replication
 {
     if (bNetDirty)
-        bIsAuthorized, bNewTankPhys, bLoadExtras, bLoadGOM3, bLoadGOM4, bLoadWW, bLoadWW2, bFSPlayersCanCall;
+        bIsAuthorized, bNewTankPhys, bLoadExtras, bLoadGOM3, bLoadGOM4, bLoadWW, bLoadWW2, bFSPlayersCanCall, bTankPromptForAll;
 }
 
 // Guidance up to this size goes to the chat and the mini console; anything longer goes to the large console
@@ -426,6 +427,8 @@ function bool TryEnterVehicle(ROPlayerController ROPC, ROVehicle ROV)
 
     ROP = (ROPC != none) ? ROPawn(ROPC.Pawn) : none;
     if (ROP == none || ROP.Health <= 0 || ROP.bIsProning || ROP.IsProneTransitioning())
+        return false;
+    if (!class'TankEntryInteraction'.static.AllowedToUse(ROPC.PlayerReplicationInfo, MyMut != None && MyMut.bTankPromptForAll))
         return false;
 
     // The client picks the tank, so everything is checked again here

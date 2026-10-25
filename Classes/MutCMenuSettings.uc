@@ -25,6 +25,9 @@ function InitMutSettings()
 	if (self.myMut == None) { self.SetIntPropertyByName(name(Repl("bNewTankPhys", ".", "_")), int(class'MutCMenu'.default.bNewTankPhys)); }
 	else { self.SetIntPropertyByName(name(Repl("bNewTankPhys", ".", "_")), int(MutCMenu(myMut).bNewTankPhys)); }
 
+	if (self.myMut == None) { self.SetIntPropertyByName(name(Repl("bTankPromptForAll", ".", "_")), int(class'MutCMenu'.default.bTankPromptForAll)); }
+	else { self.SetIntPropertyByName(name(Repl("bTankPromptForAll", ".", "_")), int(MutCMenu(myMut).bTankPromptForAll)); }
+
 	// Match settings
 	if (self.myMut == None) { self.SetIntPropertyByName(name(Repl("bDebugStandalone", ".", "_")), int(class'MutCMenu'.default.bDebugStandalone)); }
 	else { self.SetIntPropertyByName(name(Repl("bDebugStandalone", ".", "_")), int(MutCMenu(myMut).bDebugStandalone)); }
@@ -98,6 +101,9 @@ function SaveMutSettings()
 	if (self.myMut == None) { self.GetIntPropertyByName(name(Repl("bNewTankPhys", ".", "_")), tempValue); class'MutCMenu'.default.bNewTankPhys = (self.tempValue != 0); }
 	else { self.GetIntPropertyByName(name(Repl("bNewTankPhys", ".", "_")), tempValue); MutCMenu(self.myMut).bNewTankPhys = (self.tempValue != 0); }
 
+	if (self.myMut == None) { self.GetIntPropertyByName(name(Repl("bTankPromptForAll", ".", "_")), tempValue); class'MutCMenu'.default.bTankPromptForAll = (self.tempValue != 0); }
+	else { self.GetIntPropertyByName(name(Repl("bTankPromptForAll", ".", "_")), tempValue); MutCMenu(self.myMut).bTankPromptForAll = (self.tempValue != 0); }
+
 	// Match settings
 	if (self.myMut == None) { self.GetIntPropertyByName(name(Repl("bDebugStandalone", ".", "_")), tempValue); class'MutCMenu'.default.bDebugStandalone = (self.tempValue != 0); }
 	else { self.GetIntPropertyByName(name(Repl("bDebugStandalone", ".", "_")), tempValue); MutCMenu(self.myMut).bDebugStandalone = (self.tempValue != 0); }
@@ -147,7 +153,10 @@ function SaveMutSettings()
 	else { self.GetIntPropertyByName(name(Repl("CTFPlaceCooldown", ".", "_")), tempValue); MutCMenu(myMut).CTFPlaceCooldown = Max(self.tempValue, 0); }
 
     if (self.myMut != None)
+	{
+		MutCMenu(self.myMut).SendClientSettings();
 		self.myMut.SaveConfig();
+	}
 	else
 		class'MutCMenu'.static.StaticSaveConfig();
 }
@@ -179,6 +188,8 @@ defaultproperties
     PropertyMappings.Add((Id=605,Name="bDebugStandalone",MappingType=PVMT_IdMapped,ValueMappings=((Id=0),(Id=1))))
     Properties.Add((PropertyId=606,Data=(Type=SDT_Int32,Value1=0)))
     PropertyMappings.Add((Id=606,Name="bNewTankPhys",MappingType=PVMT_IdMapped,ValueMappings=((Id=0),(Id=1))))
+    Properties.Add((PropertyId=607,Data=(Type=SDT_Int32,Value1=0)))
+    PropertyMappings.Add((Id=607,Name="bTankPromptForAll",MappingType=PVMT_IdMapped,ValueMappings=((Id=0),(Id=1))))
 
     // Fire support
     Properties.Add((PropertyId=610,Data=(Type=SDT_Int32,Value1=0)))

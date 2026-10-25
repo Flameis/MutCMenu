@@ -52,6 +52,7 @@ struct FSActiveStrike
 
 var config array<FSProfile>     FSProfiles;
 var config bool                 bFSPlayersCanCall;  // Non-admin players may use the fire support menu
+var config bool                 bTankPromptForAll;  // Anyone gets the tank entry prompt, not only tank crew roles
 var config bool                 bFSNoFriendlyFire;  // On: strikes never hurt the caller's own team. Off (the default): the server's friendly fire setting decides, as for any weapon
 var config bool                 bFSSilent;          // Set true to not broadcast strike calls to everyone
 var config bool                 bCTFSilent;         // Set true to not announce Capture the Flag flags being placed, picked up, dropped, reset or removed
@@ -199,6 +200,7 @@ simulated function NotifyLogin(Controller NewPlayer)
     DA.bLoadWW = bLoadWW || bForceModLoads;
     DA.bLoadWW2 = bLoadWW2 || bForceModLoads;
     DA.bFSPlayersCanCall = bFSPlayersCanCall;
+    DA.bTankPromptForAll = bTankPromptForAll;
 
     DA.CMenuSetup();
 
@@ -206,6 +208,20 @@ simulated function NotifyLogin(Controller NewPlayer)
         MapManager.AddPlayer(PlayerController(NewPlayer));
 
     super.NotifyLogin(NewPlayer);
+}
+
+// Settings each player's game needs, sent again after they are changed on the settings page
+function SendClientSettings()
+{
+    local DummyActor DA;
+
+    foreach DummyActors(DA)
+    {
+        if (DA == None || DA.bDeleteMe)
+            continue;
+        DA.bFSPlayersCanCall = bFSPlayersCanCall;
+        DA.bTankPromptForAll = bTankPromptForAll;
+    }
 }
 
 simulated function NotifyLogout(Controller Exiting)

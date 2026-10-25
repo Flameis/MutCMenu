@@ -2,6 +2,9 @@
 // never offers them; WW2 and Winter War tanks (WW2VehicleTank, WWVehicleTank) let only one role class in (CanEnterVehicle
 // wants ClassIndex 9 for WW2, which no role here has, and 8 for Winter War). This shows an enter prompt on any tank the
 // player couldn't otherwise get into, and sends the use key to DummyActor.EnterVehicle(), which gets them in on the server.
+// Only tank crew roles get the prompt, unless the server setting bTankPromptForAll is on.
+// The game only hands keys to a script Interaction through OnReceivedNativeInputKey (set below): without it the prompt
+// showed but pressing the key did nothing.
 class TankEntryInteraction extends Interaction;
 
 var PlayerController PC;
@@ -27,6 +30,8 @@ function ROVehicle FindEnterableTank()
 
     ROP = ROPawn(PC.Pawn);
     if (ROP == none || ROP.Health <= 0 || ROP.bIsProning || ROP.IsProneTransitioning())
+        return none;
+    if (!AllowedToUse(PC.PlayerReplicationInfo, MyDA != none && MyDA.bTankPromptForAll))
         return none;
 
     PC.GetPlayerViewPoint(ViewLocation, ViewRotation);
@@ -65,6 +70,21 @@ function bool IsEnterable(ROVehicle ROV)
     if (ROV.Team != PC.GetTeamNum() && !IsEmpty(ROV))
         return false;
     return !ROV.bInfantryCanUse || !ROV.CanEnterVehicle(PC.Pawn);
+}
+
+// A tank crew role: MutExtras', WW2's and Winter War's tank crew all have the tank role type
+static function bool IsTankCrew(PlayerReplicationInfo PRI)
+{
+    local ROPlayerReplicationInfo ROPRI;
+
+    ROPRI = ROPlayerReplicationInfo(PRI);
+    return ROPRI != None && ROPRI.RoleInfo != None && (ROPRI.RoleInfo.RoleType == RORIT_Tank || ROPRI.RoleInfo.bCanBeTankCrew);
+}
+
+// Who may use the prompt: tank crew, or anyone when the server allows it
+static function bool AllowedToUse(PlayerReplicationInfo PRI, bool bForAll)
+{
+    return bForAll || IsTankCrew(PRI);
 }
 
 static function bool IsEmpty(ROVehicle ROV)
@@ -172,3 +192,7 @@ function bool InputKey(int ControllerId, name Key, EInputEvent EventType, float 
     return true;
 }
 
+defaultproperties
+{
+    OnReceivedNativeInputKey=InputKey
+}

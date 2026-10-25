@@ -2,6 +2,8 @@
 // at once. Like TankEntryInteraction it is an Interaction, so it draws and takes the key whatever HUD class the game (or
 // WW2, Winter War, GOM) uses. The key is only taken while a flag is carried, so it does nothing else the rest of the time.
 // Dropping goes through DummyActor.DropCarriedFlag(), which runs "mutate dropflag" on the server.
+// The game only hands keys to a script Interaction through OnReceivedNativeInputKey (set below): without it the banner
+// showed but the key did nothing.
 class FlagCarrierInteraction extends Interaction
     config(MutCMenu_Client);
 
@@ -119,4 +121,9 @@ function bool InputKey(int ControllerId, name Key, EInputEvent EventType, float 
 
     // Swallow the key (press and release) while a flag is carried, so the game's own use of it doesn't also happen
     return true;
+}
+
+defaultproperties
+{
+    OnReceivedNativeInputKey=InputKey
 }
