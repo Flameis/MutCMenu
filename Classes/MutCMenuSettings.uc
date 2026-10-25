@@ -135,61 +135,58 @@ function SaveMutSettings()
 }
 
 
+// The WebAdmin page: one tab per group, a plain label for each setting, and every on/off setting as On / Off
+// buttons (a value mapping of 0 and 1). Settings with a few fixed values get them as choices; four or more show
+// as a drop-down list. The group names, labels and choice names are localized, so they are in the .int file
+// (Localization\INT, section [<this class>]), in the same order as below.
 defaultproperties
 {
-    SettingsGroups(0)=(GroupID="Settings",pMin=600,pMax=700,lMin=0,lMax=0)
+    SettingsGroups.Add((GroupID="Content",pMin=600,pMax=610,lMin=0,lMax=0))
+    SettingsGroups.Add((GroupID="FireSupport",pMin=610,pMax=620,lMin=0,lMax=0))
+    SettingsGroups.Add((GroupID="Map",pMin=620,pMax=630,lMin=0,lMax=0))
+    SettingsGroups.Add((GroupID="CTF",pMin=630,pMax=640,lMin=0,lMax=0))
 
-	Properties.Add((PropertyId=603, Data=(Type=SDT_Int32, Value1=0)))
-	PropertyMappings.Add((Id=603, Name="bLoadExtras"))
+    // Mod content
+    Properties.Add((PropertyId=600,Data=(Type=SDT_Int32,Value1=0)))
+    PropertyMappings.Add((Id=600,Name="bLoadExtras",MappingType=PVMT_IdMapped,ValueMappings=((Id=0),(Id=1))))
+    Properties.Add((PropertyId=601,Data=(Type=SDT_Int32,Value1=0)))
+    PropertyMappings.Add((Id=601,Name="bLoadGOM3",MappingType=PVMT_IdMapped,ValueMappings=((Id=0),(Id=1))))
+    Properties.Add((PropertyId=602,Data=(Type=SDT_Int32,Value1=0)))
+    PropertyMappings.Add((Id=602,Name="bLoadGOM4",MappingType=PVMT_IdMapped,ValueMappings=((Id=0),(Id=1))))
+    Properties.Add((PropertyId=603,Data=(Type=SDT_Int32,Value1=0)))
+    PropertyMappings.Add((Id=603,Name="bLoadWW",MappingType=PVMT_IdMapped,ValueMappings=((Id=0),(Id=1))))
+    Properties.Add((PropertyId=604,Data=(Type=SDT_Int32,Value1=0)))
+    PropertyMappings.Add((Id=604,Name="bLoadWW2",MappingType=PVMT_IdMapped,ValueMappings=((Id=0),(Id=1))))
+    Properties.Add((PropertyId=605,Data=(Type=SDT_Int32,Value1=0)))
+    PropertyMappings.Add((Id=605,Name="bDebugStandalone",MappingType=PVMT_IdMapped,ValueMappings=((Id=0),(Id=1))))
+    Properties.Add((PropertyId=606,Data=(Type=SDT_Int32,Value1=0)))
+    PropertyMappings.Add((Id=606,Name="bNewTankPhys",MappingType=PVMT_IdMapped,ValueMappings=((Id=0),(Id=1))))
 
-	Properties.Add((PropertyId=604, Data=(Type=SDT_Int32, Value1=0)))
-	PropertyMappings.Add((Id=604, Name="bLoadGOM3"))
+    // Fire support
+    Properties.Add((PropertyId=610,Data=(Type=SDT_Int32,Value1=0)))
+    PropertyMappings.Add((Id=610,Name="bFSPlayersCanCall",MappingType=PVMT_IdMapped,ValueMappings=((Id=0),(Id=1))))
+    Properties.Add((PropertyId=611,Data=(Type=SDT_Int32,Value1=0)))
+    PropertyMappings.Add((Id=611,Name="bFSNoFriendlyFire",MappingType=PVMT_IdMapped,ValueMappings=((Id=0),(Id=1))))
+    Properties.Add((PropertyId=612,Data=(Type=SDT_Int32,Value1=0)))
+    PropertyMappings.Add((Id=612,Name="bFSSilent",MappingType=PVMT_IdMapped,ValueMappings=((Id=0),(Id=1))))
+    Properties.Add((PropertyId=613,Data=(Type=SDT_Int32,Value1=0)))
+    PropertyMappings.Add((Id=613,Name="FSPlayerCooldown"))
+    Properties.Add((PropertyId=614,Data=(Type=SDT_Int32,Value1=0)))
+    PropertyMappings.Add((Id=614,Name="FSBomberCount",MappingType=PVMT_IdMapped,ValueMappings=((Id=1),(Id=2))))
+    Properties.Add((PropertyId=615,Data=(Type=SDT_Int32,Value1=0)))
+    PropertyMappings.Add((Id=615,Name="FSGunshipDuration"))
 
-	Properties.Add((PropertyId=605, Data=(Type=SDT_Int32, Value1=0)))
-	PropertyMappings.Add((Id=605, Name="bLoadGOM4"))
+    // Overhead map
+    Properties.Add((PropertyId=620,Data=(Type=SDT_Int32,Value1=0)))
+    PropertyMappings.Add((Id=620,Name="bDisableEnhancedSpectator",MappingType=PVMT_IdMapped,ValueMappings=((Id=0),(Id=1))))
+    Properties.Add((PropertyId=621,Data=(Type=SDT_Int32,Value1=0)))
+    PropertyMappings.Add((Id=621,Name="bDisableMapDrawing",MappingType=PVMT_IdMapped,ValueMappings=((Id=0),(Id=1))))
+    Properties.Add((PropertyId=622,Data=(Type=SDT_Int32,Value1=0)))
+    PropertyMappings.Add((Id=622,Name="bKeepMapDrawingsBetweenRounds",MappingType=PVMT_IdMapped,ValueMappings=((Id=0),(Id=1))))
+    Properties.Add((PropertyId=623,Data=(Type=SDT_Int32,Value1=0)))
+    PropertyMappings.Add((Id=623,Name="MaxMapDrawingsPerPlayer"))
 
-	Properties.Add((PropertyId=606, Data=(Type=SDT_Int32, Value1=0)))
-	PropertyMappings.Add((Id=606, Name="bLoadWW"))
-
-	Properties.Add((PropertyId=607, Data=(Type=SDT_Int32, Value1=0)))
-	PropertyMappings.Add((Id=607, Name="bLoadWW2"))
-
-	Properties.Add((PropertyId=608, Data=(Type=SDT_Int32, Value1=0)))
-	PropertyMappings.Add((Id=608, Name="bNewTankPhys"))
-
-	Properties.Add((PropertyId=616, Data=(Type=SDT_Int32, Value1=0)))
-	PropertyMappings.Add((Id=616, Name="bDebugStandalone"))
-
-	Properties.Add((PropertyId=610, Data=(Type=SDT_Int32, Value1=0)))
-	PropertyMappings.Add((Id=610, Name="bFSPlayersCanCall"))
-
-	Properties.Add((PropertyId=611, Data=(Type=SDT_Int32, Value1=0)))
-	PropertyMappings.Add((Id=611, Name="bFSNoFriendlyFire"))
-
-	Properties.Add((PropertyId=612, Data=(Type=SDT_Int32, Value1=0)))
-	PropertyMappings.Add((Id=612, Name="bFSSilent"))
-
-	Properties.Add((PropertyId=617, Data=(Type=SDT_Int32, Value1=0)))
-	PropertyMappings.Add((Id=617, Name="bCTFSilent"))
-
-	Properties.Add((PropertyId=613, Data=(Type=SDT_Int32, Value1=0)))
-	PropertyMappings.Add((Id=613, Name="FSPlayerCooldown"))
-
-	Properties.Add((PropertyId=614, Data=(Type=SDT_Int32, Value1=0)))
-	PropertyMappings.Add((Id=614, Name="FSBomberCount"))
-
-	Properties.Add((PropertyId=615, Data=(Type=SDT_Int32, Value1=0)))
-	PropertyMappings.Add((Id=615, Name="FSGunshipDuration"))
-
-	Properties.Add((PropertyId=620, Data=(Type=SDT_Int32, Value1=0)))
-	PropertyMappings.Add((Id=620, Name="bDisableEnhancedSpectator"))
-
-	Properties.Add((PropertyId=621, Data=(Type=SDT_Int32, Value1=0)))
-	PropertyMappings.Add((Id=621, Name="bDisableMapDrawing"))
-
-	Properties.Add((PropertyId=622, Data=(Type=SDT_Int32, Value1=0)))
-	PropertyMappings.Add((Id=622, Name="bKeepMapDrawingsBetweenRounds"))
-
-	Properties.Add((PropertyId=623, Data=(Type=SDT_Int32, Value1=0)))
-	PropertyMappings.Add((Id=623, Name="MaxMapDrawingsPerPlayer"))
+    // Capture the Flag
+    Properties.Add((PropertyId=630,Data=(Type=SDT_Int32,Value1=0)))
+    PropertyMappings.Add((Id=630,Name="bCTFSilent",MappingType=PVMT_IdMapped,ValueMappings=((Id=0),(Id=1))))
 }

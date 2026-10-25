@@ -373,7 +373,7 @@ Commands shared with the Realism Match and Paradrops mutators (`scrimadminlogin`
 
 ## 9. Settings
 
-Set in WebAdmin under **Mutators > MutCMenu Settings**, or in `MutCMenu_Server.ini`.
+Set in WebAdmin under **Mutators > MutCMenu Settings**, or in `MutCMenu_Server.ini`. The page has a tab for each group of settings. Each setting has a plain label, on/off settings are **On** and **Off** buttons, and settings with a few fixed values (such as the number of Canberra planes) offer just those. The labels and button names come from the mod's text file in `Localization\INT` (`MutCMenu.int`), which a server needs next to the mod; without it the page shows the setting names below and the buttons have no text. The tabs are **Mod content** (the `bLoad` settings, `bDebugStandalone`, `bNewTankPhys`), **Fire support**, **Overhead map** (spectator view and map drawing, shown as On / Off rather than as the `bDisable` settings) and **Capture the Flag**.
 
 | Setting | What it does |
 | :--- | :--- |
