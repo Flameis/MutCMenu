@@ -304,7 +304,7 @@ The map on the spawn selection screen does not show the drawings. Turn the featu
 
 ## 7. Other features
 
-- **Tank entry prompt:** a player who is not tank crew can still climb into a friendly tank. Stand close to it and face it, and an enter prompt appears.
+- **Tank entry prompt:** a player who is not tank crew can still climb into a friendly tank. Stand close to it and face it, and an enter prompt appears with your use key (F unless you changed it); press it to get in. *Fixed:* the prompt used to show E and wait for E, because the game binds the use key through a second name ("Interact"), so pressing your real use key did nothing.
 - **Scales with your screen:** the menu takes up the same part of the screen at any resolution. Its size is set for 1440p; at 1080p it is three quarters of that, at 4K half as big again. The clickable lines in mouse click mode scale with it.
 - **Mouse click mode:** every menu line becomes a clickable button.
 - **Private messages and help in the console:** short replies go to you only; long help opens in the large console.

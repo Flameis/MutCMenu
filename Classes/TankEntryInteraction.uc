@@ -8,6 +8,7 @@ var DummyActor MyDA;
 var bool bPromptActive;
 var float LastUseTime;
 var ROVehicle PromptVehicle; // The tank the prompt is currently shown for
+var name UseKey;             // The player's use key, looked up when the prompt appears
 
 const MAX_ENTER_DIST = 400.0;
 const MAX_CONE_DIST = 550.0;  // Tanks within this range can be entered without aiming exactly at the hull
@@ -58,9 +59,28 @@ function bool IsEnterable(ROVehicle ROV)
         && VSizeSq(ROV.Velocity) < class'ROVehicle'.const.MAX_SPEED_FOR_ENTRY_SQ && ROV.Team == PC.GetTeamNum();
 }
 
+// The first command of a binding: "Use | OnRelease useReleasePlayer" -> "Use"
+static function string FirstCommand(string Cmd)
+{
+    local int Bar;
+
+    Bar = InStr(Cmd, "|");
+    if (Bar != INDEX_NONE)
+        Cmd = Left(Cmd, Bar);
+    while (Left(Cmd, 1) == " ")
+        Cmd = Mid(Cmd, 1);
+    while (Right(Cmd, 1) == " ")
+        Cmd = Left(Cmd, Len(Cmd) - 1);
+    return Cmd;
+}
+
+// The key the player uses things with. The game binds it through an alias ("F" -> "Interact" -> "Use | OnRelease ..."),
+// so the aliases are followed back from the Use command to the key. Looking only for a binding that is exactly "Use"
+// found nothing, and the prompt then said E and waited for a key the player never pressed.
 function name GetUseKey()
 {
-    local int i;
+    local array<name> Names, Found;
+    local int i, j, Depth;
     local string Cmd;
 
     if (PC == none || PC.PlayerInput == none)
@@ -68,11 +88,33 @@ function name GetUseKey()
 
     for (i = 0; i < PC.PlayerInput.Bindings.Length; i++)
     {
-        Cmd = PC.PlayerInput.Bindings[i].Command;
-        if (Cmd ~= "GBA_Use" || Cmd ~= "Use")
-            return PC.PlayerInput.Bindings[i].Name;
+        Cmd = FirstCommand(PC.PlayerInput.Bindings[i].Command);
+        if (Cmd ~= "Use" || Cmd ~= "GBA_Use")
+            Names.AddItem(PC.PlayerInput.Bindings[i].Name);
     }
-    return 'E';
+
+    // Each round goes one alias closer to the key; a name nothing points at is the key itself
+    for (Depth = 0; Depth < 4 && Names.Length > 0; Depth++)
+    {
+        Found.Length = 0;
+        for (i = 0; i < PC.PlayerInput.Bindings.Length; i++)
+        {
+            Cmd = FirstCommand(PC.PlayerInput.Bindings[i].Command);
+            for (j = 0; j < Names.Length; j++)
+            {
+                if (Cmd ~= string(Names[j]))
+                {
+                    Found.AddItem(PC.PlayerInput.Bindings[i].Name);
+                    break;
+                }
+            }
+        }
+        if (Found.Length == 0)
+            break;
+        Names = Found;
+    }
+
+    return Names.Length > 0 ? Names[0] : 'E';
 }
 
 function PostRender(Canvas HUDCanvas)
@@ -81,11 +123,13 @@ function PostRender(Canvas HUDCanvas)
     local float XL, YL;
 
     PromptVehicle = FindEnterableTank();
+    if (PromptVehicle != none && !bPromptActive)
+        UseKey = GetUseKey(); // Looked up when the prompt appears, so a key rebound since is picked up
     bPromptActive = PromptVehicle != none;
     if (!bPromptActive)
         return;
 
-    Prompt = "[" $ GetUseKey() $ "] Enter Tank";
+    Prompt = "[" $ UseKey $ "] Enter Tank";
     HUDCanvas.Font = Font'VN_UI_Mega_Fonts.Font_VN_Mega_36';
     HUDCanvas.SetDrawColor(255, 255, 255, 255);
     HUDCanvas.StrLen(Prompt, XL, YL);
@@ -95,7 +139,7 @@ function PostRender(Canvas HUDCanvas)
 
 function bool InputKey(int ControllerId, name Key, EInputEvent EventType, float AmountDepressed = 1.f, bool bGamepad = FALSE)
 {
-    if (!bPromptActive || MyDA == none || Key != GetUseKey())
+    if (!bPromptActive || MyDA == none || Key != UseKey)
         return false;
 
     if (EventType == IE_Pressed && PC.WorldInfo.TimeSeconds - LastUseTime > USE_COOLDOWN)
