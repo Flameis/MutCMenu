@@ -397,7 +397,7 @@ unreliable server function SpawnActor(
         CMAStaticMesh.ServerSetScale3D(CMAStaticMesh.StaticMeshComponent.Scale3D*Scale);
         CMAStaticMesh.Health = ModifyTime;
     }
-    else if (SpawnTag == 'Turret')
+    else if (SpawnTag == 'Turret' || SpawnTag == 'ResupplyPoint')
     {
         Spawn(SpawnClass, SpawnOwner, SpawnTag, SpawnLocation, SpawnRotation, ActorTemplate, bNoCollisionFail);
     }

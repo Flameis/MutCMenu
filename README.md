@@ -165,11 +165,17 @@ Open **Builder Menu** from the main menu. You aim at the spot you want, and conf
 
 | Builder section | What you can do |
 | :--- | :--- |
-| Vehicles | Place vehicles: Cobra, Loach, Huey, Bushranger, plus lists for WW2, Winter War and GOM (Gameplay Overhaul Mutator) vehicles and the GreenMen (GM) helicopters when those mods are loaded, plus the 29th's own helicopters. **Custom** lets you type any vehicle path. **Delete Vehicle** removes the one you aim at |
+| Vehicles | Place vehicles: Cobra, Loach, Huey, Bushranger, plus lists for WW2, Winter War and GOM (Gameplay Overhaul Mutator) vehicles and the GreenMen (GM) helicopters when those mods are loaded, plus the 29th's own helicopters. **Custom** types `mutate cmenu --menu CMenuBVehicles --item ` for you to add any vehicle path. **Delete Vehicle** removes the one you aim at |
 | Structures | Copy buildings or whole areas you are aiming at and paste them somewhere else. Select several meshes, copy the selection, remove the last one, or clear the selection |
 | Static Meshes | Copy, paste and delete single objects. Presets: straight sandbags and an F4 Phantom. Admins also get **Toggle Collision** and **Delete Any Object** |
-| Pickups | Turn a weapon into a pickup on the ground: **Custom** (type the weapon path) or **Copy Held Weapon** (the one in your hands) |
+| Pickups | Turn a weapon into a pickup on the ground: **Custom** (types `--item ` for you to add the weapon path) or **Copy Held Weapon** (the one in your hands) |
 | Actors | Place team spawn points (North and South), an M2 turret, a DShK turret and an ammo resupply point. **Mark Corner** and **Spawn Obj** let you draw and place a brand new capture objective of your own. Admins also get a **CTF Flag** entry for each team's flag (for example "CTF Flag: PAVN (North)"), **CTF Flag: Command Line**, **Reset Flags** and **Remove Flags** (see below). **Clear All** removes everything you placed, flags included |
+
+**Actors in the Builder**
+- **The preview looks like what you place:** a flag shows its small pole and cloth where it will land, the resupply point shows all its crates, a turret shows that turret. Spawn points and corners are flagpoles in the game, so they preview as one.
+- **Turrets start raised:** the DShK starts 60 units (about 1.2 m) up and the M2 20 units up, preview included, so their legs are not in the ground. The Up and Down arrow keys still move them from there. The next item starts back on the ground.
+- **No scaling:** actors are always placed at their own size; the mouse wheel says "This cannot be scaled."
+- **Resupply points for everyone:** a resupply point is now placed by the server, so every player gets it. Before, only the person who placed it could see it. *Not yet tried in a game.*
 
 Admins also get "Clear All Vehicles / Meshes / Pickups / Actors" entries to wipe what has been placed. Custom objectives you create appear on the map, and with MutExtras their borders are drawn on the overhead map. Placed spawn points are used for the team that owns them.
 
@@ -312,7 +318,7 @@ The map on the spawn selection screen does not show the drawings. Turn the featu
 - **Spawn points from the Builder:** custom spawn points are respected when players spawn.
 - **Its own game modes:** CMenu adds its own Territories and Supremacy game mode entries (needed for custom objectives and spawn points to work properly). A server has to pick them as its game mode.
 - **Experimental tank physics:** an optional setting (`bNewTankPhys`).
-- **Vehicles keep their size:** the mouse wheel still scales walls and objects in the Builder, but not vehicles, which are always placed at their own size.
+- **Vehicles and actors keep their size:** the mouse wheel still scales walls and objects in the Builder, but not vehicles or actors (spawns, turrets, flags, resupply points), which are always placed at their own size.
 - **Spectators can build:** the Builder works for spectators, who have no character. The preview and the placing follow the spectator camera. (Copying a held weapon needs a weapon, so it is refused for a spectator.)
 - **No duplicate menu entries:** a menu used to keep the admin entries it had added and add them again every time it opened, so "Clear All Vehicles" could appear several times (and menu entries could go missing) after opening the menu repeatedly or logging in as scrim admin more than once. Every menu now starts from its own list each time it opens. Setting the menus up a second time no longer stacks a second copy of every menu either.
 - **Builder preview stops when you pick something else:** choosing an entry that is not an item to place (Clear All, a Delete entry, Reset Flags, ...) ends placing and hides the preview, even with the menu kept open. Before, the preview stayed, a click still placed the last item and the placing keys stayed captured. Turning the page keeps the preview.

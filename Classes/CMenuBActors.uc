@@ -1,5 +1,28 @@
 class CMenuBActors extends CMenuB;
 
+// The preview is made of the item's own meshes, where they sit on it, so each entry looks like what it places: a flag is
+// its small pole with the cloth, the resupply point its stack of crates. With one mesh for everything most entries showed
+// the same big flagpole, so picking another one looked like the preview never changed.
+struct PreviewPart
+{
+	var StaticMesh		StaticMesh;		// One of these two
+	var SkeletalMesh	SkeletalMesh;
+	var vector			Offset;			// From the spot it goes at, turned with the item
+	var rotator			Rotation;
+	var vector			Scale;
+};
+
+var array<PreviewPart>				Parts;
+var array<MeshComponent>			PartComps;		// The component showing each part, in the same order
+var array<StaticMeshComponent>		StaticPool;		// Made when first needed and reused
+var array<SkeletalMeshComponent>	SkeletalPool;
+var bool							bFixedRotation;	// The item is placed facing north whatever way the player looks (flags)
+var MaterialInterface				PlaceableMaterial;
+
+// How far up the turrets start, so their legs are not in the ground. The arrow keys still move them from there.
+const M2_RAISE = 20;
+const DSHK_RAISE = 60;
+
 function Initialize()
 {
 	// Capture the Flag flags for either team, labelled with the team's faction ("CTF Flag: DAK (Axis)"). The server checks
@@ -28,31 +51,72 @@ function string FlagEntry(int Team)
 		$" ("$class'CMAFlag'.static.TeamWord(PC.WorldInfo, Team)$")";
 }
 
+// ====================================================
+// What each entry previews
+// ====================================================
+
+// A new item: no parts yet, back on the spot the player aims at, facing where they look
+function StartParts()
+{
+	Parts.Length = 0;
+	ModifyLoc = vect(0, 0, 0);
+	bFixedRotation = false;
+}
+
+function AddPart(StaticMesh SM, SkeletalMesh SkM, vector Offset, rotator Rot, vector Scale)
+{
+	local PreviewPart P;
+
+	if (SM == None && SkM == None)
+		return;
+
+	P.StaticMesh = SM;
+	P.SkeletalMesh = SkM;
+	P.Offset = Offset;
+	P.Rotation = Rot;
+	P.Scale = Scale;
+	Parts.AddItem(P);
+}
+
+// A part copied from one of the item's own components, as it sits on the item, with Lift added to its height
+function AddComponentPart(MeshComponent C, optional float Lift)
+{
+	local vector Offset;
+
+	if (C == None)
+		return;
+
+	Offset = C.Translation;
+	Offset.Z += Lift;
+	if (StaticMeshComponent(C) != None)
+		AddPart(StaticMeshComponent(C).StaticMesh, None, Offset, C.Rotation, C.Scale3D * C.Scale);
+	else if (SkeletalMeshComponent(C) != None)
+		AddPart(None, SkeletalMeshComponent(C).SkeletalMesh, Offset, C.Rotation, C.Scale3D * C.Scale);
+}
+
 function bool CheckExceptions(string Command)
 {
-	local StaticMeshComponent SMC;
-	local int i, j;
+	local int i;
 
-	ReferenceSkeletalMesh[0] = none;
-	
     switch (command)
 	{
 		case "NORTHSPAWN":
 		case "SOUTHSPAWN":
-			ReferenceStaticMesh[0] = class'CMASpawn'.default.StaticMeshComponent.StaticMesh;
-	
+			StartParts();
+			AddComponentPart(class'CMASpawn'.default.StaticMeshComponent);
 			if (Command ~= "NorthSpawn")
 				SpawnTeamIndex = 0;
-			else 
+			else
 			 	SpawnTeamIndex = 1;
             GoToState('ReadyToPlace',, true);
 			return true;
 
 		case "SETCORNER":
 		case "SPAWNOBJ":
-		case "REDDECAL": 
+		case "REDDECAL":
 		case "YELLOWDECAL":
-			ReferenceStaticMesh[0] = StaticMesh'ENV_VN_Flags.Meshes.S_VN_Flagpole';
+			StartParts();
+			AddPart(StaticMesh'ENV_VN_Flags.Meshes.S_VN_Flagpole', None, vect(0, 0, 0), rot(0, 0, 0), vect(1, 1, 1));
             GoToState('ReadyToPlace',, true);
 			return true;
 
@@ -62,12 +126,16 @@ function bool CheckExceptions(string Command)
             return true;
 
         case "TURRETM2":
-            ReferenceSkeletalMesh[0] = class'CMATurret_M2_HMG_Destroyable'.Default.Mesh.SkeletalMesh;
+			StartParts();
+			ModifyLoc.Z = M2_RAISE;
+			AddPart(None, class'CMATurret_M2_HMG_Destroyable'.default.Mesh.SkeletalMesh, vect(0, 0, 0), rot(0, 0, 0), vect(1, 1, 1));
             GoToState('ReadyToPlace',, true);
             return true;
 
 		case "TURRETDSHK":
-			ReferenceSkeletalMesh[0] = class'ROTurret_DShK_HMG_Destroyable'.Default.Mesh.SkeletalMesh;
+			StartParts();
+			ModifyLoc.Z = DSHK_RAISE;
+			AddPart(None, class'ROTurret_DShK_HMG_Destroyable'.default.Mesh.SkeletalMesh, vect(0, 0, 0), rot(0, 0, 0), vect(1, 1, 1));
 			GoToState('ReadyToPlace',, true);
 			return true;
 
@@ -82,22 +150,19 @@ function bool CheckExceptions(string Command)
 
 		case "CTFFLAGNORTH":
 		case "CTFFLAGSOUTH":
-			ReferenceStaticMesh[0] = class'CMAFlag'.default.PoleMesh.StaticMesh;
+			// The flag drops onto the ground, so it stands on the bottom of its collision, and is placed facing north
+			StartParts();
+			bFixedRotation = true;
+			AddComponentPart(class'CMAFlag'.default.PoleMesh, CylinderComponent(class'CMAFlag'.default.CollisionComponent).CollisionHeight);
+			AddComponentPart(class'CMAFlag'.default.FlagMesh, CylinderComponent(class'CMAFlag'.default.CollisionComponent).CollisionHeight);
 			SpawnTeamIndex = (Command ~= "CTFFLAGNORTH") ? `AXIS_TEAM_INDEX : `ALLIES_TEAM_INDEX;
 			GoToState('ReadyToPlace',, true);
 			return true;
 
 		case "RESUPPLYPOINT":
-			j = 0;
-			for (i = 0; i < class'CMAResupplyPoint'.Default.StaticMeshComponents.Length; i++)
-			{
-				SMC = class'CMAResupplyPoint'.Default.StaticMeshComponents[i];
-				if (SMC != none)
-				{
-					ReferenceStaticMesh[j] = SMC.StaticMesh;
-					j += 1;
-				}
-			}
+			StartParts();
+			for (i = 0; i < class'CMAResupplyPoint'.default.StaticMeshComponents.Length; i++)
+				AddComponentPart(class'CMAResupplyPoint'.default.StaticMeshComponents[i]);
 			GoToState('ReadyToPlace',, true);
 			return true;
     }
@@ -139,15 +204,16 @@ function DoPlace()
 			return;
 
 		case "TURRETM2":
-			MyDA.SpawnActor(class'CMATurret_M2_HMG_Destroyable',, 'Turret', PlaceLoc, PlaceRot,, true, LastCmd, ModifyScale.x, ModifyTime*10);
+			MyDA.SpawnActor(class'CMATurret_M2_HMG_Destroyable',, 'Turret', PlaceLoc, PlaceRot,, true, LastCmd, 1.0, ModifyTime*10);
 			return;
 
 		case "TURRETDSHK":
-			MyDA.SpawnActor(class'ROTurret_DShK_HMG_Destroyable',, 'Turret', PlaceLoc, PlaceRot,, true, LastCmd, ModifyScale.x, ModifyTime*10);
+			MyDA.SpawnActor(class'ROTurret_DShK_HMG_Destroyable',, 'Turret', PlaceLoc, PlaceRot,, true, LastCmd, 1.0, ModifyTime*10);
 			return;
 
 		case "RESUPPLYPOINT":
-			MyDA.Spawn(class'CMAResupplyPoint',, 'ResupplyPoint', PlaceLoc, PlaceRot,, true);
+			// Through the server: spawned here, it only ever existed on this player's screen
+			MyDA.SpawnActor(class'CMAResupplyPoint',, 'ResupplyPoint', PlaceLoc, PlaceRot,, true);
 			return;
 
 		case "CTFFLAGNORTH":
@@ -157,9 +223,105 @@ function DoPlace()
 	}
 }
 
+// ====================================================
+// The preview
+// ====================================================
+
+function MeshComponent PartComponent(int Index, out int NumStatic, out int NumSkeletal)
+{
+	if (Parts[Index].SkeletalMesh != None)
+	{
+		if (NumSkeletal >= SkeletalPool.Length)
+			SkeletalPool.AddItem(new(PC) class'SkeletalMeshComponent'(PreviewSkeletalMesh[0]));
+		SkeletalPool[NumSkeletal].SetSkeletalMesh(Parts[Index].SkeletalMesh);
+		return SkeletalPool[NumSkeletal++];
+	}
+
+	if (NumStatic >= StaticPool.Length)
+		StaticPool.AddItem(new(PC) class'StaticMeshComponent'(PreviewStaticMesh[0]));
+	StaticPool[NumStatic].SetStaticMesh(Parts[Index].StaticMesh);
+	return StaticPool[NumStatic++];
+}
+
+function InitializePreview()
+{
+	local int i, j, NumStatic, NumSkeletal;
+
+	PartComps.Length = 0;
+	for (i = 0; i < Parts.Length; i++)
+	{
+		PartComps.AddItem(PartComponent(i, NumStatic, NumSkeletal));
+		for (j = 0; j < Max(PartComps[i].GetNumElements(), 1); j++)
+			PartComps[i].SetMaterial(j, PlaceableMaterial);
+	}
+	bPreviewIsSkeletal = NumSkeletal > 0 && NumStatic == 0;
+}
+
+simulated function ShowPreviewMesh()
+{
+	local Actor Host;
+	local int i;
+
+	Host = GetPreviewHost();
+	if (Host == None)
+		return;
+
+	for (i = 0; i < PartComps.Length; i++)
+	{
+		Host.AttachComponent(PartComps[i]);
+		PartComps[i].SetHidden(false);
+	}
+
+	PreviewHost = Host;
+	bShowPreviewMesh = true;
+	UpdatePreviewMesh(); // Where it goes straight away, not where the last item was for a frame
+}
+
+simulated function UpdatePreviewMesh()
+{
+	local rotator ItemRot;
+	local int i;
+
+	ItemRot = bFixedRotation ? rot(0, 0, 0) : PlaceRot;
+	for (i = 0; i < PartComps.Length; i++)
+	{
+		PartComps[i].SetTranslation(PlaceLoc + (Parts[i].Offset >> ItemRot));
+		PartComps[i].SetRotation(ItemRot + Parts[i].Rotation);
+		PartComps[i].SetScale3D(Parts[i].Scale);
+	}
+}
+
+simulated function HidePreviewMesh()
+{
+	local StaticMeshComponent PSM;
+	local SkeletalMeshComponent PSkM;
+
+	if (!bShowPreviewMesh)
+		return;
+
+	// Every pooled component, so nothing from an earlier item is left behind
+	foreach StaticPool(PSM)
+	{
+		PSM.SetHidden(true);
+		if (PreviewHost != None)
+			PreviewHost.DetachComponent(PSM);
+	}
+	foreach SkeletalPool(PSkM)
+	{
+		PSkM.SetHidden(true);
+		if (PreviewHost != None)
+			PreviewHost.DetachComponent(PSkM);
+	}
+	PreviewHost = None;
+	bShowPreviewMesh = false;
+}
+
 defaultproperties
 {
     MenuName="ACTORS"
+
+	bCanScale=false // Actors are always placed at their own size
+	PlaceableMaterial=MaterialInstanceConstant'FX_VN_Materials.Materials.M_PlaceableItem'
 
     MenuText.Add("Set North Spawn")
     MenuText.Add("Set South Spawn")
@@ -176,7 +338,7 @@ defaultproperties
 
     // MenuText.Add("Red Decal")
     // MenuText.Add("Yellow Decal")
-    
+
     MenuCommand.Add("NORTHSPAWN")
     MenuCommand.Add("SOUTHSPAWN")
     MenuCommand.Add("DELNORTHSPAWNS")
