@@ -9,6 +9,10 @@ var Texture2D DefaultTexture_Black, DefaultTexture_White;
 var string PendingCmdPrefix, PendingCmdSuffix;
 
 const ITEMS_PER_PAGE = 8;
+const FORM_MAX_VALUE = 80; // the longest value that can be typed in a form box
+// Every menu is drawn the same size: this wide (the widest of the menu's own lines is used when one is wider still) and tall
+// enough for a full page. A long entry is better shortened than left to widen the menu.
+const MENU_WIDTH_TEXT = "8. Copy Held Weapon To Clipboard";
 const TEXT_OFFSET = 10;
 // The menu's sizes (font, line spacing, position, click areas) are made for a 1440 pixel high screen and scaled by
 // MenuScale = screen height / REFERENCE_HEIGHT, so it takes up the same part of the screen at any resolution
@@ -23,7 +27,24 @@ var float MenuScale; // From the last frame drawn; 1 until then
 var vector2D CursorPos;
 var float ScreenW, ScreenH; // From the last frame drawn
 var bool bCursorPlaced, bClickPressOwned;
+var bool bAltDown; // click mode: Alt is held, so the mouse looks around (and, placing, a click places) instead of moving the pointer
 var array<string> MenuText, MenuCommand, PlayerList;
+
+// Option forms (mouse click mode): a command that needs options opens a form instead of pre-typing it in the console
+struct FormField
+{
+	var string Name;       // "grid" for --grid
+	var string Desc;
+	var string Value;      // what was typed; for an on/off option anything but "" means on
+	var bool bSwitch;      // an on/off option: it has no value, only the option itself
+	var float X, Y, W, H;  // the text box (or button), as last drawn
+};
+var array<FormField> FormFields;
+var array<string> FormNotes, FormExamples;
+var string FormTitle, FormPrefix, FormSuffix;
+var int FormFocus;
+var float RunX, RunY, RunW, RunH, CancelX, CancelY, CancelW, CancelH; // the two buttons, as last drawn
+var bool bFormShift;
 var name NumberKeys[20];
 
 var config Color TextColor, BackgroundColor, BorderColor;
@@ -35,33 +56,27 @@ simulated state MenuVisible
 	{
 		RestoreDefaultEntries(); // Whatever a previous opening added (admin entries, mod vehicles) is not carried over
 		Initialize();
-		bCursorPlaced = false;
+		bCursorPlaced = false; // placed again where the last menu left it (see DrawClickCursor)
 		bClickPressOwned = false;
+		bAltDown = false;
 	}
-	
+
 	function bool InputKey( int ControllerId, name Key, EInputEvent EventType, float AmountDepressed = 1.f, bool bGamepad = FALSE )
 	{
-		local int Hit;
+		// Mouse click mode: Alt held lets the mouse look around. The key is taken, so the game doesn't make the player go prone.
+		if (ClickActive() && (Key == 'LeftAlt' || Key == 'RightAlt'))
+		{
+			if (EventType == IE_Pressed)
+				bAltDown = true;
+			else if (EventType == IE_Released)
+				bAltDown = false;
+			return true;
+		}
 
 		// Mouse click mode: the left button picks the line under the pointer. The press and its release are both
 		// taken, so the click never fires the player's weapon.
-		if (ClickActive() && Key == 'LeftMouseButton')
-		{
-			if (EventType == IE_Pressed || EventType == IE_DoubleClick)
-			{
-				bClickPressOwned = true;
-				Hit = LineAt(CursorPos.X, CursorPos.Y);
-				if (Hit != -1)
-					SelectLine(Hit);
-				return true;
-			}
-			if (EventType == IE_Released && bClickPressOwned)
-			{
-				bClickPressOwned = false;
-				return true;
-			}
-			return false;
-		}
+		if (PointerActive() && Key == 'LeftMouseButton')
+			return ClickPointer(EventType);
 
 	    if(EventType == IE_Pressed )
 	    {
@@ -76,7 +91,7 @@ simulated state MenuVisible
 	// Mouse click mode: the mouse moves the menu's pointer instead of the view
 	function bool InputAxis( int ControllerId, name Key, float Delta, float DeltaTime, optional bool bGamepad )
 	{
-		if (!ClickActive())
+		if (!PointerActive())
 			return false;
 
 		if (Key == 'MouseX')
@@ -87,6 +102,7 @@ simulated state MenuVisible
 			return false;
 
 		KeepCursorOnScreen();
+		RememberCursor();
 		return true;
 	}
 
@@ -97,15 +113,121 @@ simulated state MenuVisible
 		ScreenH = HUDCanvas.ClipY;
 	    DrawMenu(ROCanvas(HUDCanvas), 0, MENU_TOP * MenuScale, MenuName, MenuText);
 		if (ClickActive())
+		{
 			DrawClickCursor(ROCanvas(HUDCanvas));
+			DrawClickHint(ROCanvas(HUDCanvas));
+		}
     }
 
 	function EndState(name NextStateName)
 	{
 		bClickPressOwned = false;
+		bAltDown = false;
 
 		if (NextStateName != 'ReadyToPlace')
 			RestoreDefaultEntries();
+	}
+}
+
+// The option form: rows of options with a text box each, and Run and Cancel. A blank option is left out of the command, so the
+// command uses its default. The mouse moves the pointer as in the menu; typing goes into the box that was clicked.
+simulated state FormVisible
+{
+	function BeginState(name PreviousStateName)
+	{
+		bCursorPlaced = false;
+		bClickPressOwned = false;
+		bFormShift = false;
+	}
+
+	function EndState(name NextStateName)
+	{
+		bClickPressOwned = false;
+	}
+
+	function bool InputKey( int ControllerId, name Key, EInputEvent EventType, float AmountDepressed = 1.f, bool bGamepad = FALSE )
+	{
+		local int Hit;
+
+		if (Key == 'LeftShift' || Key == 'RightShift')
+		{
+			bFormShift = EventType != IE_Released;
+			return false;
+		}
+
+		if (Key == 'LeftMouseButton')
+		{
+			if (EventType == IE_Pressed || EventType == IE_DoubleClick)
+			{
+				bClickPressOwned = true;
+				ClickForm();
+				return true;
+			}
+			if (EventType == IE_Released && bClickPressOwned)
+			{
+				bClickPressOwned = false;
+				return true;
+			}
+			return false;
+		}
+
+		// Releases always go through, so a movement key held while the form opened doesn't get stuck
+		if (EventType == IE_Released)
+			return false;
+		if (EventType != IE_Pressed && EventType != IE_Repeat)
+			return true;
+
+		if (Key == 'Enter')
+		{
+			RunForm();
+			return true;
+		}
+		if (Key == 'Escape')
+		{
+			CancelForm();
+			return true;
+		}
+		if (Key == 'Tab')
+		{
+			if (FormFields.Length > 0)
+				FormFocus = (FormFocus + 1) % FormFields.Length;
+			return true;
+		}
+		if (FormFocus >= 0 && FormFocus < FormFields.Length && !FormFields[FormFocus].bSwitch)
+		{
+			if (Key == 'BackSpace')
+				FormFields[FormFocus].Value = Left(FormFields[FormFocus].Value, Len(FormFields[FormFocus].Value) - 1);
+			else
+			{
+				Hit = Len(FormFields[FormFocus].Value);
+				if (Hit < FORM_MAX_VALUE)
+					FormFields[FormFocus].Value $= FormKeyChar(Key, bFormShift);
+			}
+		}
+		return true;
+	}
+
+	function bool InputAxis( int ControllerId, name Key, float Delta, float DeltaTime, optional bool bGamepad )
+	{
+		if (Key == 'MouseX')
+			CursorPos.X += Delta;
+		else if (Key == 'MouseY')
+			CursorPos.Y -= Delta;
+		else
+			return false;
+
+		KeepCursorOnScreen();
+		RememberCursor();
+		return true;
+	}
+
+	function PostRender(Canvas HUDCanvas)
+	{
+		UpdateMenuScale(HUDCanvas.ClipY);
+		ScreenW = HUDCanvas.ClipX;
+		ScreenH = HUDCanvas.ClipY;
+		DrawForm(ROCanvas(HUDCanvas));
+		DrawClickCursor(ROCanvas(HUDCanvas), true);
 	}
 }
 
@@ -216,7 +338,7 @@ function bool SelectLine(int NumKey)
 
 		if (CheckExceptions(Command)) //Check for any exceptions in child classes
 		{
-			if (!bKeepOpen) GotoState(''); // Close Menu
+			if (!bKeepOpen && !IsInState('FormVisible')) GotoState(''); // Close Menu (a command that opened a form is waiting for it)
 			return true;
 		}
 		PC.ConsoleCommand("mutate "$Command); //Execute Command
@@ -260,12 +382,15 @@ function OpenParentMenu()
 		PC.ConsoleCommand("mutate cmenu "$ParentMenu);
 }
 
-// Find the longest string currently displayed on the menu
+// Finds the longest string on the menu (every page, and the title), which only matters when it is wider than the standard
+// menu width
 function FindCMenuLength()
 {
 	local int i, MenuTextMaxLength;
 
-	for (i = MenuPage * ITEMS_PER_PAGE; i < (MenuPage+1)*ITEMS_PER_PAGE; i++)
+	MenuBorderLengthString = MenuName;
+	MenuTextMaxLength = Len(MenuName);
+	for (i = 0; i < MenuText.Length; i++)
 	{
 		if (Len(MenuText[i]) > MenuTextMaxLength)
 		{
@@ -296,14 +421,470 @@ function GameUISceneClient GetCMenuSceneClient()
 // Prompt lines are separated by "|". The player finishes the command (CommandPrefix$<value>$CommandSuffix) and presses enter.
 // The guidance is written into the console history and the large console is opened, because it is far longer than the chat
 // window can show and stays readable (scrollable) while typing.
-function PromptForText(string Prompt, string CommandPrefix, optional string CommandSuffix)
+function PromptForText(string Prompt, string CommandPrefix, optional string CommandSuffix, optional bool bNoForm)
 {
 	PendingCmdPrefix = CommandPrefix;
 	PendingCmdSuffix = CommandSuffix;
 
+	// Mouse click mode: a form with a box for each option, instead of typing the command in the console
+	if (!bNoForm && ClickActive() && OpenForm(Prompt, CommandPrefix, CommandSuffix))
+		return;
+
 	// Short guidance goes to the chat and the mini console, long guidance to the large console (see DummyActor.ShowHelp)
 	if (MyDA != None)
 		MyDA.ShowHelp(Prompt, CommandPrefix, CommandSuffix, "[CMenu] ");
+}
+
+// ====================================================
+// Option forms
+// ====================================================
+
+// The options that are on or off rather than taking a value
+static function bool IsSwitchOption(string OptionName)
+{
+	switch (Locs(OptionName))
+	{
+		case "nobeam":
+		case "live":
+		case "look":
+		case "suppress":
+		case "persist":
+			return true;
+	}
+	return false;
+}
+
+function string TrimSpaces(string S)
+{
+	while (Left(S, 1) == " ")
+		S = Mid(S, 1);
+	while (Right(S, 1) == " ")
+		S = Left(S, Len(S) - 1);
+	return S;
+}
+
+function int FindFormField(string OptionName)
+{
+	local int i;
+
+	for (i = 0; i < FormFields.Length; i++)
+	{
+		if (FormFields[i].Name ~= OptionName)
+			return i;
+	}
+	return INDEX_NONE;
+}
+
+// Reads the options out of the guidance the console would show (lines separated by "|": a title, notes, "--option / -o :
+// what it does" lines, examples) and opens the form. False when the guidance names no option, so the console is used.
+function bool OpenForm(string Prompt, string Prefix, string Suffix)
+{
+	local array<string> Lines;
+	local int i;
+	local string Line;
+
+	FormFields.Length = 0;
+	FormNotes.Length = 0;
+	FormExamples.Length = 0;
+	FormPrefix = Prefix;
+	FormSuffix = Suffix;
+	FormFocus = 0;
+
+	Lines = SplitString(Prompt, "|", true);
+	FormTitle = Lines.Length > 0 ? Lines[0] : "";
+	for (i = 1; i < Lines.Length; i++)
+	{
+		Line = Lines[i];
+		if (Left(Line, 7) ~= "Example")
+		{
+			if (FormExamples.Length < 2)
+				FormExamples.AddItem(Line);
+		}
+		else if (Left(Line, 10) ~= "Older form" || Left(Line, 12) ~= "Full command")
+		{
+			// Only for the console
+		}
+		else if (Left(Line, 2) == "--" || Left(Line, 8) ~= "Options:" || InStr(Line, " --") != INDEX_NONE)
+			AddFormFields(Line);
+		else if (FormFields.Length == 0 && FormNotes.Length < 3)
+			FormNotes.AddItem(Line);
+	}
+
+	if (FormFields.Length == 0)
+		return false;
+
+	GotoState('FormVisible');
+	return true;
+}
+
+// Adds a row for every "--name" in the line. An option listed without a description of its own (several named in one line
+// before the ":") takes the one the line ends with.
+function AddFormFields(string Line)
+{
+	local int Pos, Next, First, i;
+	local string Chunk, Rest;
+
+	First = FormFields.Length;
+	Pos = InStr(Line, "--");
+	while (Pos != INDEX_NONE)
+	{
+		Rest = Mid(Line, Pos + 2);
+		Next = InStr(Rest, " --");
+		if (Next != INDEX_NONE)
+		{
+			Chunk = Left(Rest, Next);
+			Line = Mid(Rest, Next + 1);
+		}
+		else
+		{
+			Chunk = Rest;
+			Line = "";
+		}
+		AddFormField(Chunk);
+
+		// "--text / -t, --background / -b, --border / -o : the colour": the ones named before the ":" share its description
+		if (InStr(Chunk, " : ") != INDEX_NONE)
+		{
+			for (i = FormFields.Length - 2; i >= First && FormFields[i].Desc == ""; i--)
+				FormFields[i].Desc = FormFields[FormFields.Length - 1].Desc;
+		}
+		Pos = InStr(Line, "--");
+	}
+}
+
+// One option from the text after its "--": "grid / -g : what it does", "spread -r (meters)," and so on
+function AddFormField(string Chunk)
+{
+	local FormField Field;
+	local int i, Colon, Open;
+	local string Ch, Rest, Desc;
+
+	for (i = 0; i < Len(Chunk); i++)
+	{
+		Ch = Mid(Chunk, i, 1);
+		if (Ch == " " || Ch == "/" || Ch == "," || Ch == ":" || Ch == ")")
+			break;
+	}
+	Field.Name = Left(Chunk, i);
+	if (Field.Name == "" || FindFormField(Field.Name) != INDEX_NONE)
+		return;
+
+	Rest = Mid(Chunk, i);
+	Colon = InStr(Rest, " : ");
+	if (Colon != INDEX_NONE)
+		Desc = Mid(Rest, Colon + 3);
+	else
+	{
+		// "-s (what it means)": the words in brackets
+		Open = InStr(Rest, "(");
+		if (Open != INDEX_NONE)
+			Desc = Mid(Rest, Open + 1);
+	}
+	Colon = InStr(Desc, "   ");
+	if (Colon != INDEX_NONE)
+		Desc = Left(Desc, Colon);
+	Desc = TrimSpaces(Desc);
+	while (Right(Desc, 1) == "," || Right(Desc, 1) == ")" || Right(Desc, 1) == ":")
+		Desc = Left(Desc, Len(Desc) - 1);
+
+	Field.Desc = Desc;
+	Field.bSwitch = IsSwitchOption(Field.Name);
+	FormFields.AddItem(Field);
+}
+
+// The command to run: the prefix (without a trailing "--option " the form has a row for), then the options that were filled in
+function string BuildFormCommand()
+{
+	local string Cmd, LastWord;
+	local int Space, i;
+
+	Cmd = TrimSpaces(FormPrefix);
+	Space = InStr(Cmd, " ", true);
+	LastWord = Space != INDEX_NONE ? Mid(Cmd, Space + 1) : Cmd;
+	if (Left(LastWord, 2) == "--" && FindFormField(Mid(LastWord, 2)) != INDEX_NONE)
+		Cmd = TrimSpaces(Left(Cmd, Space));
+
+	for (i = 0; i < FormFields.Length; i++)
+	{
+		if (FormFields[i].bSwitch)
+		{
+			if (FormFields[i].Value != "")
+				Cmd = Cmd $ " --" $ FormFields[i].Name;
+		}
+		else if (TrimSpaces(FormFields[i].Value) != "")
+			Cmd = Cmd $ " --" $ FormFields[i].Name $ " " $ TrimSpaces(FormFields[i].Value);
+	}
+	return Cmd $ FormSuffix;
+}
+
+function RunForm()
+{
+	PC.ConsoleCommand(BuildFormCommand());
+	if (bKeepOpen)
+		GotoState('MenuVisible');
+	else
+		GotoState('');
+}
+
+function CancelForm()
+{
+	GotoState('MenuVisible');
+}
+
+// A left click on the form: a box takes the typing, a switch flips, and the buttons run or cancel
+function ClickForm()
+{
+	local int i;
+
+	for (i = 0; i < FormFields.Length; i++)
+	{
+		if (CursorPos.X >= FormFields[i].X && CursorPos.X <= FormFields[i].X + FormFields[i].W
+			&& CursorPos.Y >= FormFields[i].Y && CursorPos.Y <= FormFields[i].Y + FormFields[i].H)
+		{
+			FormFocus = i;
+			if (FormFields[i].bSwitch)
+				FormFields[i].Value = (FormFields[i].Value == "") ? "1" : "";
+			return;
+		}
+	}
+
+	if (CursorPos.X >= RunX && CursorPos.X <= RunX + RunW && CursorPos.Y >= RunY && CursorPos.Y <= RunY + RunH)
+		RunForm();
+	else if (CursorPos.X >= CancelX && CursorPos.X <= CancelX + CancelW && CursorPos.Y >= CancelY && CursorPos.Y <= CancelY + CancelH)
+		CancelForm();
+}
+
+// The character a key types (US keyboard), or "" for keys that don't type
+function string FormKeyChar(name Key, bool bShifted)
+{
+	local string S;
+	local int Digit;
+
+	S = string(Key);
+	if (Len(S) == 1)
+		return bShifted ? Caps(S) : Locs(S);
+
+	Digit = INDEX_NONE;
+	switch (Key)
+	{
+		case 'SpaceBar':    return " ";
+		case 'Period':      return bShifted ? ">" : ".";
+		case 'Comma':       return bShifted ? "<" : ",";
+		case 'Hyphen':      return bShifted ? "_" : "-";
+		case 'Equals':      return bShifted ? "+" : "=";
+		case 'Slash':       return bShifted ? "?" : "/";
+		case 'Semicolon':   return bShifted ? ":" : ";";
+		case 'Apostrophe':  return bShifted ? "\"" : "'";
+		case 'Add':         return "+";
+		case 'Subtract':    return "-";
+		case 'Multiply':    return "*";
+		case 'Divide':      return "/";
+		case 'Decimal':     return ".";
+		case 'Zero':  case 'NumPadZero':  Digit = 0; break;
+		case 'One':   case 'NumPadOne':   Digit = 1; break;
+		case 'Two':   case 'NumPadTwo':   Digit = 2; break;
+		case 'Three': case 'NumPadThree': Digit = 3; break;
+		case 'Four':  case 'NumPadFour':  Digit = 4; break;
+		case 'Five':  case 'NumPadFive':  Digit = 5; break;
+		case 'Six':   case 'NumPadSix':   Digit = 6; break;
+		case 'Seven': case 'NumPadSeven': Digit = 7; break;
+		case 'Eight': case 'NumPadEight': Digit = 8; break;
+		case 'Nine':  case 'NumPadNine':  Digit = 9; break;
+	}
+
+	if (Digit == INDEX_NONE)
+		return "";
+	if (bShifted && InStr(S, "NumPad") == INDEX_NONE)
+		return Mid(")!@#$%^&*(", Digit, 1);
+	return string(Digit);
+}
+
+// Text cut short with ... so it fits the width at the scale
+function string FitText(ROCanvas C, string Text, float MaxW, float Scale)
+{
+	local float W, H;
+
+	C.TextSize(Text, W, H);
+	if (W * Scale <= MaxW)
+		return Text;
+
+	while (Len(Text) > 1)
+	{
+		Text = Left(Text, Len(Text) - 1);
+		C.TextSize(Text $ "...", W, H);
+		if (W * Scale <= MaxW)
+			break;
+	}
+	return Text $ "...";
+}
+
+// Lays the form out for this screen and draws it: first the background and boxes, then the text on them (the same two
+// layers DrawMenu uses, or the text can end up under the boxes)
+function DrawForm(ROCanvas C)
+{
+	local float S, PanelX, PanelY, PanelW, PanelH, Pad, LineH, DescH, LabelW, BoxX, BoxW, Y, TW, TH, TitleScale, LabelScale, DescScale, ValueScale, ButtonW, Now;
+	local int i;
+	local bool bHover;
+	local string Shown;
+
+	if (C == None)
+		return;
+
+	S = MenuScale;
+	Pad = TEXT_OFFSET * S;
+	LineH = LINE_HEIGHT * S;
+	DescH = 26 * S;
+	TitleScale = S;
+	LabelScale = S * 0.8;
+	ValueScale = S * 0.8;
+	DescScale = S * 0.5;
+	PanelX = 0;
+	PanelY = MENU_TOP * S;
+	PanelW = 1150 * S;
+	LabelW = 280 * S;
+	BoxX = PanelX + Pad + LabelW;
+	BoxW = PanelW - Pad * 2 - LabelW;
+	Now = PC.WorldInfo.RealTimeSeconds;
+
+	C.Font = Font'VN_UI_Mega_Fonts.Font_VN_Mega_36';
+
+	// Rows
+	Y = PanelY + Pad + LineH + FormNotes.Length * DescH;
+	for (i = 0; i < FormFields.Length; i++)
+	{
+		FormFields[i].X = FormFields[i].bSwitch ? PanelX + Pad : BoxX;
+		FormFields[i].Y = Y;
+		FormFields[i].W = FormFields[i].bSwitch ? 340 * S : BoxW;
+		FormFields[i].H = LineH * 0.9;
+		Y += LineH + DescH + 4 * S;
+	}
+	Y += FormExamples.Length * DescH;
+	ButtonW = 200 * S;
+	RunX = PanelX + Pad;
+	RunY = Y + Pad;
+	RunW = ButtonW;
+	RunH = LineH * 0.9;
+	CancelX = RunX + ButtonW + Pad * 2;
+	CancelY = RunY;
+	CancelW = ButtonW;
+	CancelH = RunH;
+	PanelH = RunY + RunH + Pad - PanelY;
+
+	// Boxes
+	C.PushDepthSortPriority(DSP_SkyHigh);
+	C.SetPos(PanelX, PanelY);
+	C.SetDrawColorStruct(BackgroundColor);
+	C.DrawRect(PanelW, PanelH);
+	C.SetPos(PanelX, PanelY);
+	C.SetDrawColorStruct(BorderColor);
+	C.DrawBox(PanelW, PanelH);
+	for (i = 0; i < FormFields.Length; i++)
+	{
+		bHover = CursorPos.X >= FormFields[i].X && CursorPos.X <= FormFields[i].X + FormFields[i].W
+			&& CursorPos.Y >= FormFields[i].Y && CursorPos.Y <= FormFields[i].Y + FormFields[i].H;
+		if (FormFields[i].bSwitch && FormFields[i].Value != "")
+			C.SetDrawColor(40, 130, 60, 235);
+		else
+			C.SetDrawColor(bHover ? 70 : 30, bHover ? 70 : 30, bHover ? 70 : 30, 235);
+		C.SetPos(FormFields[i].X, FormFields[i].Y);
+		C.DrawRect(FormFields[i].W, FormFields[i].H);
+		if (i == FormFocus)
+			C.SetDrawColor(255, 200, 40, 255);
+		else
+			C.SetDrawColor(120, 120, 120, 255);
+		C.SetPos(FormFields[i].X, FormFields[i].Y);
+		C.DrawBox(FormFields[i].W, FormFields[i].H);
+	}
+	bHover = CursorPos.X >= RunX && CursorPos.X <= RunX + RunW && CursorPos.Y >= RunY && CursorPos.Y <= RunY + RunH;
+	C.SetDrawColor(bHover ? 60 : 35, bHover ? 170 : 130, bHover ? 80 : 55, 240);
+	C.SetPos(RunX, RunY);
+	C.DrawRect(RunW, RunH);
+	bHover = CursorPos.X >= CancelX && CursorPos.X <= CancelX + CancelW && CursorPos.Y >= CancelY && CursorPos.Y <= CancelY + CancelH;
+	C.SetDrawColor(bHover ? 190 : 140, bHover ? 50 : 35, bHover ? 45 : 30, 240);
+	C.SetPos(CancelX, CancelY);
+	C.DrawRect(CancelW, CancelH);
+	C.PopDepthSortPriority();
+
+	// Text
+	C.PushDepthSortPriority(DSP_Insane);
+	C.SetDrawColorStruct(TextColor);
+	C.SetPos(PanelX + Pad, PanelY + Pad);
+	C.DrawText(FormTitle, false, TitleScale, TitleScale);
+
+	Y = PanelY + Pad + LineH;
+	C.SetDrawColor(220, 220, 220, 255);
+	for (i = 0; i < FormNotes.Length; i++)
+	{
+		C.SetPos(PanelX + Pad, Y);
+		C.DrawText(FitText(C, FormNotes[i], PanelW - Pad * 2, DescScale), false, DescScale, DescScale);
+		Y += DescH;
+	}
+
+	for (i = 0; i < FormFields.Length; i++)
+	{
+		// The option's name, or for an on/off option its button text
+		if (FormFields[i].bSwitch)
+		{
+			C.SetDrawColor(255, 255, 255, 255);
+			C.TextSize("--" $ FormFields[i].Name $ (FormFields[i].Value != "" ? "  (on)" : "  (off)"), TW, TH);
+			C.SetPos(FormFields[i].X + 8 * S, FormFields[i].Y + (FormFields[i].H - TH * LabelScale) * 0.5);
+			C.DrawText("--" $ FormFields[i].Name $ (FormFields[i].Value != "" ? "  (on)" : "  (off)"), false, LabelScale, LabelScale);
+		}
+		else
+		{
+			C.SetDrawColorStruct(TextColor);
+			C.TextSize("--" $ FormFields[i].Name, TW, TH);
+			C.SetPos(PanelX + Pad, FormFields[i].Y + (FormFields[i].H - TH * LabelScale) * 0.5);
+			C.DrawText("--" $ FormFields[i].Name, false, LabelScale, LabelScale);
+
+			Shown = FormFields[i].Value;
+			if (i == FormFocus && int(Now * 2.0) % 2 == 0)
+				Shown $= "_";
+			C.SetDrawColor(255, 255, 255, 255);
+			C.TextSize("Ag", TW, TH);
+			// The end of what was typed, when it is too long for the box
+			Shown = FitTail(C, Shown, FormFields[i].W - 16 * S, ValueScale);
+			C.SetPos(FormFields[i].X + 8 * S, FormFields[i].Y + (FormFields[i].H - TH * ValueScale) * 0.5);
+			C.DrawText(Shown, false, ValueScale, ValueScale);
+		}
+
+		// What it does, under the row
+		C.SetDrawColor(180, 180, 180, 255);
+		C.SetPos(PanelX + Pad, FormFields[i].Y + LineH);
+		C.DrawText(FitText(C, FormFields[i].Desc != "" ? FormFields[i].Desc : "(leave blank for the default)", PanelW - Pad * 2, DescScale), false, DescScale, DescScale);
+	}
+
+	Y = FormFields[FormFields.Length - 1].Y + LineH + DescH + 4 * S;
+	C.SetDrawColor(150, 200, 255, 255);
+	for (i = 0; i < FormExamples.Length; i++)
+	{
+		C.SetPos(PanelX + Pad, Y);
+		C.DrawText(FitText(C, FormExamples[i], PanelW - Pad * 2, DescScale), false, DescScale, DescScale);
+		Y += DescH;
+	}
+
+	C.SetDrawColor(255, 255, 255, 255);
+	C.TextSize("Run", TW, TH);
+	C.SetPos(RunX + (RunW - TW * LabelScale) * 0.5, RunY + (RunH - TH * LabelScale) * 0.5);
+	C.DrawText("Run", false, LabelScale, LabelScale);
+	C.TextSize("Cancel", TW, TH);
+	C.SetPos(CancelX + (CancelW - TW * LabelScale) * 0.5, CancelY + (CancelH - TH * LabelScale) * 0.5);
+	C.DrawText("Cancel", false, LabelScale, LabelScale);
+	C.PopDepthSortPriority();
+}
+
+// The end of the text when all of it is too wide for the width at the scale
+function string FitTail(ROCanvas C, string Text, float MaxW, float Scale)
+{
+	local float W, H;
+
+	C.TextSize(Text, W, H);
+	while (W * Scale > MaxW && Len(Text) > 1)
+	{
+		Text = Mid(Text, 1);
+		C.TextSize(Text, W, H);
+	}
+	return Text;
 }
 
 /* Text-entry dialog (GameUIScene), disabled for now. Re-enable together with CMenuTextEntryScene.uc,
@@ -358,10 +939,69 @@ function bool ClickActive()
 	return MyDA != None && MyDA.bClickModeActive;
 }
 
-// True when this menu is open and has taken the mouse for its pointer; CMMapInputHook leaves the clicks to it then
+// True when this menu is open and has taken the mouse for its pointer; CMMapInputHook leaves the clicks to it then. Not
+// while Alt is held: the mouse looks around then.
 function bool HasMousePointer()
 {
-	return ClickActive() && IsInState('MenuVisible');
+	return IsInState('FormVisible') || (PointerActive() && IsInState('MenuVisible'));
+}
+
+// Click mode, and Alt is not held: the mouse moves the pointer and a click picks a line
+function bool PointerActive()
+{
+	return ClickActive() && !bAltDown;
+}
+
+// A press or release of the left button with the pointer: the press picks the line under it, and the release is taken too
+function bool ClickPointer(EInputEvent EventType)
+{
+	local int Hit;
+
+	if (EventType == IE_Pressed || EventType == IE_DoubleClick)
+	{
+		bClickPressOwned = true;
+		Hit = LineAt(CursorPos.X, CursorPos.Y);
+		if (Hit != -1)
+			SelectLine(Hit);
+		return true;
+	}
+	if (EventType == IE_Released && bClickPressOwned)
+	{
+		bClickPressOwned = false;
+		return true;
+	}
+	return false;
+}
+
+// Keeps the pointer's place for the next menu that opens
+function RememberCursor()
+{
+	if (MyDA != None)
+	{
+		MyDA.ClickCursor = CursorPos;
+		MyDA.bClickCursorKnown = true;
+	}
+}
+
+// A line under the menu telling the player what Alt does, while a builder preview is up (the only time it also places)
+function DrawClickHint(ROCanvas C)
+{
+	local float X, Y, XL, YL;
+	local string Hint;
+
+	if (C == None || !IsInState('ReadyToPlace'))
+		return;
+
+	Hint = bAltDown ? "Alt held: look around, click to place" : "Hold Alt: look around and place";
+	C.Font = Font'VN_UI_Mega_Fonts.Font_VN_Mega_36';
+	C.TextSize(Hint, XL, YL);
+	X = TEXT_OFFSET * MenuScale;
+	Y = MenuHeight + 80 * MenuScale;
+	C.PushDepthSortPriority(DSP_Insane);
+	C.SetDrawColor(255, 255, 255, 255);
+	C.SetPos(X, Y);
+	C.DrawText(Hint, false, MenuScale * 0.6, MenuScale * 0.6);
+	C.PopDepthSortPriority();
 }
 
 function KeepCursorOnScreen()
@@ -393,7 +1033,8 @@ function bool SlotRect(int Slot, out float X, out float Y, out float W, out floa
 		return true;
 	}
 
-	LineY += Max(Count, 0) * H;
+	// Below a full page whatever this page holds, so Next and Exit are always in the same place
+	LineY += ITEMS_PER_PAGE * H;
 	W = 200.f * MenuScale;
 	if (Slot == ITEMS_PER_PAGE)
 	{
@@ -403,9 +1044,7 @@ function bool SlotRect(int Slot, out float X, out float Y, out float W, out floa
 		return true;
 	}
 
-	if (bNext)
-		LineY += 2 * H;
-	Y = LineY + 2 * H;
+	Y = LineY + 4 * H;
 	return true;
 }
 
@@ -429,7 +1068,7 @@ function int LineAt(float PX, float PY)
 
 // The pointer, and a light box on the line it is over. It is drawn by this interaction on top of the game, the way
 // CMMapInteraction draws the map tools, so it works on every game the mutator runs on.
-function DrawClickCursor(ROCanvas C)
+function DrawClickCursor(ROCanvas C, optional bool bNoHighlight)
 {
 	local int Hit, Slot;
 	local float X, Y, W, H, Size;
@@ -439,6 +1078,12 @@ function DrawClickCursor(ROCanvas C)
 	if (C == None)
 		return;
 
+	if (!bCursorPlaced && MyDA != None && MyDA.bClickCursorKnown)
+	{
+		// Where the last menu left it, so moving to another menu doesn't jump it
+		CursorPos = MyDA.ClickCursor;
+		bCursorPlaced = true;
+	}
 	if (!bCursorPlaced)
 	{
 		// Starts on the first line, where the player is about to look
@@ -454,8 +1099,9 @@ function DrawClickCursor(ROCanvas C)
 		bCursorPlaced = true;
 	}
 	KeepCursorOnScreen();
+	RememberCursor();
 
-	Hit = LineAt(CursorPos.X, CursorPos.Y);
+	Hit = bNoHighlight ? -1 : LineAt(CursorPos.X, CursorPos.Y);
 	if (Hit != -1)
 	{
 		Slot = (Hit == 9) ? ITEMS_PER_PAGE : (Hit == 0 ? ITEMS_PER_PAGE + 1 : Hit - 1);
@@ -502,18 +1148,23 @@ function DrawClickCursor(ROCanvas C)
 function DrawMenu(ROCanvas MenuCanvas, int MenuX, int MenuY, string title, array<string> LineText)
 {
 	local int i, key;
-	local float BL, BH, height, X, Y;
+	local float BL, BH, StandardBL, height, X, Y, FirstLineY;
 
 	height = LINE_HEIGHT * MenuScale;
 	key = 1;
+
+	// Where the Exit line will be: every menu is as tall as a full page, so this is known before anything is drawn
+	MenuHeight = MenuY + TEXT_OFFSET * MenuScale + (title != "" ? height : 0.0) + (ITEMS_PER_PAGE + 4) * height;
 
 	MenuCanvas.Font = Font'VN_UI_Mega_Fonts.Font_VN_Mega_36';
 
 	if (bDrawBackground)
 	{
 		MenuCanvas.PushDepthSortPriority(DSP_SkyHigh); // If we don't do this the text will disappear when hovering over a player due to the playername
+		// The same width for every menu: the standard one, or this menu's own widest line when that is wider
+		MenuCanvas.StrLen("-----"$MENU_WIDTH_TEXT, StandardBL, BH);
 		MenuCanvas.StrLen("-----"$MenuBorderLengthString, BL, BH);
-		BL *= MenuScale;
+		BL = FMax(BL, StandardBL) * MenuScale;
 		// draw the background, from the top down to 60 (scaled) below the last line
 		MenuCanvas.SetPos(MenuX, MenuY);
 		MenuCanvas.SetDrawColorStruct(BackgroundColor);
@@ -538,6 +1189,7 @@ function DrawMenu(ROCanvas MenuCanvas, int MenuX, int MenuY, string title, array
 		Y += height; // next line
 	}
 
+	FirstLineY = Y;
 	for( i = MenuPage * ITEMS_PER_PAGE; i < Min((MenuPage+1)*ITEMS_PER_PAGE, LineText.Length); i++ )
 	{
 		MenuCanvas.SetPos(X, Y);
@@ -546,16 +1198,18 @@ function DrawMenu(ROCanvas MenuCanvas, int MenuX, int MenuY, string title, array
 		Y += height; // next line
 	}
 
+	// Next and Exit sit below a full page whatever this one holds, so every menu is the same height
+	Y = FirstLineY + ITEMS_PER_PAGE * height;
+
 	// 9. Next Page
 	if(LineText.Length > ((MenuPage+1)*ITEMS_PER_PAGE))
 	{
-		Y += height*2; // skip a line
-		MenuCanvas.SetPos(X, Y);
+		MenuCanvas.SetPos(X, Y + height*2);
 		MenuCanvas.DrawText("9. Next", false, MenuScale, MenuScale);
 	}
 
 	// 0. Exit Menu
-	Y += height*2; // skip a line
+	Y += height*4;
 	MenuCanvas.SetPos(X, Y);
 	if(MenuPage > 0)
 		MenuCanvas.DrawText("0. Previous", false, MenuScale, MenuScale);

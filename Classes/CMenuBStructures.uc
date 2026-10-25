@@ -511,7 +511,7 @@ defaultproperties
     MenuText.add("Copy Selection To Clipboard")
     MenuText.add("Remove Last Selected")
     MenuText.add("Clear Selected")
-    MenuText.add("Paste Structure From Clipboard")
+    MenuText.add("Paste Clipboard Structure")
 	MenuText.add("Copy Area To Clipboard")
 
     MenuCommand.add("SELECTMESH")

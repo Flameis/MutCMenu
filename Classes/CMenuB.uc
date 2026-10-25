@@ -22,13 +22,64 @@ var string                     		SMToPlace;
 var int 							SpawnTeamIndex, NumObjs;
 var bool							bPlacingStarted;	// An entry just picked put the menu into ReadyToPlace (see SelectLine)
 
-const ROT_MODIFIER = 2048; // 11.25 degrees
-const LOC_MODIFIER = 20; // 20 units
+// How far one key press moves or turns what is being placed. Page Up and Page Down pick a bigger or smaller step; the
+// middle one (index 3, 20 units and 11.25 degrees) is where every menu starts.
+const STEP_COUNT = 6;
+const DEFAULT_STEP = 3;
+var int StepLevel;
 
 function bool CheckExceptions(string Command)
 {
     GoToState('ReadyToPlace',, true);
     return false;
+}
+
+// Units one move key press moves the item: 1, 5, 10, 20, 50 or 100
+static function int LocStepFor(int Level)
+{
+	switch (Clamp(Level, 0, STEP_COUNT - 1))
+	{
+		case 0: return 1;
+		case 1: return 5;
+		case 2: return 10;
+		case 3: return 20;
+		case 4: return 50;
+	}
+	return 100;
+}
+
+// Unreal rotation units one turn key press turns the item: 1, 2.8, 5.6, 11.25, 22.5 or 45 degrees
+static function int RotStepFor(int Level)
+{
+	switch (Clamp(Level, 0, STEP_COUNT - 1))
+	{
+		case 0: return 182;
+		case 1: return 512;
+		case 2: return 1024;
+		case 3: return 2048;
+		case 4: return 4096;
+	}
+	return 8192;
+}
+
+// Page Up / Page Down: a bigger or smaller step for moving, raising and turning
+function ChangeStep(int Direction)
+{
+	local int NewLevel;
+
+	NewLevel = Clamp(StepLevel + Direction, 0, STEP_COUNT - 1);
+	if (NewLevel == StepLevel)
+	{
+		MessageSelf(Direction > 0 ? "Already at the biggest step: " : "Already at the smallest step: "$StepText());
+		return;
+	}
+	StepLevel = NewLevel;
+	MessageSelf("Step: "$StepText());
+}
+
+function string StepText()
+{
+	return "move "$LocStepFor(StepLevel)$" units, turn "$(RotStepFor(StepLevel) * UnrRotToDeg)$" degrees ("$(StepLevel + 1)$" of "$STEP_COUNT$")";
 }
 
 function InitializePreview()
@@ -83,6 +134,21 @@ simulated state ReadyToPlace extends MenuVisible
 
 	function bool InputKey(int ControllerId, name Key, EInputEvent EventType, float AmountDepressed = 1.f, bool bGamepad = FALSE)
 	{
+		// Mouse click mode: Alt held lets the mouse look around, and a click then places; otherwise the mouse is the menu's pointer
+		if (ClickActive())
+		{
+			if (Key == 'LeftAlt' || Key == 'RightAlt')
+			{
+				if (EventType == IE_Pressed)
+					bAltDown = true;
+				else if (EventType == IE_Released)
+					bAltDown = false;
+				return true;
+			}
+			if (Key == 'LeftMouseButton' && !bAltDown)
+				return ClickPointer(EventType);
+		}
+
         if (EventType == IE_Pressed)
         {
 			switch (Key)
@@ -99,47 +165,55 @@ simulated state ReadyToPlace extends MenuVisible
 
 				case 'Z':
 					if (SwitchRotDir)
-				    	ModifyRot.roll = ModifyRot.roll + ROT_MODIFIER;
+				    	ModifyRot.roll = ModifyRot.roll + RotStepFor(StepLevel);
 					else
-            	    	ModifyRot.roll = ModifyRot.roll - ROT_MODIFIER;
+            	    	ModifyRot.roll = ModifyRot.roll - RotStepFor(StepLevel);
 					
 					MessageSelf("Roll: " $ string(-ModifyRot.roll * UnrRotToDeg)); 
 					return true;
 
             	case 'X':
 					if (SwitchRotDir)
-				    	ModifyRot.pitch = ModifyRot.pitch + ROT_MODIFIER;
+				    	ModifyRot.pitch = ModifyRot.pitch + RotStepFor(StepLevel);
 					else
-            	    	ModifyRot.pitch = ModifyRot.pitch - ROT_MODIFIER;
+            	    	ModifyRot.pitch = ModifyRot.pitch - RotStepFor(StepLevel);
 					MessageSelf("Pitch: " $ string(-ModifyRot.pitch * UnrRotToDeg));
 					return true;
 
             	case 'C':
 					if (SwitchRotDir)
-						ModifyRot.Yaw = ModifyRot.Yaw + ROT_MODIFIER;
+						ModifyRot.Yaw = ModifyRot.Yaw + RotStepFor(StepLevel);
 					else
-            	    	ModifyRot.Yaw = ModifyRot.Yaw - ROT_MODIFIER;
+            	    	ModifyRot.Yaw = ModifyRot.Yaw - RotStepFor(StepLevel);
 					MessageSelf("Yaw: " $ string(-ModifyRot.Yaw * UnrRotToDeg));
 					return true;
 
 				case 'Up':
-            	    ModifyLoc.z = ModifyLoc.z + LOC_MODIFIER;
+            	    ModifyLoc.z = ModifyLoc.z + LocStepFor(StepLevel);
 					MessageSelf("Z: " $ string(ModifyLoc.z));
 					return true;
 
 				case 'Down':
-            	    ModifyLoc.z = ModifyLoc.z - LOC_MODIFIER;
+            	    ModifyLoc.z = ModifyLoc.z - LocStepFor(StepLevel);
 					MessageSelf("Z: " $ string(ModifyLoc.z));
 					return true;
 
 				case 'Left':
-				    ModifyLoc = ModifyLoc - (Vector(GetAimRotation()) >> rot(0, 16384, 0)) * LOC_MODIFIER;
+				    ModifyLoc = ModifyLoc - (Vector(GetAimRotation()) >> rot(0, 16384, 0)) * LocStepFor(StepLevel);
 					MessageSelf("Left: " $ string(ModifyLoc));
 					return true;
 
 				case 'Right':
-				    ModifyLoc = ModifyLoc + (Vector(GetAimRotation()) >> rot(0, 16384, 0)) * LOC_MODIFIER;
+				    ModifyLoc = ModifyLoc + (Vector(GetAimRotation()) >> rot(0, 16384, 0)) * LocStepFor(StepLevel);
 					MessageSelf("Right: " $ string(ModifyLoc));
+					return true;
+
+				case 'PageUp':
+					ChangeStep(1);
+					return true;
+
+				case 'PageDown':
+					ChangeStep(-1);
 					return true;
 
 				case 'MouseScrollUp':
@@ -400,6 +474,7 @@ simulated function HidePreviewMesh()
 defaultproperties
 {
 	bCanScale=true
+	StepLevel=3
 	ModifyTime=10
 	ModifyScale=(X=1.000000,Y=1.000000,Z=1.000000)
     GoodPlacementColour=(R=0.3,G=0.3,B=0.3,A=1.0)

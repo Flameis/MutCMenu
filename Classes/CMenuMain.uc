@@ -35,6 +35,7 @@ function bool CheckExceptions(string Command)
     {
         case "TOGGLECLICKMODE":
             MyDA.bClickModeActive = !MyDA.bClickModeActive;
+            MyDA.bClickCursorKnown = false; // a fresh start on the first line
             MessageSelf(MyDA.bClickModeActive ? "Mouse click mode enabled" : "Mouse click mode disabled");
             return true;
 

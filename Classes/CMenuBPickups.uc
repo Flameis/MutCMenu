@@ -25,7 +25,7 @@ function bool CheckExceptions(string Command)
     switch (Caps(Command))
     {
         case "CUSTOM":
-            PromptForText("Custom Pickup|--item / -i : the full name of the weapon to turn into a pickup (already typed for you, add the name)|Example: --item ROGameContent.ROWeap_Owen_SMG_Content|Older form: mutate cmenu CMenuBPickups to ROGameContent.ROWeap_Owen_SMG_Content", "mutate cmenu --menu CMenuBPickups --item ");
+            PromptForText("Custom Pickup|--item / -i : the full name of the weapon to turn into a pickup (already typed for you, add the name)|Example: --item ROGameContent.ROWeap_Owen_SMG_Content|Older form: mutate cmenu CMenuBPickups to ROGameContent.ROWeap_Owen_SMG_Content", "mutate cmenu --menu CMenuBPickups --item ", , true);
             GoToState('ReadyToPlace',, true);
             return true;
 

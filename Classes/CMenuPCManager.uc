@@ -72,8 +72,8 @@ defaultproperties
     MenuText.add("Safety Off")
     MenuText.add("Respawn")
     MenuText.add("Kill")
-    MenuText.add("Give Temporary Scrimmage Admin Powers")
-    MenuText.add("Revoke Temporary Scrimmage Admin Powers")
+    MenuText.add("Give Temp Scrim Admin")
+    MenuText.add("Revoke Temp Scrim Admin")
 
     
     MenuCommand.add("FDAO")
