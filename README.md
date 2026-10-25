@@ -23,7 +23,7 @@ CMenu is an on-screen menu for drill leaders and admins. It lets you run a drill
 2. Bind a key to the menu: `setbind F1 mutate cmenu` (use any key you like instead of F1).
 3. Press that key in game to open the menu.
 4. Press the **number keys** (top row or number pad) to pick an entry. **1 to 8** pick an entry, **9** goes to the next page and **0** goes back.
-5. Prefer the mouse? Choose **Toggle Mouse Click Mode** in the main menu. While a menu is open, a pointer appears and the mouse moves it instead of turning your view; the line under it lights up, and a left click picks it.
+5. Prefer the mouse? Choose **Toggle Mouse Click Mode** in the main menu. While a menu is open, a pointer appears and the mouse moves it instead of turning your view; the line under it lights up, and a left click picks it. Commands that need options (a grid, a team, a number) open a small form with a box for each option; leave a box blank to use the default. Hold **Alt** to look around with the mouse again (and, when you are placing something with the Builder, click to place it).
 
 Some entries need a value from you (a player name, a grid square, a time). When you pick one, the menu closes and the console opens with the command already typed and short instructions above it. The instructions name the option to type (for example `--grid E 5 kp 5`), and where the option is already typed for you, you only add the value. The older short form (for example just `E 5 kp 5`) still works and is mentioned too. Press Enter when done. A mistyped fire support command tells you what was wrong and puts the command back so you can fix it.
 
@@ -169,7 +169,18 @@ Open **Builder Menu** from the main menu. You aim at the spot you want, and conf
 | Structures | Copy buildings or whole areas you are aiming at and paste them somewhere else. Select several meshes, copy the selection, remove the last one, or clear the selection |
 | Static Meshes | Copy, paste and delete single objects. Presets: straight sandbags and an F4 Phantom. Admins also get **Toggle Collision** and **Delete Any Object** |
 | Pickups | Turn a weapon into a pickup on the ground: **Custom** (types `--item ` for you to add the weapon path) or **Copy Held Weapon** (the one in your hands) |
-| Actors | Place team spawn points (North and South), an M2 turret, a DShK turret and an ammo resupply point. **Mark Corner** and **Spawn Obj** let you draw and place a brand new capture objective of your own. Admins also get a **CTF Flag** entry for each team's flag (for example "CTF Flag: PAVN (North)"), **CTF Flag: Command Line**, **Reset Flags** and **Remove Flags** (see below). **Clear All** removes everything you placed, flags included |
+| Actors | Place team spawn points (North and South), an M2 turret, a DShK turret and an ammo resupply point. **Mark Corner** and **Spawn Obj** let you draw and place a brand new capture objective of your own. Everyone gets a **CTF Flag** entry for each team's flag (for example "CTF Flag: PAVN (North)") and **CTF Flag: Command Line**; admins also get **Reset Flags** and **Remove Flags** (see below). **Clear All** removes everything you placed, flags included |
+
+**Placing keys** (while a preview is showing; click to place it, or Alt-click in mouse click mode)
+
+| Key | What it does |
+| :--- | :--- |
+| Up / Down arrows | Raise or lower the item |
+| Left / Right arrows | Slide it sideways |
+| Z, X, C | Roll, pitch and turn (yaw) it. **Tab** reverses the direction of all three |
+| Mouse wheel | Make it bigger or smaller (not vehicles or actors) |
+| Keypad + and - | Change how long it lasts, and so its health |
+| **Page Up / Page Down** | Make each key press move and turn it by more or less. The steps are 1, 5, 10, 20 (where it starts), 50 and 100 units for moving and raising, and 1, 2.8, 5.6, 11.25 (where it starts), 22.5 and 45 degrees for turning. You are told the step each time you change it, and it is kept for the next item |
 
 **Actors in the Builder**
 - **The preview looks like what you place:** a flag shows its small pole and cloth where it will land, the resupply point shows all its crates, a turret shows that turret. Spawn points and corners are flagpoles in the game, so they preview as one.
@@ -181,14 +192,14 @@ Admins also get "Clear All Vehicles / Meshes / Pickups / Actors" entries to wipe
 
 ### Capture the Flag flags
 
-Admins can place real flags on a pole for capture the flag drills, from the Builder's Actors menu or with `mutate spawnflag`.
+Anyone can place real flags on a pole for capture the flag drills, from the Builder's Actors menu or with `mutate spawnflag`. Only admins can reset or remove them.
 
 - **Picking it up:** any player of either team picks a flag up by walking onto it. They carry it on their back, and everyone else sees it there. One flag per player.
-- **Carrier banner and drop key:** while you carry a flag, a gold banner at the top of your screen says "You are carrying the DAK flag" and which key drops it. Press **X** to drop it at once. The key does nothing else while you carry no flag. To use another key, set `DropFlagKey` under `[MutCMenu.FlagCarrierInteraction]` in `MutCMenu_Client.ini` (for example `DropFlagKey=G`).
+- **Carrier banner and drop key:** while you carry a flag, a gold banner at the top of your screen says "You are carrying the DAK flag" and which key drops it. The banner is a modest size and scales with your screen resolution. Press **X** to drop it at once. The key does nothing else while you carry no flag. To use another key, set `DropFlagKey` under `[MutCMenu.FlagCarrierInteraction]` in `MutCMenu_Client.ini` (for example `DropFlagKey=G`).
 - **Dropping it:** the carrier drops it on purpose with the drop key above or with `mutate dropflag` (you can also bind that to a key, for example `setbind G mutate dropflag`). It is thrown a short way forward. Whoever dropped it has to wait 3 seconds before they can pick it up again.
 - **It drops by itself** where the carrier dies (teamkills too), gets into a vehicle or leaves the server.
 - **It never disappears.** A flag that falls out of the map goes back to where it was placed. Every flag also goes back there when the round restarts, or when an admin uses **Reset Flags** (`mutate resetflags`).
-- **Whose flag it is:** every flag belongs to one faction, chosen when it is placed, and keeps it whoever carries it. Admins on either team can place either team's flag.
+- **Whose flag it is:** every flag belongs to one faction, chosen when it is placed, and keeps it whoever carries it. Anyone can place either team's flag, whichever team they are on.
   - `mutate spawnflag` places your own team's flag.
   - `--team` places a team's flag: `north`/`south`, `axis`/`allies`, `finnish`/`soviet` or `0`/`1`. A spectator has no team, so they must use `--team` or `--flag`.
   - `--flag` places exactly the flag you name, even if no team on the map has it (for example `mutate spawnflag --flag dak`). The names are in the table below.
@@ -240,14 +251,21 @@ Spectators normally only see players near them. With CMenu, spectators get:
 - **Triangles over players:** a small triangle in the team colour sitting just above the head of every player in view. When that player is hit, the triangle **strobes white** for about two and a half seconds, like in Arma.
 - **Warning strobe for near misses:** when bullets fly close to a player (within about 3 meters, other than their own), their triangle **strobes amber** for as long as the shots keep coming, plus a moment after, so you can see who is under fire before anyone is hurt. When they are actually hit it strobes white instead, so amber means "shots nearby" and white means "damaged". It is part of the spectator view, so `bDisableEnhancedSpectator` turns it off. Only bullets count, not shells or grenades.
 - **Death icon over the body:** someone who dies gets the game's death icon over their body instead of the triangle, fading out after a few seconds.
-- **Names when you look at someone:** the player nearest the middle of your screen shows their **name in their team colour** instead of the triangle. When that player is close (within about 40 meters), the **role icon they picked** is shown under the name in the team colour, like the base game does for friendlies. Within **15 meters** the name and role icon show **through walls and objects** too; further away, only for a player you can actually see.
-- **Hold to see every name:** hold **Left Alt** to show the name and role icon of every player on your screen at once, through walls, at any distance. Let go and it goes back to the one you look at. The camera strip at the bottom names the key ("Hold LeftAlt: every name"). Left Alt is prone for players, which a spectator doesn't use, and the game still gets the key as normal. To use another key, set `ShowNamesKey` under `[MutCMenu.CMMapInteraction]` in `MutCMenu_Client.ini` (for example `ShowNamesKey=G`).
+- **Names when you look at someone:** the player nearest the middle of your screen shows their **name in their team colour** instead of the triangle. When that player is close (within about 40 meters), the **role icon they picked** is shown under the name in the team colour, like the base game does for friendlies. Within **15 meters** the name and role icon show **through walls and objects** too; further away, only for a player you can actually see. While you hold the show-every-name key (below), the player you look at always shows their role too, however far away they are.
+- **Hold to see every name:** hold **Left Alt** to show the name and role icon of every player on your screen at once, through walls, at any distance. Let go and it goes back to the one you look at. The one you look at keeps its bigger name and role icon, at any distance. The camera strip at the bottom names the key ("Hold LeftAlt: every name"). Left Alt is prone for players, which a spectator doesn't use, and the game still gets the key as normal. To use another key, set `ShowNamesKey` under `[MutCMenu.CMMapInteraction]` in `MutCMenu_Client.ini` (for example `ShowNamesKey=G`).
 - **Camera strip:** low in the middle of the screen, a strip shows your camera mode (first person, third person, third person with a free camera, free roam or map camera), who you are watching (with their vehicle, if they are in one), and the two players "previous" goes back to and the two "next" goes on to, in their team colours. Next and previous are worked out on the server the same way the game picks them. They are left out in free roam and the map cameras, where next and previous do not go to players.
 - **The game's own name display is turned off** while you spectate, so the two do not double up, and put back when you stop spectating. Your saved setting is never changed.
-- **Bullet and shell paths (tracers):** the path of every bullet, rocket, tank shell, artillery shell, bomb and grenade is drawn in the world as a line in the colour of the team that fired it (white if it is not known), live as it happens. A new stretch burns white for a moment, then fades: bullets after about 2 seconds, grenades after 4 and shells and rockets after 5. Bullets are thin, grenades a little thicker, shells and rockets thickest. When a projectile hits something, its line runs on to the spot it hit. In a very big firefight some bullets are left out so shells and grenades always get through. Type `mutate tracers off` to turn them off for yourself and `mutate tracers on` to bring them back (they are on each time you join). Servers can turn them off for everyone with `bDisableSpectatorTracers`.
+- **Bullet and shell paths (tracers):** hold the tracers key to see the path of every bullet, rocket, tank shell, artillery shell, bomb and grenade, drawn in the world as a line in the colour of the team that fired it (white if it is not known), live as it happens. A new stretch burns white for a moment, then fades: bullets after about 2 seconds, grenades after 4 and shells and rockets after 5. Bullets are thin, grenades a little thicker, shells and rockets thickest. When a projectile hits something, its line runs on to the spot it hit. In a very big firefight some bullets are left out so shells and grenades always get through. Tracers are **off until you ask for them**, so a firefight does not cover the screen in lines.
+  - **Hold Right Control** to see them for as long as you hold it. **Hold Shift and press Right Control** to switch them on and leave them on; do the same again to switch them off. The camera strip says which key to use, and when they are on.
+  - To use another key, set `TracersKey` under `[MutCMenu.CMMapInteraction]` in `MutCMenu_Client.ini` (for example `TracersKey=G`).
+  - `mutate tracers on` and `mutate tracers off` do the same from the console.
+  - **Shots from other players' computers are shown too.** The server does not see those bullets fly (it only hears where they hit), so their paths are drawn from the gun to the first thing in the way, up to 400 meters. They do not bend for bullet drop or go through what they penetrate.
+  - **They do not wash the screen out:** lines fade as they come close to the camera, thin out when there are a lot at once, never reach full strength and glow less white when new.
+  - Servers can turn them off for everyone with `bDisableSpectatorTracers`.
 - **A clean map:** while the map is open, the names, triangles, tracers and the camera strip are hidden.
+- **No stuck map camera:** when a round ends the game swings every camera onto its panning map view, and spectators could not get out of it when the next round began. Spectators now keep their own camera through the end of a round.
 
-*How the flash, the warning strobe, death icons, empty vehicles, flags, the camera strip and the tracers look can only be checked by playing.*
+*How the flash, the warning strobe, death icons, empty vehicles, flags, the camera strip and the tracers look can only be checked by playing. The same goes for how the tracers fade.*
 
 Turn it off with `bDisableEnhancedSpectator`.
 
@@ -257,7 +275,7 @@ The game's map has room for 32 players per team. With more on a team (MaxPlayers
 
 ### Custom objectives
 
-Admins can build their own capture objectives in the Builder's **Actors** menu: stand at each corner of the area and pick **Mark Corner**, then pick **Spawn Obj** (you need at least three corners). The area can be any shape, a square, an L or a triangle. The new objective gets the next free letter, and:
+Admins can build their own capture objectives in the Builder's **Actors** menu: stand at each corner of the area and pick **Mark Corner**, then pick **Spawn Obj** (you need at least three corners). Each **Mark Corner** stands a flagpole on the spot for everyone to see, and you are told which corner it was ("Corner 2 marked") and how many more you need. Marking the same spot twice counts once. The poles are taken away when the objective is built. The area can be any shape, a square, an L or a triangle. The new objective gets the next free letter, and:
 
 - **It captures by itself, on any server.** It works in every Territories game mode, including WW2, Winter War and GOM, not only in CMenu's own game modes. Players, vehicle crews and turret gunners standing inside the area capture it, with the same rules as the map's own objectives: more people capture faster, squad mates and leaders count for more, it drains when nobody is inside, and the capturing team gets the points. Height does not matter.
 - **It matches its border.** The area you marked is the area that captures, and the border drawn on the map is that same area. Corners clicked in a crossing order (a "bow tie") are put in outline order. A corner clicked twice counts once.
@@ -267,6 +285,10 @@ Admins can build their own capture objectives in the Builder's **Actors** menu: 
 - **Admins only.** The server checks that you are an admin, and tells you if the objective could not be built (too few corners, corners too close together, or all 16 objective slots in use). `clearobjs` (or **Clear All**) removes them and frees their letters.
 
 *Tested by the test harness with the objective built in the same game; what a joined player sees (the border on their map) has not been tried in a network game.*
+
+### Names on the map
+
+Point the map cursor at a player's icon and their **name** appears next to it. Players see this for their teammates, and spectators for everyone (in the team colour). A **Player names: on/off** button in the drawing toolbar turns it off for you; the game remembers your choice. It works whether or not map drawing is on.
 
 ### Drawing on the map
 
@@ -298,6 +320,7 @@ While you drag a line, arrow, circle or box, its length, bearing or size in mete
 | Button | What it does |
 | :--- | :--- |
 | Colour row | Picks the colour: red, blue, green, yellow, orange, purple, white or black |
+| Player names | Turns the name shown when the cursor is over a player on or off |
 | Draw for | Who sees what you draw next. Click to change (see below) |
 | Undo | Takes away your newest drawing |
 | Clear mine | Takes away all of your drawings |
@@ -341,9 +364,14 @@ The map on the spawn selection screen does not show the drawings. Turn the featu
 
 - **Tank entry for everyone:** any player can climb into any tank of their team (or one nobody is in), whatever their role: Vietnam's tanks, GOM's, and WW2 and Winter War tanks. Stand close to it and face it, and an enter prompt appears with your use key (F unless you changed it); press it to get in. All the normal rules still apply: a free seat, no enemies inside, not lying down, the tank standing still. WW2 tanks only let in a role the game's own crew roles have, which no 29th role has, so even tank crew couldn't get in; Winter War tanks let in only tank crew. CMenu gets you past that for the moment of getting in only, and your role is left as it was. *Fixed:* the prompt used to show E and wait for E (the game binds the use key through a second name, "Interact"), and it never offered WW2 tanks at all.
 - **Scales with your screen:** the menu takes up the same part of the screen at any resolution. Its size is set for 1440p; at 1080p it is three quarters of that, at 4K half as big again. The clickable lines in mouse click mode scale with it.
-- **Mouse click mode:** while a menu is open the mouse moves a pointer (the same arrow the map uses) instead of the view, the line under the pointer lights up, and a left click picks it, including Next and Previous/Exit. The click does not fire your weapon. Turn it off from the main menu to get the normal mouse back. The menu draws the pointer itself, like the map tools do, so it works on Winter War, WW2 and GOM too. How it looks and feels can only be checked by playing.
+- **Same size menus:** every menu is the same width and height, so they line up and Next and Exit are always in the same place. A few long entries were shortened to fit (for example "Give Temp Scrim Admin" and "Admin Stop Map Drawing").
+- **Mouse click mode:** while a menu is open the mouse moves a pointer (the same arrow the map uses) instead of the view, the line under the pointer lights up, and a left click picks it, including Next and Previous/Exit. The pointer stays where you left it when you move to another menu. The click does not fire your weapon.
+  - **Alt to look and place:** hold **Alt** and the mouse looks around again; while you have a Builder preview up, a click with Alt held places it, and a click without Alt picks a menu line as usual. Alt does not make you go prone while the menu is open. The menu tells you when a preview is up.
+  - **Option forms:** a command that needs options (for example **Drop At Grid**, **Set Friendly Fire Modifier** or **CTF Flag: Command Line**) opens a small form instead of typing in the console. Each option has a box: click it and type. Switch options (like `--nobeam`) are buttons you click on and off. Anything left blank uses the command's default. **Run** (or Enter) sends the command, **Cancel** (or Escape) goes back, and Tab moves to the next box. The command that is sent is the same one you would have typed.
+  Turn it off from the main menu to get the normal mouse back. The menu draws the pointer itself, like the map tools do, so it works on Winter War, WW2 and GOM too. How it looks and feels can only be checked by playing.
 - **Private messages and help in the console:** short replies go to you only; long help opens in the large console.
 - **Loading mod content:** if the server turns it on, CMenu loads extra content packages (MutExtras, GOM 3 and 4, Winter War, WW2) so their weapons and vehicles can be used in the Builder and weapon menu. It switches on Winter War content by itself on Winter War maps and WW2 content on WW2 maps (it goes by the start of the map name: `WWTE`/`WWSU` for Winter War, `RRTE`/`RRSU`/`RRSK`/`DRTE`/`DRSU` for WW2).
+- **Wind for smoke:** every map gets a wind direction. If the map has none, CMenu adds one facing a random direction each time the map loads, so smoke drifts. (How the smoke looks can only be checked by playing.)
 - **Spawn points from the Builder:** custom spawn points are respected when players spawn.
 - **Its own game modes:** CMenu still lists its own Territories and Supremacy game mode entries for servers that already use them, but nothing needs them any more: custom objectives and spawn points work in whatever game mode the server runs.
 - **Experimental tank physics:** an optional setting (`bNewTankPhys`).
@@ -373,7 +401,7 @@ Commands can be typed in the console as `mutate <command> --option value` (short
 | `forcerankpatch` | Change a player's rank patch | `--player/-p`, `--rank/-r` |
 | `scrimadminlogin` / `scrimadminlogout` | Log in or out as a scrim admin | `--user/-u`, `--password/-p` |
 | `clearobjs`, `clearcorners`, `delnorthspawns`, `delsouthspawns` | Remove custom objectives, marked corners or custom spawn points | none |
-| `spawnflag` | (Admin) Places a Capture the Flag flag where you are looking: your team's flag, a team's flag with `--team`, or exactly one flag with `--flag` (see the flag table in section 5). Spectators must use `--team` or `--flag` | `--team/-t` (north, south, axis, allies, finnish, soviet, 0, 1), `--flag/-f <name>`, `--nobeam/-n` |
+| `spawnflag` | Places a Capture the Flag flag where you are looking: your team's flag, a team's flag with `--team`, or exactly one flag with `--flag` (see the flag table in section 5). Spectators must use `--team` or `--flag` | `--team/-t` (north, south, axis, allies, finnish, soviet, 0, 1), `--flag/-f <name>`, `--nobeam/-n` |
 | `dropflag` | Drops the flag you are carrying | none |
 | `resetflags` | (Admin) Sends every flag back to where it was placed | none |
 | `removeflags` | (Admin) Removes every flag | none |

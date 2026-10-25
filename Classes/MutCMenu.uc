@@ -444,7 +444,7 @@ simulated function Mutate(string mutateString, PlayerController sender)
             }
             break;
 
-        // The flag commands check for admins themselves, so a refused player is told why
+        // Anyone can place a flag; resetting and removing them check for admins themselves, so a refused player is told why
         case "SPAWNFLAG":
             SpawnFlagCommand(sender, params);
             break;
@@ -554,7 +554,7 @@ function RunWithClientLook(PlayerController Caller, string Command, bool bHit, v
 // =================================================================
 // Capture the Flag flags (CMAFlag)
 // =================================================================
-// mutate spawnflag [--team <team>] [--flag <faction>] [--nobeam] (-t, -f, -n): a flag where the sender is looking. It shows
+// mutate spawnflag [--team <team>] [--flag <faction>] [--nobeam] (-t, -f, -n): a flag where the sender is looking. Anyone can place one. It shows
 // the flag of the sender's team, the team named with --team (north/south, axis/allies, finnish/soviet or 0/1, so either
 // team's flag can be placed), or exactly the faction named with --flag. A spectator has no team, so they name one.
 function SpawnFlagCommand(PlayerController Sender, array<string> Tokens)
@@ -563,12 +563,6 @@ function SpawnFlagCommand(PlayerController Sender, array<string> Tokens)
     local rotator ViewRot;
     local string TeamText, FlagText;
     local int Team, Faction;
-
-    if (!IsAuthorized(Sender))
-    {
-        PrivateMessage(Sender, "[CMenu] Only admins can place flags");
-        return;
-    }
 
     FlagText = class'CmdOptions'.static.Get(Tokens, "flag", "f");
     if (FlagText != "")
@@ -2692,12 +2686,28 @@ function BindHelpOutput()
     }
 }
 
+// Smoke drifts with the wind, and a map without a wind direction gives it none. When the map has no wind source, one is
+// added facing a random direction (a different one each time the map loads).
+function EnsureWind()
+{
+    local WindDirectionalSource Wind;
+    local rotator Direction;
+
+    foreach AllActors(class'WindDirectionalSource', Wind)
+        return;
+
+    Direction.Yaw = Rand(65536);
+    Wind = Spawn(class'CMWindSource',,, vect(0, 0, 0), Direction);
+    `log("[CMenu] The map has no wind direction; added one facing yaw "$Direction.Yaw);
+}
+
 function LoadObjects()
 {
     local ROMapInfo               ROMI;
     local string                  WeaponName;
 
     BindHelpOutput();
+    EnsureWind();
     ROMI = ROMapInfo(WorldInfo.GetMapInfo());
 
     // Load settings object

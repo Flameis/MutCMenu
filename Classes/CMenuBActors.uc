@@ -25,9 +25,9 @@ const DSHK_RAISE = 60;
 
 function Initialize()
 {
-	// Capture the Flag flags for either team, labelled with the team's faction ("CTF Flag: DAK (Axis)"). The server checks
-	// for admins again.
-	if (bIsAuthorized && PC != None)
+	// Capture the Flag flags for either team, labelled with the team's faction ("CTF Flag: DAK (Axis)"). Anyone can place
+	// a flag; resetting and removing them is for admins (the server checks again).
+	if (PC != None)
 	{
 		MenuText.AddItem("CTF Flag: "$FlagEntry(`AXIS_TEAM_INDEX));
 		MenuText.AddItem("CTF Flag: "$FlagEntry(`ALLIES_TEAM_INDEX));
@@ -36,6 +36,9 @@ function Initialize()
 		// No preview: types the command in the console with the options explained, for flags the entries above can't make
 		MenuText.AddItem("CTF Flag: Command Line");
 		MenuCommand.AddItem("CTFFLAGCMD");
+	}
+	if (bIsAuthorized && PC != None)
+	{
 		MenuText.AddItem("Reset Flags");
 		MenuText.AddItem("Remove Flags");
 		MenuCommand.AddItem("RESETFLAGS");
@@ -187,7 +190,7 @@ function DoPlace()
 			Point2D.X = PlaceLoc.X;
 			Point2D.Y = PlaceLoc.Y;
 			Corners.AddItem(Point2D);
-			MyDA.SetCorner(PlaceLoc, PlaceRot);
+			MyDA.ServerMarkCorner(PlaceLoc, PlaceRot); // The server stands the pole up and tells you
 			return;
 
 		case "SPAWNOBJ":

@@ -4,11 +4,14 @@ var MutCMenu                     MyMut;
 
 var bool bIsAuthorized, bNewTankPhys, bLoadExtras, bLoadGOM3, bLoadGOM4, bLoadWW, bLoadWW2, bFSPlayersCanCall;
 var bool bClickModeActive;
+var vector2D ClickCursor;     // where the menus' mouse pointer was left, so the next menu opens with it there
+var bool bClickCursorKnown;
 var string TargetName;
 
 // var CMenuTextEntryScene TextEntryScene; // text-entry dialog disabled for now
 
-var array<vector2d>				Corners;
+var array<vector2d>				Corners;               // Server side: the corners this player has marked so far
+var array<CMAStaticMesh>			CornerMarkers;         // and the poles standing on them
 
 var string PendingHelp; // client-side: help received in pieces, waiting for ClientShowHelp
 var string PendingLookCommand; // server-side: the command waiting for ServerLookTarget (MutCMenu.AskClientForLook)
@@ -479,15 +482,65 @@ reliable server function ClearAllPickups()
     `log("All weapon pickups have been cleared.");
 }
 
-function SetCorner(vector PlaceLoc, rotator PlaceRot)
+// Marks one corner for an objective (or the ends of a decal): a flagpole stands there for everyone to see, and the caller is told.
+// It runs on the server. It used to run on the player's own game, where the pole could not be placed for anyone.
+reliable server function ServerMarkCorner(vector PlaceLoc, rotator PlaceRot)
 {
     local vector2d Point2d;
+    local CMAStaticMesh Marker;
+    local PlayerController PC;
+
+    PC = PlayerController(Owner);
+    if (MyMut == None || PC == None)
+        return;
 
     Point2d.x = PlaceLoc.x;
     Point2d.y = PlaceLoc.y;
-    Corners.AddItem(Point2d);
 
-    SpawnActor(class'CMAStaticMesh',,'StaticMesh', PlaceLoc, PlaceRot,,, "ENV_VN_Flags.Meshes.S_VN_Flagpole");
+    // Marking the same spot again does not count as a new corner
+    if (Corners.Length > 0 && V2DSize(Corners[Corners.Length - 1] - Point2d) < class'CMAObjective'.const.MIN_CORNER_GAP)
+    {
+        MyMut.PrivateMessage(PC, "[CMenu] That is the same spot as your last corner. Move to the next corner and mark it");
+        return;
+    }
+
+    Marker = Spawn(class'CMAStaticMesh',, 'StaticMesh', PlaceLoc, PlaceRot,, true);
+    if (Marker == None)
+    {
+        MyMut.PrivateMessage(PC, "[CMenu] The corner marker could not be placed there. Try a spot nearby");
+        return;
+    }
+    Marker.ServerSetStaticMesh(StaticMesh'ENV_VN_Flags.Meshes.S_VN_Flagpole');
+    Marker.SetCollision(false, false); // So it never gets in the way of the next corner
+    Marker.Health = 0;
+
+    Corners.AddItem(Point2d);
+    CornerMarkers.AddItem(Marker);
+
+    if (Corners.Length < class'CMAObjective'.const.MIN_CORNER_COUNT)
+        MyMut.PrivateMessage(PC, "[CMenu] Corner "$Corners.Length$" marked. Mark at least "$(class'CMAObjective'.const.MIN_CORNER_COUNT - Corners.Length)$" more, then use Spawn Objective");
+    else
+        MyMut.PrivateMessage(PC, "[CMenu] Corner "$Corners.Length$" marked. Mark more corners, or use Spawn Objective to build the objective");
+}
+
+// Takes away the corner poles and forgets the corners
+function ClearCornerMarkers()
+{
+    local int I;
+
+    for (I = 0; I < CornerMarkers.Length; I++)
+    {
+        if (CornerMarkers[I] != None)
+            CornerMarkers[I].Destroy();
+    }
+    CornerMarkers.Remove(0, CornerMarkers.Length);
+    Corners.Remove(0, Corners.Length);
+}
+
+event Destroyed()
+{
+    ClearCornerMarkers();
+    Super.Destroyed();
 }
 
 unreliable server function PlaceSpawn(
@@ -514,6 +567,9 @@ unreliable server function SpawnDecal(
     local CMADecal Decal;
 	local float Height;
 
+    if (Corners.Length < 2)
+        return;
+
     DecalLocation.x = FMin(Corners[Corners.Length-1].x, Corners[Corners.Length-2].x) + (Abs(Corners[Corners.Length-1].x - Corners[Corners.Length-2].x)/2);
 	DecalLocation.y = FMin(Corners[Corners.Length-1].y, Corners[Corners.Length-2].y) + (Abs(Corners[Corners.Length-1].y - Corners[Corners.Length-2].y)/2);
 	DecalLocation.z = DecalLocation.z;
@@ -524,7 +580,7 @@ unreliable server function SpawnDecal(
 
 	Height = V2DSize(Corners[Corners.Length-2] - Corners[Corners.Length-1]);
 
-	Corners.Remove(0, Corners.Length);
+	ClearCornerMarkers();
 
     Decal = Spawn(class'CMADecal',,, DecalLocation, DecalOrientation);
     /* Decal.DecalLocation = DecalLocation;
@@ -560,7 +616,7 @@ reliable server function ClearAllActors()
     `log("All actors have been cleared.");
 }
 
-// The Builder's Capture the Flag entries. Checked here too: anyone can open the Builder and call this
+// The Builder's Capture the Flag entries. Anyone can place a flag; only clearing them is for admins.
 reliable server function ServerPlaceFlag(vector PlaceLoc, int TeamIdx)
 {
     local PlayerController PC;
@@ -569,11 +625,6 @@ reliable server function ServerPlaceFlag(vector PlaceLoc, int TeamIdx)
     if (MyMut == None || PC == None)
         return;
 
-    if (!MyMut.IsAuthorized(PC))
-    {
-        MyMut.PrivateMessage(PC, "[CMenu] Only admins can place flags");
-        return;
-    }
     MyMut.PlaceFlag(PC, PlaceLoc, class'CMAFlag'.static.FactionForTeam(WorldInfo, TeamIdx));
 }
 
@@ -592,6 +643,10 @@ reliable server function ServerSpawnObjective(vector SpawnLocation, array<Vector
         MyMut.PrivateMessage(PC, "[CMenu] Only admins can build objectives");
         return;
     }
+
+    // The corners marked on the server are the ones that count; the list sent is for callers that never marked any
+    if (Corners.Length >= class'CMAObjective'.const.MIN_CORNER_COUNT)
+        ObjectiveCorners = Corners;
 
     if (ObjectiveCorners.Length < 3)
     {
@@ -613,6 +668,7 @@ reliable server function ServerSpawnObjective(vector SpawnLocation, array<Vector
         return;
     }
 
+    ClearCornerMarkers();
     MyMut.PrivateMessage(PC, "[CMenu] Built objective "$CMPO.ObjShortName$" ("$ObjectiveCorners.Length$" corners). Realism Match commands such as openobj and setobjnorth work on it");
 }
 
