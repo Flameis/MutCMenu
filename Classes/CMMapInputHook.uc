@@ -59,6 +59,13 @@ function bool InputKey(int ControllerId, name Key, EInputEvent EventType, float 
     if (MenuOpen())
         return false;
 
+    // A CMenu in mouse click mode has the mouse: its clicks are for its lines, even with the map open
+    for (i = 0; i < PC.Interactions.Length; i++)
+    {
+        if (CMenu(PC.Interactions[i]) != None && CMenu(PC.Interactions[i]).HasMousePointer())
+            return false;
+    }
+
     for (i = 0; i < PC.Interactions.Length; i++)
     {
         Tool = CMMapInteraction(PC.Interactions[i]);
@@ -68,7 +75,8 @@ function bool InputKey(int ControllerId, name Key, EInputEvent EventType, float 
     return false;
 }
 
-// Any open menu (UI scene) other than CMenu's own click overlay, which sits on top of the game while CMenu is open
+// Any open menu (UI scene) other than CMenu's own: CMenu is an Interaction, so a CMenu scene is never expected, but the
+// check is kept for a scene named like it
 function bool MenuOpen()
 {
     local UIScene Scene;

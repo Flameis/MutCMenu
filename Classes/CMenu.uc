@@ -5,7 +5,6 @@ var PlayerController PC;
 var DummyActor MyDA;
 // Text-entry dialog (GameUIScene) disabled for now: commands are typed into the console instead
 // var CMenuTextEntryScene TextEntryScene;
-var CMenuClickOverlayScene ClickOverlay;
 var Texture2D DefaultTexture_Black, DefaultTexture_White;
 var string PendingCmdPrefix, PendingCmdSuffix;
 
@@ -20,6 +19,10 @@ var string MenuName, TargetName, MenuBorderLengthString, LastCmd;
 var bool bIsAuthorized;
 var int MenuPage, MenuHeight;
 var float MenuScale; // From the last frame drawn; 1 until then
+// Mouse click mode: the menu keeps its own pointer, moved by the mouse and drawn by this interaction (no UI scene)
+var vector2D CursorPos;
+var float ScreenW, ScreenH; // From the last frame drawn
+var bool bCursorPlaced, bClickPressOwned;
 var array<string> MenuText, MenuCommand, PlayerList;
 var name NumberKeys[20];
 
@@ -32,11 +35,34 @@ simulated state MenuVisible
 	{
 		RestoreDefaultEntries(); // Whatever a previous opening added (admin entries, mod vehicles) is not carried over
 		Initialize();
-		RebuildClickOverlay();
+		bCursorPlaced = false;
+		bClickPressOwned = false;
 	}
 	
 	function bool InputKey( int ControllerId, name Key, EInputEvent EventType, float AmountDepressed = 1.f, bool bGamepad = FALSE )
 	{
+		local int Hit;
+
+		// Mouse click mode: the left button picks the line under the pointer. The press and its release are both
+		// taken, so the click never fires the player's weapon.
+		if (ClickActive() && Key == 'LeftMouseButton')
+		{
+			if (EventType == IE_Pressed || EventType == IE_DoubleClick)
+			{
+				bClickPressOwned = true;
+				Hit = LineAt(CursorPos.X, CursorPos.Y);
+				if (Hit != -1)
+					SelectLine(Hit);
+				return true;
+			}
+			if (EventType == IE_Released && bClickPressOwned)
+			{
+				bClickPressOwned = false;
+				return true;
+			}
+			return false;
+		}
+
 	    if(EventType == IE_Pressed )
 	    {
 			if (KeyToNumber(Key) != -1)
@@ -47,16 +73,36 @@ simulated state MenuVisible
 	    return false;
 	}
 
+	// Mouse click mode: the mouse moves the menu's pointer instead of the view
+	function bool InputAxis( int ControllerId, name Key, float Delta, float DeltaTime, optional bool bGamepad )
+	{
+		if (!ClickActive())
+			return false;
+
+		if (Key == 'MouseX')
+			CursorPos.X += Delta;
+		else if (Key == 'MouseY')
+			CursorPos.Y -= Delta; // mouse up is positive, the screen's Y grows downwards
+		else
+			return false;
+
+		KeepCursorOnScreen();
+		return true;
+	}
+
 	function PostRender(Canvas HUDCanvas)
     {
 		UpdateMenuScale(HUDCanvas.ClipY);
+		ScreenW = HUDCanvas.ClipX;
+		ScreenH = HUDCanvas.ClipY;
 	    DrawMenu(ROCanvas(HUDCanvas), 0, MENU_TOP * MenuScale, MenuName, MenuText);
+		if (ClickActive())
+			DrawClickCursor(ROCanvas(HUDCanvas));
     }
 
 	function EndState(name NextStateName)
 	{
-		if (ClickOverlay != None)
-			ClickOverlay.EnsureClosed(GetCMenuSceneClient());
+		bClickPressOwned = false;
 
 		if (NextStateName != 'ReadyToPlace')
 			RestoreDefaultEntries();
@@ -123,7 +169,7 @@ function int KeyToNumber(name InKey)
 	return -1;
 }
 
-// Takes the number pressed (via numpad key or a click-overlay button) and executes a command based on the selection list
+// Takes the number pressed (via numpad key or a mouse click) and executes a command based on the selection list
 function bool HandleInput(name Key, array<string> SelectionList)
 {
 	local int NumKey;
@@ -135,7 +181,7 @@ function bool HandleInput(name Key, array<string> SelectionList)
 	return SelectLine(NumKey);
 }
 
-// Shared by numpad input and click-overlay buttons once a 0-9 selection has been resolved
+// Shared by numpad input and mouse clicks once a 0-9 selection has been resolved
 function bool SelectLine(int NumKey)
 {
 	local int IniLine;
@@ -147,7 +193,6 @@ function bool SelectLine(int NumKey)
 	{
 		MenuPage++;
 		FindCMenuLength(); // Do this here and in BeginState() so we aren't spamming a loop every tick
-		RebuildClickOverlay();
 		return true;
 	}
 	else if(NumKey == 0)
@@ -156,7 +201,6 @@ function bool SelectLine(int NumKey)
 		{
 			MenuPage--;
 			FindCMenuLength(); // Do this here and in BeginState() so we aren't spamming a loop every tick
-			RebuildClickOverlay();
 		}
 		else
 		{
@@ -263,7 +307,7 @@ function PromptForText(string Prompt, string CommandPrefix, optional string Comm
 }
 
 /* Text-entry dialog (GameUIScene), disabled for now. Re-enable together with CMenuTextEntryScene.uc,
-// the TextEntryScene vars here and in DummyActor, and EnsureUIScenesCreated in DummyActor.
+// the TextEntryScene vars here and in DummyActor, and a function in DummyActor that creates the scene.
 
 // Opens the shared text-entry dialog; on submit, runs Prefix$EnteredText$Suffix as a console command
 function PromptForText(string Prompt, string CommandPrefix, optional string CommandSuffix)
@@ -302,66 +346,155 @@ static function float ScaleForScreenHeight(float ScreenHeight)
 	return ScreenHeight > 0 ? ScreenHeight / REFERENCE_HEIGHT : 1.0;
 }
 
-// Picks up the screen size each frame; when it changes (a new resolution), the click areas are moved to match
+// Picks up the screen size each frame; the pointer's click areas are worked out from it when they are needed
 function UpdateMenuScale(float ScreenHeight)
 {
-	local float NewScale;
-
-	NewScale = ScaleForScreenHeight(ScreenHeight);
-	if (Abs(NewScale - MenuScale) > 0.001)
-	{
-		MenuScale = NewScale;
-		RebuildClickOverlay();
-	}
+	MenuScale = ScaleForScreenHeight(ScreenHeight);
 }
 
-// Mirrors the currently visible page as mouse-clickable hit-regions; no-op unless click mode is active
-function RebuildClickOverlay()
+// True while mouse click mode is on (the main menu's Toggle Mouse Click Mode)
+function bool ClickActive()
 {
-	local int i, Count;
-	local float LineX, LineY;
-	local GameUISceneClient SceneClient;
+	return MyDA != None && MyDA.bClickModeActive;
+}
 
-	if (ClickOverlay == None || MyDA == None)
-		return;
+// True when this menu is open and has taken the mouse for its pointer; CMMapInputHook leaves the clicks to it then
+function bool HasMousePointer()
+{
+	return ClickActive() && IsInState('MenuVisible');
+}
 
-	SceneClient = GetCMenuSceneClient();
+function KeepCursorOnScreen()
+{
+	CursorPos.X = FClamp(CursorPos.X, 0, ScreenW > 0 ? ScreenW : 100000.0);
+	CursorPos.Y = FClamp(CursorPos.Y, 0, ScreenH > 0 ? ScreenH : 100000.0);
+}
 
-	if (!MyDA.bClickModeActive)
-	{
-		ClickOverlay.EnsureClosed(SceneClient);
-		return;
-	}
-
-	ClickOverlay.EnsureOpen(SceneClient, LocalPlayer(PC.Player));
-
-	// The same layout DrawMenu uses, at the same scale
-	LineX = TEXT_OFFSET * MenuScale;
-	LineY = (MENU_TOP + TEXT_OFFSET + (MenuName != "" ? LINE_HEIGHT : 0)) * MenuScale;
+// The click area of one line of the visible page: Slot 0 to ITEMS_PER_PAGE-1 are the menu lines, ITEMS_PER_PAGE is Next
+// and ITEMS_PER_PAGE+1 is Previous/Exit. False when that slot is not shown. Laid out like DrawMenu, at the same scale.
+function bool SlotRect(int Slot, out float X, out float Y, out float W, out float H)
+{
+	local int Count;
+	local float LineY;
+	local bool bNext;
 
 	Count = Min((MenuPage+1)*ITEMS_PER_PAGE, MenuCommand.Length) - (MenuPage*ITEMS_PER_PAGE);
-	for (i = 0; i < Count; i++)
+	bNext = MenuCommand.Length > ((MenuPage+1)*ITEMS_PER_PAGE);
+	X = TEXT_OFFSET * MenuScale;
+	H = LINE_HEIGHT * MenuScale;
+	LineY = (MENU_TOP + TEXT_OFFSET + (MenuName != "" ? LINE_HEIGHT : 0)) * MenuScale;
+
+	if (Slot < ITEMS_PER_PAGE)
 	{
-		ClickOverlay.PositionButton(i, LineX, LineY, 500.f * MenuScale, LINE_HEIGHT * MenuScale, Self, i+1);
-		LineY += LINE_HEIGHT * MenuScale;
-	}
-	for (i = Count; i < ITEMS_PER_PAGE; i++)
-	{
-		ClickOverlay.HideButton(i);
+		if (Slot >= Count)
+			return false;
+		Y = LineY + Slot * H;
+		W = 500.f * MenuScale;
+		return true;
 	}
 
-	if (MenuCommand.Length > ((MenuPage+1)*ITEMS_PER_PAGE)) // Next
+	LineY += Max(Count, 0) * H;
+	W = 200.f * MenuScale;
+	if (Slot == ITEMS_PER_PAGE)
 	{
-		LineY += 2 * LINE_HEIGHT * MenuScale;
-		ClickOverlay.PositionButton(ITEMS_PER_PAGE, LineX, LineY, 200.f * MenuScale, LINE_HEIGHT * MenuScale, Self, 9);
+		if (!bNext)
+			return false;
+		Y = LineY + 2 * H;
+		return true;
+	}
+
+	if (bNext)
+		LineY += 2 * H;
+	Y = LineY + 2 * H;
+	return true;
+}
+
+// The number a click at this screen position selects (1-8 lines, 9 Next, 0 Previous/Exit), or -1 for none
+function int LineAt(float PX, float PY)
+{
+	local int Slot;
+	local float X, Y, W, H;
+
+	for (Slot = 0; Slot <= ITEMS_PER_PAGE+1; Slot++)
+	{
+		if (SlotRect(Slot, X, Y, W, H) && PX >= X && PX <= X + W && PY >= Y && PY <= Y + H)
+		{
+			if (Slot < ITEMS_PER_PAGE)
+				return Slot + 1;
+			return Slot == ITEMS_PER_PAGE ? 9 : 0;
+		}
+	}
+	return -1;
+}
+
+// The pointer, and a light box on the line it is over. It is drawn by this interaction on top of the game, the way
+// CMMapInteraction draws the map tools, so it works on every game the mutator runs on.
+function DrawClickCursor(ROCanvas C)
+{
+	local int Hit, Slot;
+	local float X, Y, W, H, Size;
+	local ROHUD HUD;
+	local ROHUDWidgetComponent Pointer;
+
+	if (C == None)
+		return;
+
+	if (!bCursorPlaced)
+	{
+		// Starts on the first line, where the player is about to look
+		if (!SlotRect(0, X, Y, W, H))
+		{
+			X = TEXT_OFFSET * MenuScale;
+			Y = MENU_TOP * MenuScale;
+			W = 200.f * MenuScale;
+			H = LINE_HEIGHT * MenuScale;
+		}
+		CursorPos.X = X + W * 0.5;
+		CursorPos.Y = Y + H * 0.5;
+		bCursorPlaced = true;
+	}
+	KeepCursorOnScreen();
+
+	Hit = LineAt(CursorPos.X, CursorPos.Y);
+	if (Hit != -1)
+	{
+		Slot = (Hit == 9) ? ITEMS_PER_PAGE : (Hit == 0 ? ITEMS_PER_PAGE + 1 : Hit - 1);
+		if (SlotRect(Slot, X, Y, W, H))
+		{
+			C.PushDepthSortPriority(DSP_SkyHigh);
+			C.SetPos(X, Y);
+			C.SetDrawColor(255, 255, 255, 60);
+			C.DrawRect(W, H);
+			C.PopDepthSortPriority();
+		}
+	}
+
+	C.PushDepthSortPriority(DSP_Insane);
+	HUD = (PC != None) ? ROHUD(PC.myHUD) : None;
+	if (HUD != None && HUD.OverheadMapWidget != None && HUD.OverheadMapWidget.HUDComponents.Length > class'ROHUDWidgetOverheadMap'.const.ROOMT_MousePointer)
+		Pointer = HUD.OverheadMapWidget.HUDComponents[class'ROHUDWidgetOverheadMap'.const.ROOMT_MousePointer];
+
+	if (Pointer != None && Pointer.Tex != None)
+	{
+		// The game's own cursor, so it looks the same as on the map
+		C.SetDrawColor(255, 255, 255, 255);
+		C.SetPos(CursorPos.X, CursorPos.Y);
+		C.DrawTile(Pointer.Tex, Pointer.CurWidth > 0 ? Pointer.CurWidth : 24 * MenuScale, Pointer.CurHeight > 0 ? Pointer.CurHeight : 24 * MenuScale,
+			Pointer.UOffset, Pointer.VOffset,
+			Pointer.TexWidth > 0 ? Pointer.TexWidth : float(Pointer.Tex.SizeX), Pointer.TexHeight > 0 ? Pointer.TexHeight : float(Pointer.Tex.SizeY));
 	}
 	else
 	{
-		ClickOverlay.HideButton(ITEMS_PER_PAGE);
+		// No game cursor to borrow: a white square with a dark edge
+		Size = 12 * MenuScale;
+		C.SetDrawColor(0, 0, 0, 255);
+		C.SetPos(CursorPos.X - 2, CursorPos.Y - 2);
+		C.DrawRect(Size + 4, Size + 4);
+		C.SetDrawColor(255, 255, 255, 255);
+		C.SetPos(CursorPos.X, CursorPos.Y);
+		C.DrawRect(Size, Size);
 	}
-
-	LineY += 2 * LINE_HEIGHT * MenuScale;
-	ClickOverlay.PositionButton(ITEMS_PER_PAGE+1, LineX, LineY, 200.f * MenuScale, LINE_HEIGHT * MenuScale, Self, 0);
+	C.PopDepthSortPriority();
 }
 
 // Displays the menu based on an input list

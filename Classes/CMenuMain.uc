@@ -36,7 +36,6 @@ function bool CheckExceptions(string Command)
         case "TOGGLECLICKMODE":
             MyDA.bClickModeActive = !MyDA.bClickModeActive;
             MessageSelf(MyDA.bClickModeActive ? "Mouse click mode enabled" : "Mouse click mode disabled");
-            RebuildClickOverlay();
             return true;
 
         default:
