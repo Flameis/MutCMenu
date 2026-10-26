@@ -275,7 +275,7 @@ Spectators normally only see players near them. With CMenu, spectators get:
 
 Turn it off with `bDisableEnhancedSpectator`.
 
-**In server demos:** while the server records a demo, the hidden camera the demo is recorded from gets the spectator view too, so it goes into the demo. Someone watching the demo with the spectator camera from MutExtras or MutDemoRec gets the same view: every player on the map, the triangles, tracers and the rest. Only that one goes to the viewer, not the views of the players in the demo. *Checked that it is switched on in a played-back demo; how it looks on screen there hasn't been checked by watching.*
+**In server demos:** while the server records a demo, the hidden camera the demo is recorded from gets the spectator view too, so it goes into the demo. Someone watching the demo with MutDemoRec's spectator camera gets the same view: every player on the map, the triangles, tracers and the rest. Only that one goes to the viewer, not the views of the players in the demo. *Checked that it is switched on in a played-back demo; how it looks on screen there hasn't been checked by watching.*
 
 ### Players past 32 on a team
 
