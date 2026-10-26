@@ -97,6 +97,7 @@ function PostBeginPlay()
     super.PostBeginPlay();
     SetTimer(0.1, true, 'SendUpdates');
     SetTimer(0.25, true, 'RefreshSnapshots');
+    SetTimer(0.5, true, 'CheckDemoCamera');
     SetTimer(TRACK_STEP, true, 'TrackProjectiles');
 }
 
@@ -164,6 +165,40 @@ function RemovePlayer(Controller Exiting)
             if (Infos[i] != None && !Infos[i].bDeleteMe)
                 Infos[i].Destroy();
             Infos.Remove(i, 1);
+        }
+    }
+}
+
+// While a server demo records, its camera gets a map info like a spectator's (owned by it, so only the demo gets it):
+// the demo then carries the spectator view (every player on the map, the tracers and the rest), and a viewer watching
+// the demo gets it (CMMapInfo.bForDemo). A recording's camera goes when it stops, and so does its info.
+function CheckDemoCamera()
+{
+    local PlayerController PC;
+    local CMMapInfo Info;
+    local int i;
+
+    for (i = Infos.Length - 1; i >= 0; i--)
+    {
+        if (Infos[i] != None && Infos[i].bForDemo && (Infos[i].Owner == None || Infos[i].Owner.bDeleteMe))
+        {
+            Infos[i].Destroy();
+            Infos.Remove(i, 1);
+        }
+    }
+    if (!WorldInfo.IsRecordingDemo())
+        return;
+
+    foreach WorldInfo.AllControllers(class'PlayerController', PC)
+    {
+        if ((DemoRecSpectator(PC) != None || PC.bDemoOwner) && FindInfo(PC) == None)
+        {
+            Info = AddPlayer(PC);
+            if (Info != None)
+            {
+                Info.bForDemo = true;
+                Info.SetTracers(TracersEnabled());
+            }
         }
     }
 }

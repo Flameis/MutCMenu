@@ -176,6 +176,7 @@ struct PendingMapItem
 // Set by the server
 var bool bDrawingEnabled;    // map drawing is on for this server (bDisableMapDrawing is off)
 var bool bSpectatorOverlay;  // the spectator overlay is on (bDisableEnhancedSpectator is off)
+var bool bForDemo;           // the info of a server demo's camera: when the demo is played back, the viewer gets this one
 var bool bScrimAdmin;        // the owner is a scrim admin (a server admin, or logged in to MutCMenu as one)
 var bool bDrawingLocked;     // a scrim admin has stopped players drawing
 
@@ -200,7 +201,7 @@ replication
         bSpectating, SnapPRI, SnapLoc, SnapInfo, SnapNear, bScrimAdmin, bDrawingLocked, VehLoc, VehInfo, SpecNext, SpecPrev,
         TraceFrom, TraceTo, TraceData, TraceHead, bTracersOn;
     if (bNetInitial && Role == ROLE_Authority)
-        bDrawingEnabled, bSpectatorOverlay;
+        bDrawingEnabled, bSpectatorOverlay, bForDemo;
 }
 
 simulated function PostBeginPlay()
@@ -220,6 +221,19 @@ simulated function InstallTool()
     PC = PlayerController(Owner);
     if (PC == None && Role < ROLE_Authority)
         PC = GetALocalPlayerController();
+    // A demo being played back: only the demo camera's info is for the viewer (every player's info may be in the
+    // demo), and the viewer becomes the local player's controller a moment in (MutDemoRec or MutExtras gives it one)
+    if (WorldInfo.IsPlayingDemo())
+    {
+        if (!bForDemo)
+        {
+            ClearTimer('InstallTool');
+            return;
+        }
+        PC = GetALocalPlayerController();
+        if (PC == None || LocalPlayer(PC.Player) == None)
+            return;
+    }
     if (PC == None)
         return;
 

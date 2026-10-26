@@ -275,6 +275,8 @@ Spectators normally only see players near them. With CMenu, spectators get:
 
 Turn it off with `bDisableEnhancedSpectator`.
 
+**In server demos:** while the server records a demo, the hidden camera the demo is recorded from gets the spectator view too, so it goes into the demo. Someone watching the demo with the spectator camera from MutExtras or MutDemoRec gets the same view: every player on the map, the triangles, tracers and the rest. Only that one goes to the viewer, not the views of the players in the demo. *Checked that it is switched on in a played-back demo; how it looks on screen there hasn't been checked by watching.*
+
 ### Players past 32 on a team
 
 The game's map has room for 32 players per team. With more on a team (MaxPlayersMutator), the 33rd and later never show on their teammates' maps. CMenu shows them with the game's own icons, in the squad colour for your own squad and the team colour for the rest. Squad leaders get the squad leader icon and their "SL" label, and a player who dies stays on the map as a dead marker for a few seconds, as the game does for everyone else.
