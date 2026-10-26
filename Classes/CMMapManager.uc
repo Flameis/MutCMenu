@@ -63,11 +63,13 @@ struct TrackedShot
     var bool bSeen;
 };
 
-// A player whose shots are watched through their pawn's flash count, which goes up by one for every shot they fire
+// A player whose shots are watched through their pawn: the flash count goes up by one for a shot that flies on as a
+// bullet, and the flash location is set to where a shot hit something close (TrackHitscan)
 struct FlashWatch
 {
     var Pawn Shooter;
     var byte LastCount;
+    var vector LastFlashLoc;
     var bool bSeen;
 };
 
@@ -470,13 +472,15 @@ function int FindFlash(Pawn Shooter, int Guess)
     return INDEX_NONE;
 }
 
-// Bullets fired by players on other computers are not projectiles on the server: with client side hit detection the
-// server only learns where a shot hit, and never spawns the bullet. So their paths are rebuilt from the shots themselves:
-// every shot raises the shooter's flash count, and the path is a trace from the muzzle along the shooter's aim to the
-// first thing it meets. Penetration and bullet drop are not followed.
-// Bots and a listen server's host do fire real bullets, but one that hits something close (within about 40 meters) is
-// gone before the next look and was never seen. So their shots are rebuilt the same way when no new bullet of theirs
-// was seen in this look.
+// Shots that are never a projectile the server can follow. The game's guns fire "hybrid" shots: a short trace first (25
+// to 50 meters, by gun), and a real bullet only when that hits nothing.
+//  - A shot that hits something close is never a bullet, for anyone: the server only learns where it hit, as the
+//    shooter's flash location (their flash count doesn't change). Its path is a line from the muzzle to there.
+//  - A shot that flies on is a bullet only on the computer of the player who fired it (client side hit detection): the
+//    server only hears that they fired, as their flash count going up. Its path is a trace from the muzzle along the
+//    shooter's aim to the first thing it meets; penetration and bullet drop are not followed. Bots and a listen
+//    server's host fire real bullets the server follows, so theirs are rebuilt only when no new bullet of theirs was seen
+//    in this look.
 function TrackHitscan(out array<CMMapInfo.TraceSegment> Segs, bool bNear, bool bTracers)
 {
     local ROPawn ROP;
@@ -488,7 +492,7 @@ function TrackHitscan(out array<CMMapInfo.TraceSegment> Segs, bool bNear, bool b
     local float Range;
     local int i, Index, Guess, Traces;
     local byte Data, Team;
-    local bool bShot;
+    local bool bShot, bCloseHit;
 
     ROMI = ROMapInfo(WorldInfo.GetMapInfo());
     Range = (ROMI != None && ROMI.MaxShootingRange > 0.0) ? ROMI.MaxShootingRange : MAX_HITSCAN_RANGE;
@@ -508,6 +512,7 @@ function TrackHitscan(out array<CMMapInfo.TraceSegment> Segs, bool bNear, bool b
         {
             Watch.Shooter = ROP;
             Watch.LastCount = ROP.FlashCount;
+            Watch.LastFlashLoc = ROP.FlashLocation;
             Watch.bSeen = true;
             Flashes.AddItem(Watch);
             Guess = Flashes.Length;
@@ -515,46 +520,54 @@ function TrackHitscan(out array<CMMapInfo.TraceSegment> Segs, bool bNear, bool b
         }
         Guess = Index + 1;
 
-        // A new count is a shot. The game sets it back to 0 when the shooter stops firing, which is not a shot.
+        // A new count is a shot that flies on; a new flash location is a shot that hit something close. The game sets
+        // both back to 0 when the shooter stops firing, which is neither.
         Flashes[Index].bSeen = true;
         bShot = ROP.FlashCount != Flashes[Index].LastCount && ROP.FlashCount != 0;
+        bCloseHit = ROP.FlashLocation != Flashes[Index].LastFlashLoc && !IsZero(ROP.FlashLocation);
         Flashes[Index].LastCount = ROP.FlashCount;
+        Flashes[Index].LastFlashLoc = ROP.FlashLocation;
+        if (!bShot && !bCloseHit)
+            continue;
 
         ROW = ROWeapon(ROP.Weapon);
-        if (!bShot || ROW == None || ROW.CurrentFireMode >= ROW.WeaponFireTypes.Length
-            || ROW.CurrentFireMode >= ROW.FireModeUseClientSideHitDetection.Length)
+        if (ROW == None || !FiresBullets(ROW, bCloseHit ? ROP.FiringMode : ROW.CurrentFireMode))
             continue;
-
-        // A projectile weapon firing a bullet
-        if (ROW.WeaponFireTypes[ROW.CurrentFireMode] != EWFT_Projectile || !ClassIsChildOf(ROW.GetProjectileClass(), class'ROBullet'))
-            continue;
-        // Only bullets the server did not spawn, or did spawn but never saw: a remote player using client side hit
-        // detection, or a bot or the host whose new bullet was not seen in this look
-        if (ROP.IsLocallyControlled() ? FreshShooters.Find(ROP) != INDEX_NONE : !ROW.FireModeUseClientSideHitDetection[ROW.CurrentFireMode])
-            continue;
-
-        // Where the gun points, without a fresh random spread (the real shot's spread isn't known here)
         Origin = ROW.GetPhysicalFireStartLoc();
-        Dir = ROW.GetAdjustedAimVector(Origin, true);
-        End = Origin + Dir * Range;
 
-        // The long trace is the cost: it is only made for spectators who want tracers, or when someone could have had a
-        // near miss along the line, and only so many a look
-        if (!bTracers && !(bNear && AnyoneNear(Origin, End, ROP)))
-            continue;
-        if (Traces >= MAX_HITSCAN_TRACES)
-            continue;
-        Traces++;
-
-        Hit = Trace(HitLoc, HitNormal, End, Origin, true);
-        if (Hit == ROP)
+        if (bCloseHit)
         {
-            // Started inside the shooter: go on from there
-            Origin = HitLoc + Dir * 5.0;
-            Hit = Trace(HitLoc, HitNormal, End, Origin, true);
+            // Where it hit is known: no trace needed
+            HitLoc = ROP.FlashLocation;
         }
-        if (Hit == None)
-            HitLoc = End;
+        else
+        {
+            // A bullet the server followed has its own line
+            if (FreshShooters.Find(ROP) != INDEX_NONE)
+                continue;
+
+            // Where the gun points, without a fresh random spread (the real shot's spread isn't known here)
+            Dir = ROW.GetAdjustedAimVector(Origin, true);
+            End = Origin + Dir * Range;
+
+            // The long trace is the cost: it is only made for spectators who want tracers, or when someone could have
+            // had a near miss along the line, and only so many a look
+            if (!bTracers && !(bNear && AnyoneNear(Origin, End, ROP)))
+                continue;
+            if (Traces >= MAX_HITSCAN_TRACES)
+                continue;
+            Traces++;
+
+            Hit = Trace(HitLoc, HitNormal, End, Origin, true);
+            if (Hit == ROP)
+            {
+                // Started inside the shooter: go on from there
+                Origin = HitLoc + Dir * 5.0;
+                Hit = Trace(HitLoc, HitNormal, End, Origin, true);
+            }
+            if (Hit == None)
+                HitLoc = End;
+        }
 
         Team = ROP.GetTeamNum();
         if (Team > 1)
@@ -571,6 +584,17 @@ function TrackHitscan(out array<CMMapInfo.TraceSegment> Segs, bool bNear, bool b
         if (!Flashes[i].bSeen)
             Flashes.Remove(i, 1);
     }
+}
+
+// A gun's fire mode that shoots bullets: plain bullets, or the hybrid shot (EWFT_Custom) most of the game's guns use. Not
+// the bayonet or the butt (which also set a flash location when they hit), grenade launchers or rockets.
+function bool FiresBullets(ROWeapon ROW, byte Mode)
+{
+    if (Mode == class'ROWeapon'.const.MELEE_ATTACK_FIREMODE || Mode >= ROW.WeaponFireTypes.Length)
+        return false;
+    if (ROW.WeaponFireTypes[Mode] != EWFT_Projectile && ROW.WeaponFireTypes[Mode] != EWFT_Custom)
+        return false;
+    return ClassIsChildOf(ROW.GetProjectileClass(), class'ROBullet');
 }
 
 // Adds a segment, shells and grenades ahead of bullets, so a firefight's bullets can't crowd them out
