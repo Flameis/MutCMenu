@@ -17,6 +17,8 @@ var float                       LastFlagTime;          // Server side: when this
 
 var string PendingHelp; // client-side: help received in pieces, waiting for ClientShowHelp
 var string PendingLookCommand; // server-side: the command waiting for ServerLookTarget (MutCMenu.AskClientForLook)
+var array<string> PreloadPaths; // client-side: the mod vehicles still to load (PreloadModVehicles)
+var array<Object> Preloaded;    // and those loaded, kept for the map
 
 replication
 {
@@ -133,6 +135,35 @@ reliable server function ServerLookTarget(bool bHit, vector Target, vector Norma
         MyMut.RunWithClientLook(PlayerController(Owner), Command, bHit, Target, Normal);
 }
 
+// Each player's game loads the vehicles of the mods the server has on, a few seconds after joining and one at a time, so
+// that when one is spawned (or picked in the vehicle menu) the game doesn't stall loading it then. The server loads them
+// when the map starts (MutCMenu.LoadObjects).
+simulated function PreloadModVehicles()
+{
+    local array<string> Names;
+
+    PreloadPaths.Length = 0;
+    class'CMenuBVehicles'.static.GetModVehicles(bLoadWW2, bLoadWW, bLoadGOM3, bLoadGOM4, bLoadExtras, Names, PreloadPaths);
+    if (PreloadPaths.Length > 0)
+        SetTimer(0.25, true, 'PreloadNext');
+}
+
+simulated function PreloadNext()
+{
+    local Object O;
+
+    if (PreloadPaths.Length == 0)
+    {
+        ClearTimer('PreloadNext');
+        `log("[MutCMenu] mod vehicles loaded on this game: "$Preloaded.Length);
+        return;
+    }
+    O = DynamicLoadObject(PreloadPaths[0], class'Class', true);
+    if (O != None && Preloaded.Find(O) == INDEX_NONE)
+        Preloaded.AddItem(O);
+    PreloadPaths.Remove(0, 1);
+}
+
 reliable client function CMenuSetup()
 {
     local PlayerController PC;
@@ -172,6 +203,10 @@ reliable client function CMenuSetup()
     pc.Interactions.additem(new(pc) class'CMenuBPickups');
 
     pc.Interactions.additem(new(pc) class'CMenuWeapons');
+
+    // (the settings it goes by come in with this actor; a moment later they are surely here)
+    if (Role < ROLE_Authority)
+        SetTimer(5.0, false, 'PreloadModVehicles');
 
     TankEntry = new(pc) class'TankEntryInteraction';
     TankEntry.PC = PC;

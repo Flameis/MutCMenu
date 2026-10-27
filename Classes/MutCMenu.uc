@@ -22,6 +22,8 @@ var config bool                 bDebugStandalone;   // In a standalone (single p
 var bool                        bForceModLoads;     // bDebugStandalone is on and this is a standalone game: every bLoad option counts as on (not saved to the ini)
 var config array<string>        MutatorAdmins; // A list of all mutator admins and their passwords
 var config array<string>        ExtrasToLoad, GOM3ToLoad, GOM4ToLoad, WWToLoad, WW2ToLoad; // Lists of all the objects to load
+var array<Object>                LoadedContent;      // what LoadObjects loaded, kept for the map
+var CMTankExitFix                TankExitFix;        // puts players' bodies back after a WW2 tank, on other maps
 
 struct WeaponMapping
 {
@@ -156,6 +158,7 @@ function PreBeginPlay()
 
     MapManager = Spawn(class'CMMapManager', self);
     MapManager.Mut = self;
+    TankExitFix = Spawn(class'CMTankExitFix', self);
 }
 
 // bDebugStandalone only counts in a standalone (single player) game, never on a server
@@ -3089,87 +3092,55 @@ function EnsureWind()
 
 function LoadObjects()
 {
-    local ROMapInfo               ROMI;
-    local string                  WeaponName;
+    local array<string> Names, Paths;
+    local string Path;
+    local bool bExtras, bGOM3, bGOM4, bWW, bWW2;
 
     BindHelpOutput();
     EnsureWind();
-    ROMI = ROMapInfo(WorldInfo.GetMapInfo());
 
     // Load settings object
-    ROMI.SharedContentReferences.AddItem(class<Settings>(DynamicLoadObject("MutCMenu.MutCMenuSettings", class'Class')));
+    KeepLoaded("MutCMenu.MutCMenuSettings");
 
-    // Load extra content if enabled
-    if (bLoadExtras || bForceModLoads)
-    {
-        foreach ExtrasToLoad(WeaponName)
-        {
-            if (WeaponName == "") continue;
-            if (InStr(WeaponName, "Vehicle") != -1)
-                ROMI.SharedContentReferences.AddItem(class<ROVehicle>(DynamicLoadObject(WeaponName, class'Class'))); // Load the object
-            else if (InStr(WeaponName, "Weap") != -1 || InStr(WeaponName, "Item") != -1)
-                ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject(WeaponName, class'Class'))); // Load the object
-            else
-                ROMI.SharedContentReferences.AddItem(class<Object>(DynamicLoadObject(WeaponName, class'Class'))); // Load the object
-        }
-    }
-    // Load GOM3 content if enabled
-    if (bLoadGOM3 || bForceModLoads)
-    {
-        foreach GOM3ToLoad(WeaponName)
-        {
-            if (WeaponName == "") continue;
-            if (InStr(WeaponName, "Vehicle") != -1)
-                ROMI.SharedContentReferences.AddItem(class<ROVehicle>(DynamicLoadObject(WeaponName, class'Class'))); // Load the object
-            else if (InStr(WeaponName, "Weap") != -1 || InStr(WeaponName, "Item") != -1)
-                ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject(WeaponName, class'Class'))); // Load the object
-            else
-                ROMI.SharedContentReferences.AddItem(class<Object>(DynamicLoadObject(WeaponName, class'Class'))); // Load the object
-        }
-    }
-    // Load GOM4 content if enabled
-    if (bLoadGOM4 || bForceModLoads)
-    {
-        foreach GOM4ToLoad(WeaponName)
-        {
-            if (WeaponName == "") continue;
-            if (InStr(WeaponName, "Vehicle") != -1)
-                ROMI.SharedContentReferences.AddItem(class<ROVehicle>(DynamicLoadObject(WeaponName, class'Class'))); // Load the object
-            else if (InStr(WeaponName, "Weap") != -1 || InStr(WeaponName, "Item") != -1)
-                ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject(WeaponName, class'Class'))); // Load the object
-            else
-                ROMI.SharedContentReferences.AddItem(class<Object>(DynamicLoadObject(WeaponName, class'Class'))); // Load the object
-        }
-    }
-    // Load Winter War content if enabled
-    if (bLoadWW || bForceModLoads)
-    {
-        foreach WWToLoad(WeaponName)
-        {
-            if (WeaponName == "") continue;
-            if (InStr(WeaponName, "Vehicle") != -1)
-                ROMI.SharedContentReferences.AddItem(class<ROVehicle>(DynamicLoadObject(WeaponName, class'Class'))); // Load the object
-            else if (InStr(WeaponName, "Weap") != -1 || InStr(WeaponName, "Item") != -1)
-                ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject(WeaponName, class'Class'))); // Load the object
-            else
-                ROMI.SharedContentReferences.AddItem(class<Object>(DynamicLoadObject(WeaponName, class'Class'))); // Load the object
-        }
-    }
-    // Load WW2 content if enabled
-    if (bLoadWW2 || bForceModLoads)
-    {
-        foreach WW2ToLoad(WeaponName)
-        {
-            if (WeaponName == "") continue;
-            if (InStr(WeaponName, "Vehicle") != -1)
-                ROMI.SharedContentReferences.AddItem(class<ROVehicle>(DynamicLoadObject(WeaponName, class'Class'))); // Load the object
-            else if (InStr(WeaponName, "Weap") != -1 || InStr(WeaponName, "Item") != -1)
-                ROMI.SharedContentReferences.AddItem(class<Inventory>(DynamicLoadObject(WeaponName, class'Class'))); // Load the object
-            else
-                ROMI.SharedContentReferences.AddItem(class<Object>(DynamicLoadObject(WeaponName, class'Class'))); // Load the object
-            
-        }
-    }
+    // The mods' content that is on: the lists in the ini, and every vehicle in the vehicle menu, so spawning one doesn't
+    // stall the server while it loads (each player's game loads the vehicles too: DummyActor.PreloadModVehicles)
+    bExtras = bLoadExtras || bForceModLoads;
+    bGOM3 = bLoadGOM3 || bForceModLoads;
+    bGOM4 = bLoadGOM4 || bForceModLoads;
+    bWW = bLoadWW || bForceModLoads;
+    bWW2 = bLoadWW2 || bForceModLoads;
+    if (bExtras)
+        foreach ExtrasToLoad(Path)
+            KeepLoaded(Path);
+    if (bGOM3)
+        foreach GOM3ToLoad(Path)
+            KeepLoaded(Path);
+    if (bGOM4)
+        foreach GOM4ToLoad(Path)
+            KeepLoaded(Path);
+    if (bWW)
+        foreach WWToLoad(Path)
+            KeepLoaded(Path);
+    if (bWW2)
+        foreach WW2ToLoad(Path)
+            KeepLoaded(Path);
+    class'CMenuBVehicles'.static.GetModVehicles(bWW2, bWW, bGOM3, bGOM4, bExtras, Names, Paths);
+    foreach Paths(Path)
+        KeepLoaded(Path);
+    `log("[MutCMenu] mod content loaded: "$LoadedContent.Length$" classes");
+}
+
+// Loads a class and keeps hold of it for the map, so it isn't loaded again (or let go) when it is first used. Kept here
+// rather than in the map's shared content list, which the game empties when it sets up the roles again.
+function KeepLoaded(string Path)
+{
+    local Object O;
+
+    if (Path == "")
+        return;
+    O = DynamicLoadObject(Path, class'Class', true);
+    if (O != None && LoadedContent.Find(O) == INDEX_NONE)
+        LoadedContent.AddItem(O);
 }
 
 defaultproperties
