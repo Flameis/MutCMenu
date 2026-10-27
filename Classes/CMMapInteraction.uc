@@ -2351,16 +2351,24 @@ function bool ProjectToScreen(Canvas C, vector Loc, vector CamLoc, vector ViewDi
 }
 
 // A pawn the client can see for the player if there is one (exact position and size), none otherwise
+// Where a player is: the vehicle (or the vehicle's seat) they are in, else their own pawn. In a vehicle their own pawn is
+// hidden and stops being updated where they got in, so a name tag on it was left behind there.
 function Pawn FindPawn(PlayerController PC, PlayerReplicationInfo PRI)
 {
-    local Pawn P;
+    local Pawn P, Own;
 
     foreach PC.WorldInfo.AllPawns(class'Pawn', P)
     {
-        if (P.PlayerReplicationInfo == PRI && P.Health > 0)
+        if (P.PlayerReplicationInfo != PRI || P.Health <= 0)
+            continue;
+        if (Vehicle(P) != None)
             return P;
+        if (P.DrivenVehicle != None && !P.DrivenVehicle.bDeleteMe)
+            return P.DrivenVehicle;
+        if (Own == None)
+            Own = P;
     }
-    return None;
+    return Own;
 }
 
 function vector HeadLocation(Pawn P, vector Fallback)
