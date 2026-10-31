@@ -92,6 +92,7 @@ var int NextID;
 var bool bDrawingLocked;      // a scrim admin has stopped players drawing (until they allow it again or the map changes)
 var array<LeftOutPlayer> LeftOut;
 var array<WatchedPlayer> Watched;
+var int LastWatched;          // the Watched entry WatchPlayer last used (the players come round in the same order each look)
 var array<DeadPlayer> RecentDead;
 var array<TrackedShot> Tracked;
 var float LastTrackTime;      // when TrackProjectiles last looked: anything fired after it can't be in Tracked yet
@@ -288,11 +289,19 @@ function RefreshSnapshots()
     local array<CMMapInfo.SnapEntry> Everyone, TeamLeftOut0, TeamLeftOut1, Nobody, EmptyVehicles;
     local int i;
     local byte Team;
-    local bool bOverlay;
+    local bool bOverlay, bSpectators;
 
+    // The every-player list, hits and deaths are only worked out while someone (or a demo's camera) spectates
     bOverlay = SpectatorOverlay();
-    BuildSnapshots(Everyone, TeamLeftOut0, TeamLeftOut1);
-    if (bOverlay)
+    for (i = 0; i < Infos.Length && bOverlay && !bSpectators; i++)
+        bSpectators = IsSpectatorInfo(Infos[i]);
+    if (!bSpectators)
+    {
+        Watched.Length = 0;
+        RecentDead.Length = 0;
+    }
+    BuildSnapshots(Everyone, TeamLeftOut0, TeamLeftOut1, !bSpectators);
+    if (bSpectators)
         BuildEmptyVehicles(EmptyVehicles);
 
     for (i = Infos.Length - 1; i >= 0; i--)
@@ -426,7 +435,7 @@ function byte NearFlagFor(ROPlayerReplicationInfo PRI)
 {
     local int Index;
 
-    Index = FindWatched(PRI);
+    Index = FindWatched(PRI, LastWatched);
     return (Index != INDEX_NONE && WorldInfo.TimeSeconds < Watched[Index].NearUntil) ? 1 : 0;
 }
 
@@ -931,10 +940,13 @@ function int NextWatchable(PlayerController PC, array<PlayerReplicationInfo> Lis
     return INDEX_NONE;
 }
 
-function int FindWatched(ROPlayerReplicationInfo PRI)
+// Guess is tried first (see FindTracked)
+function int FindWatched(ROPlayerReplicationInfo PRI, optional int Guess = -1)
 {
     local int i;
 
+    if (Guess >= 0 && Guess < Watched.Length && Watched[Guess].PRI == PRI)
+        return Guess;
     for (i = 0; i < Watched.Length; i++)
     {
         if (Watched[i].PRI == PRI)
@@ -948,13 +960,14 @@ function byte WatchPlayer(ROPlayerReplicationInfo PRI, Pawn P, vector Loc, byte 
 {
     local int Index;
 
-    Index = FindWatched(PRI);
+    Index = FindWatched(PRI, LastWatched + 1);
     if (Index == INDEX_NONE)
     {
         Index = Watched.Length;
         Watched.Length = Index + 1;
         Watched[Index].PRI = PRI;
     }
+    LastWatched = Index;
 
     if (Watched[Index].LastPawn == P && P.Health < Watched[Index].LastHealth)
         Watched[Index].HurtCount = (Watched[Index].HurtCount + 1) % 4;
@@ -1007,10 +1020,10 @@ function UpdateRecentDead(out array<CMMapInfo.SnapEntry> Everyone)
     }
 }
 
-// Every living player (for spectators, empty when the overlay is off), and for each team the teammates the game's map
-// leaves out, with those who have just died
+// Every living player (for spectators, empty when the overlay is off or bNoSpectators), and for each team the teammates
+// the game's map leaves out, with those who have just died
 function BuildSnapshots(out array<CMMapInfo.SnapEntry> Everyone, out array<CMMapInfo.SnapEntry> TeamLeftOut0,
-    out array<CMMapInfo.SnapEntry> TeamLeftOut1)
+    out array<CMMapInfo.SnapEntry> TeamLeftOut1, optional bool bNoSpectators)
 {
     local Controller C;
     local ROPlayerReplicationInfo ROPRI;
@@ -1021,11 +1034,15 @@ function BuildSnapshots(out array<CMMapInfo.SnapEntry> Everyone, out array<CMMap
     local byte Team;
     local bool bOverlay;
 
-    bOverlay = SpectatorOverlay();
+    bOverlay = SpectatorOverlay() && !bNoSpectators;
     ROGRI = ROGameReplicationInfo(WorldInfo.GRI);
     Everyone.Length = 0;
     TeamLeftOut0.Length = 0;
     TeamLeftOut1.Length = 0;
+
+    // Nobody to build the every-player list for, and every player has a place on the game's own map: nothing to do
+    if (!bOverlay && LeftOut.Length == 0 && !TeamOverflows(ROGRI))
+        return;
 
     foreach WorldInfo.AllControllers(class'Controller', C)
     {
@@ -1106,6 +1123,23 @@ function BuildSnapshots(out array<CMMapInfo.SnapEntry> Everyone, out array<CMMap
         else
             TeamLeftOut1.AddItem(Entry);
     }
+}
+
+// Whether a team has more players than the game's map has places for (only then are teammates left out of it)
+function bool TeamOverflows(ROGameReplicationInfo ROGRI)
+{
+    local ROTeamInfo ROTI;
+    local int t;
+
+    if (ROGRI == None)
+        return true;
+    for (t = 0; t < 2; t++)
+    {
+        ROTI = ROTeamInfo(ROGRI.Teams[t]);
+        if (ROTI != None && ROTI.Size > ArrayCount(ROTI.TeamPRIArray))
+            return true;
+    }
+    return false;
 }
 
 // ====================================================
