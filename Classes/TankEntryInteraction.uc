@@ -13,11 +13,13 @@ var bool bPromptActive;
 var float LastUseTime;
 var ROVehicle PromptVehicle; // The tank the prompt is currently shown for
 var name UseKey;             // The player's use key, looked up when the prompt appears
+var float NextCheckTime;     // when to look for a tank again
 
 const MAX_ENTER_DIST = 400.0;
 const MAX_CONE_DIST = 550.0;  // Tanks within this range can be entered without aiming exactly at the hull
 const MIN_CONE_DOT = 0.6;
 const USE_COOLDOWN = 0.5;
+const CHECK_INTERVAL = 0.1;   // seconds between looks for a tank (a trace and a search of the tanks nearby)
 
 function ROVehicle FindEnterableTank()
 {
@@ -157,12 +159,27 @@ function name GetUseKey()
     return Names.Length > 0 ? Names[0] : 'E';
 }
 
+// Looks for a tank to offer every CHECK_INTERVAL, not every frame. Between looks the tank found is kept while the player
+// is still on foot and the tank is still there.
+function UpdatePrompt()
+{
+    if (PC.WorldInfo.TimeSeconds >= NextCheckTime)
+    {
+        NextCheckTime = PC.WorldInfo.TimeSeconds + CHECK_INTERVAL;
+        PromptVehicle = FindEnterableTank();
+    }
+    else if (PromptVehicle != none && (PromptVehicle.bDeleteMe || PromptVehicle.bDeadVehicle || ROPawn(PC.Pawn) == none))
+    {
+        PromptVehicle = none;
+    }
+}
+
 function PostRender(Canvas HUDCanvas)
 {
     local string Prompt;
     local float XL, YL;
 
-    PromptVehicle = FindEnterableTank();
+    UpdatePrompt();
     if (PromptVehicle != none && !bPromptActive)
         UseKey = GetUseKey(); // Looked up when the prompt appears, so a key rebound since is picked up
     bPromptActive = PromptVehicle != none;
