@@ -138,6 +138,7 @@ var byte SpecTeams;            // spectators: SPEC_BOTH, SPEC_NORTH or SPEC_SOUT
 var byte ArmedAction;          // a clear button clicked once, waiting for the second click; 255 for none
 var float ArmedTime;
 var array<ToolButton> Buttons; // laid out every frame; clicks use the last frame's
+var bool bStyle;               // the player turned RS2 style on in CMenu Settings (read each frame)
 var array<SentItem> Sent;
 var int NextToken;
 
@@ -1916,6 +1917,7 @@ function DrawToolbar(Canvas C, PlayerController PC)
 
     PRI = PC.PlayerReplicationInfo;
     Buttons.Length = 0;
+    bStyle = class'CMenu'.static.StyleOn(PC);
 
     BtnW = 84 * UIScale;
     BtnH = 22 * UIScale;
@@ -2023,11 +2025,21 @@ function DrawToolbar(Canvas C, PlayerController PC)
     Y += BtnH;
     PanelH = Y + Pad - PanelY;
 
-    PushLayer(C, false);
-    C.SetDrawColor(0, 0, 0, 170);
-    C.SetPos(PanelX, PanelY);
-    C.DrawTile(C.DefaultTexture, PanelW, PanelH, 0, 0, C.DefaultTexture.SizeX, C.DefaultTexture.SizeY);
-    PopLayer(C);
+    if (bStyle)
+    {
+        // The steel frame a layer below the buttons: in theirs it could be drawn over them (see PushLayer)
+        PushPriority(C, DSP_High);
+        class'CMenu'.static.DrawStyledPanel(C, PanelX, PanelY, PanelW, PanelH, 220, UIScale);
+        PopLayer(C);
+    }
+    else
+    {
+        PushLayer(C, false);
+        C.SetDrawColor(0, 0, 0, 170);
+        C.SetPos(PanelX, PanelY);
+        C.DrawTile(C.DefaultTexture, PanelW, PanelH, 0, 0, C.DefaultTexture.SizeX, C.DefaultTexture.SizeY);
+        PopLayer(C);
+    }
 
     DrawButtonLayers(C);
 
@@ -2052,6 +2064,12 @@ function DrawButtons(Canvas C, bool bTop)
     {
         bHover = bCursor && !Buttons[i].bDisabled && Mouse.X >= Buttons[i].X && Mouse.X <= Buttons[i].X + Buttons[i].W
             && Mouse.Y >= Buttons[i].Y && Mouse.Y <= Buttons[i].Y + Buttons[i].H;
+
+        if (!bTop && bStyle && Buttons[i].Action != A_COLOUR)
+        {
+            DrawStyledButton(C, Buttons[i], bHover);
+            continue;
+        }
 
         if (!bTop)
         {
@@ -2100,6 +2118,13 @@ function DrawButtons(Canvas C, bool bTop)
             continue;
 
         C.TextSize(Buttons[i].Label, XL, YL);
+        if (bStyle)
+        {
+            class'CMenu'.static.DrawShadowText(C, Buttons[i].Label, Buttons[i].X + (Buttons[i].W - XL * TextScale) * 0.5,
+                Buttons[i].Y + (Buttons[i].H - YL * TextScale) * 0.5, TextScale,
+                Buttons[i].bDisabled ? MakeColor(110, 110, 110, 255) : MakeColor(235, 235, 235, 255));
+            continue;
+        }
         if (Buttons[i].bDisabled)
             C.SetDrawColor(110, 110, 110, 255);
         else
@@ -2107,6 +2132,20 @@ function DrawButtons(Canvas C, bool bTop)
         C.SetPos(Buttons[i].X + (Buttons[i].W - XL * TextScale) * 0.5, Buttons[i].Y + (Buttons[i].H - YL * TextScale) * 0.5);
         C.DrawText(Buttons[i].Label, false, TextScale, TextScale);
     }
+}
+
+// A toolbar button in RS2 style, as one piece so nothing in its layer has to go over it: selected lit in amber from the
+// left, waiting for a second click red, under the cursor lighter, greyed out faint, otherwise the game's soft black bar
+function DrawStyledButton(Canvas C, ToolButton B, bool bHover)
+{
+    if (B.bDanger)
+        class'CMenu'.static.DrawStyled(C, class'CMenu'.const.STYLE_SOLID, B.X, B.Y, B.W, B.H, bHover ? MakeColor(240, 70, 60, 255) : MakeColor(200, 40, 35, 255));
+    else if (B.bSelected)
+        class'CMenu'.static.DrawStyled(C, class'CMenu'.const.STYLE_GLOW, B.X, B.Y, B.W, B.H, MakeColor(230, 170, 40, bHover ? 255 : 210));
+    else if (bHover)
+        class'CMenu'.static.DrawStyled(C, class'CMenu'.const.STYLE_SOLID, B.X, B.Y, B.W, B.H, MakeColor(150, 150, 150, 255));
+    else
+        class'CMenu'.static.DrawStyled(C, class'CMenu'.const.STYLE_BAR, B.X, B.Y, B.W, B.H, MakeColor(255, 255, 255, B.bDisabled ? 110 : 255));
 }
 
 // ====================================================

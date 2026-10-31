@@ -24,6 +24,10 @@ function bool CheckExceptions(string Command)
             ToggleClickMode();
             return true;
 
+        case "TOGGLECMENUSTYLE":
+            ToggleCMenuStyle();
+            return true;
+
         default:
             return false;
     }
@@ -39,6 +43,7 @@ defaultproperties
     MenuText.add("Toggle CMenu Background")
     MenuText.add("Toggle CMenu Stay")
     MenuText.add("Toggle Mouse Click Mode")
+    MenuText.add("Toggle RS2 Style")
     
     MenuCommand.add("SETCMENUCOLOR --text")
     MenuCommand.add("SETCMENUCOLOR --background")
@@ -46,4 +51,5 @@ defaultproperties
     MenuCommand.add("TOGGLECMENUBACKGROUND")
     MenuCommand.add("TOGGLECMENUSTAY")
     MenuCommand.add("TOGGLECLICKMODE")
+    MenuCommand.add("TOGGLECMENUSTYLE")
 }

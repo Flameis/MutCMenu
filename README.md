@@ -84,6 +84,12 @@ Pick a player, then choose what to do to them:
 ### CMenu Settings (everyone)
 Changes how the menu looks for you: text colour, background colour, border colour, whether the background shows, and whether the menu **stays open** after you pick something. **Toggle Mouse Click Mode** is here too (see section 7); turning it on sends you a message saying how to use it: point and click lines, fill in forms, and hold Alt to look around or use the map without picking menu lines.
 
+**Toggle RS2 Style** gives the menus the game's own look, using the game's HUD art: the menu sits in the game's steel frame, each line is on a soft dark bar like the game's own lists, the title is in capitals, and all text has a drop shadow. The line under the mouse pointer lights up in the menu's text colour, and a click anywhere on its bar picks it. The forms and the map drawing toolbar change too: the box you are typing in and the selected tool light up, Run is green and Cancel red. Your text colour is used for the title, the line numbers and the highlight; the steel frame takes the place of the border colour. Pick it again to go back to the plain look. Your choice is remembered. *How it looks can only be checked in game.*
+
+| Setting (in your client ini) | What it does |
+|---|---|
+| `bStyledUI` | On: RS2 style (what **Toggle RS2 Style** switches). Off or missing: the plain look |
+
 ### Realism Match menu (admin only)
 Controls the match system from the menu. It splits into:
 

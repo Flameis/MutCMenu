@@ -20,6 +20,11 @@ const TEXT_OFFSET = 10;
 const REFERENCE_HEIGHT = 1440.0;
 const MENU_TOP = 240;
 const LINE_HEIGHT = 50;
+
+// RS2 style pieces (see DrawStyled)
+const STYLE_BAR = 0;
+const STYLE_GLOW = 1;
+const STYLE_SOLID = 2;
 var string MenuName, TargetName, MenuBorderLengthString, LastCmd;
 var bool bIsAuthorized;
 var int MenuPage, MenuHeight;
@@ -50,6 +55,11 @@ var name NumberKeys[20];
 
 var config Color TextColor, BackgroundColor, BorderColor;
 var config bool bKeepOpen, bDrawBackground, bCMenuDebug;
+var config bool bStyledUI; // the menus, forms and map toolbar drawn with the game's own UI pieces (Toggle RS2 Style)
+
+// RS2 style: the textures the game's HUD menus use
+var Texture2D StyleBar, StyleGlow, StyleSolid, StyleFrame;
+var float StyledBarX, StyledBarW; // where last frame's line bars were, so a click anywhere on one picks it
 
 simulated state MenuVisible
 {
@@ -773,6 +783,10 @@ function DrawForm(ROCanvas C)
 	PanelH = RunY + RunH + Pad - PanelY;
 
 	// Boxes
+	if (bStyledUI)
+		DrawStyledFormBoxes(C, PanelX, PanelY, PanelW, PanelH);
+	else
+	{
 	C.PushDepthSortPriority(DSP_SkyHigh);
 	C.SetPos(PanelX, PanelY);
 	C.SetDrawColorStruct(BackgroundColor);
@@ -806,6 +820,7 @@ function DrawForm(ROCanvas C)
 	C.SetPos(CancelX, CancelY);
 	C.DrawRect(CancelW, CancelH);
 	C.PopDepthSortPriority();
+	}
 
 	// Text
 	C.PushDepthSortPriority(DSP_Insane);
@@ -872,6 +887,43 @@ function DrawForm(ROCanvas C)
 	C.TextSize("Cancel", TW, TH);
 	C.SetPos(CancelX + (CancelW - TW * LabelScale) * 0.5, CancelY + (CancelH - TH * LabelScale) * 0.5);
 	C.DrawText("Cancel", false, LabelScale, LabelScale);
+	C.PopDepthSortPriority();
+}
+
+// The form's boxes in RS2 style: the panel in the steel frame, then above it each box as one piece (so nothing in the
+// same layer has to go over it): the box being typed in lit in the menu's colour, an option switched on green, the one
+// under the pointer lighter, Run green and Cancel red
+function DrawStyledFormBoxes(ROCanvas C, float PanelX, float PanelY, float PanelW, float PanelH)
+{
+	local int i;
+	local bool bHover;
+	local color Accent;
+
+	Accent = TextColor;
+	Accent.A = 200;
+
+	C.PushDepthSortPriority(DSP_Highest);
+	DrawStyledPanel(C, PanelX, PanelY, PanelW, PanelH, Max(BackgroundColor.A, 200), MenuScale);
+	C.PopDepthSortPriority();
+
+	C.PushDepthSortPriority(DSP_SkyHigh);
+	for (i = 0; i < FormFields.Length; i++)
+	{
+		bHover = CursorPos.X >= FormFields[i].X && CursorPos.X <= FormFields[i].X + FormFields[i].W
+			&& CursorPos.Y >= FormFields[i].Y && CursorPos.Y <= FormFields[i].Y + FormFields[i].H;
+		if (i == FormFocus)
+			DrawStyled(C, STYLE_GLOW, FormFields[i].X, FormFields[i].Y, FormFields[i].W, FormFields[i].H, Accent);
+		else if (FormFields[i].bSwitch && FormFields[i].Value != "")
+			DrawStyled(C, STYLE_SOLID, FormFields[i].X, FormFields[i].Y, FormFields[i].W, FormFields[i].H, MakeColor(60, 190, 90, 255));
+		else if (bHover)
+			DrawStyled(C, STYLE_SOLID, FormFields[i].X, FormFields[i].Y, FormFields[i].W, FormFields[i].H, MakeColor(150, 150, 150, 255));
+		else
+			DrawStyled(C, STYLE_BAR, FormFields[i].X, FormFields[i].Y, FormFields[i].W, FormFields[i].H, MakeColor(255, 255, 255, 255));
+	}
+	bHover = CursorPos.X >= RunX && CursorPos.X <= RunX + RunW && CursorPos.Y >= RunY && CursorPos.Y <= RunY + RunH;
+	DrawStyled(C, STYLE_SOLID, RunX, RunY, RunW, RunH, bHover ? MakeColor(90, 230, 120, 255) : MakeColor(50, 170, 80, 255));
+	bHover = CursorPos.X >= CancelX && CursorPos.X <= CancelX + CancelW && CursorPos.Y >= CancelY && CursorPos.Y <= CancelY + CancelH;
+	DrawStyled(C, STYLE_SOLID, CancelX, CancelY, CancelW, CancelH, bHover ? MakeColor(240, 70, 60, 255) : MakeColor(190, 45, 40, 255));
 	C.PopDepthSortPriority();
 }
 
@@ -1032,12 +1084,14 @@ function bool SlotRect(int Slot, out float X, out float Y, out float W, out floa
 			return false;
 		Y = LineY + Slot * H;
 		W = 500.f * MenuScale;
+		StyledWidth(X, W);
 		return true;
 	}
 
 	// Below a full page whatever this page holds, so Next and Exit are always in the same place
 	LineY += ITEMS_PER_PAGE * H;
 	W = 200.f * MenuScale;
+	StyledWidth(X, W);
 	if (Slot == ITEMS_PER_PAGE)
 	{
 		if (!bNext)
@@ -1048,6 +1102,16 @@ function bool SlotRect(int Slot, out float X, out float Y, out float W, out floa
 
 	Y = LineY + 4 * H;
 	return true;
+}
+
+// In RS2 style every line is a bar across the menu, and a click anywhere on it picks it
+function StyledWidth(out float X, out float W)
+{
+	if (bStyledUI && StyledBarW > 0)
+	{
+		X = StyledBarX;
+		W = StyledBarW;
+	}
 }
 
 // The number a click at this screen position selects (1-8 lines, 9 Next, 0 Previous/Exit), or -1 for none
@@ -1103,7 +1167,8 @@ function DrawClickCursor(ROCanvas C, optional bool bNoHighlight)
 	KeepCursorOnScreen();
 	RememberCursor();
 
-	Hit = bNoHighlight ? -1 : LineAt(CursorPos.X, CursorPos.Y);
+	// RS2 style lights the line itself (DrawStyledMenu)
+	Hit = (bNoHighlight || bStyledUI) ? -1 : LineAt(CursorPos.X, CursorPos.Y);
 	if (Hit != -1)
 	{
 		Slot = (Hit == 9) ? ITEMS_PER_PAGE : (Hit == 0 ? ITEMS_PER_PAGE + 1 : Hit - 1);
@@ -1151,6 +1216,12 @@ function DrawMenu(ROCanvas MenuCanvas, int MenuX, int MenuY, string title, array
 {
 	local int i, key;
 	local float BL, BH, StandardBL, height, X, Y, FirstLineY;
+
+	if (bStyledUI)
+	{
+		DrawStyledMenu(MenuCanvas, MenuX, MenuY, title, LineText);
+		return;
+	}
 
 	height = LINE_HEIGHT * MenuScale;
 	key = 1;
@@ -1321,6 +1392,195 @@ function ToggleCMenuStay()
     }
 }
 
+// RS2 style on or off (CMenu Settings) for every menu, kept for next time
+function ToggleCMenuStyle()
+{
+	local int i;
+
+	bStyledUI = !bStyledUI;
+	for (i = 0; i < PC.Interactions.Length; i++)
+	{
+		if (CMenu(PC.Interactions[i]) != None)
+		{
+			CMenu(PC.Interactions[i]).bStyledUI = bStyledUI;
+			CMenu(PC.Interactions[i]).SaveConfig();
+		}
+	}
+	if (bStyledUI)
+		MessageSelf("[CMenu] RS2 style is on: the menus, forms and map drawing toolbar use the game's own look.");
+	else
+		MessageSelf("[CMenu] RS2 style is off.");
+}
+
+// Whether the player turned RS2 style on, for the map toolbar (any menu knows)
+static function bool StyleOn(PlayerController P)
+{
+	local int i;
+
+	for (i = 0; P != None && i < P.Interactions.Length; i++)
+	{
+		if (CMenu(P.Interactions[i]) != None)
+			return CMenu(P.Interactions[i]).bStyledUI;
+	}
+	return false;
+}
+
+// ====================================================
+// RS2 style
+// ====================================================
+
+// The game's own UI pieces, from the textures its HUD menus use: a list line's soft black bar (STYLE_BAR), a highlight
+// that fades out to the right (STYLE_GLOW, the kill feed's bar turned round) and a flat see-through button (STYLE_SOLID),
+// coloured by Tint
+static function DrawStyled(Canvas C, byte Kind, float X, float Y, float W, float H, color Tint)
+{
+	local Texture2D Tex;
+
+	switch (Kind)
+	{
+		case STYLE_GLOW:  Tex = default.StyleGlow; break;
+		case STYLE_SOLID: Tex = default.StyleSolid; break;
+		default:          Tex = default.StyleBar;
+	}
+	C.SetDrawColor(Tint.R, Tint.G, Tint.B, Tint.A);
+	C.SetPos(X, Y);
+	if (Tex == None)
+		C.DrawRect(W, H);
+	else if (Kind == STYLE_GLOW)
+		C.DrawTile(Tex, W, H, Tex.SizeX, 0, -Tex.SizeX, Tex.SizeY);
+	else
+		C.DrawTile(Tex, W, H, 0, 0, Tex.SizeX, Tex.SizeY);
+}
+
+// A panel in the game's steel frame, its corners kept and the rest stretched. The frame's middle is half see-through,
+// so it is drawn twice (one texture, so the canvas can't put the two in the wrong order).
+static function DrawStyledPanel(Canvas C, float X, float Y, float W, float H, byte Alpha, float Scale)
+{
+	local int i;
+
+	if (default.StyleFrame == None)
+	{
+		C.SetDrawColor(0, 0, 0, Alpha);
+		C.SetPos(X, Y);
+		C.DrawRect(W, H);
+		return;
+	}
+	for (i = 0; i < 2; i++)
+	{
+		C.SetPos(X, Y);
+		C.DrawTileStretched(default.StyleFrame, W, H, 0, 0, default.StyleFrame.SizeX, default.StyleFrame.SizeY,
+			ColorToLinearColor(MakeColor(255, 255, 255, Alpha)), true, true, FMax(0.25, Scale * 0.5));
+	}
+}
+
+// Text with a drop shadow, as the game's HUD text has
+static function DrawShadowText(Canvas C, string Text, float X, float Y, float Scale, color Col)
+{
+	local float Offset;
+
+	Offset = FMax(1.0, Round(2.0 * Scale));
+	C.SetDrawColor(0, 0, 0, Col.A);
+	C.SetPos(X + Offset, Y + Offset);
+	C.DrawText(Text, false, Scale, Scale);
+	C.SetDrawColor(Col.R, Col.G, Col.B, Col.A);
+	C.SetPos(X, Y);
+	C.DrawText(Text, false, Scale, Scale);
+}
+
+// The menu in RS2 style: a steel framed panel, each line on its own bar with its number in the menu's text colour, and
+// the line under the pointer lit in that colour. The panel, the bars and the text are each in their own layer, so none
+// is drawn over the next. Laid out as DrawMenu lays out the plain one.
+function DrawStyledMenu(ROCanvas C, int MenuX, int MenuY, string Title, array<string> LineText)
+{
+	local int i, Slot, Hover, Count;
+	local float BL, BH, StandardBL, Height, X, Y, TH, NumW, BarH, SX, SY, SW, SH;
+	local color Accent, Plain;
+	local string Num, Text;
+
+	Height = LINE_HEIGHT * MenuScale;
+	MenuHeight = MenuY + TEXT_OFFSET * MenuScale + (Title != "" ? Height : 0.0) + (ITEMS_PER_PAGE + 4) * Height;
+
+	C.Font = Font'VN_UI_Mega_Fonts.Font_VN_Mega_36';
+	C.StrLen("-----"$MENU_WIDTH_TEXT, StandardBL, BH);
+	C.StrLen("-----"$MenuBorderLengthString, BL, BH);
+	BL = FMax(BL, StandardBL) * MenuScale;
+	C.TextSize("8. ", NumW, TH);
+	NumW *= MenuScale;
+	TH *= MenuScale;
+	BarH = Height * 0.86;
+	StyledBarX = MenuX + (TEXT_OFFSET - 4) * MenuScale;
+	StyledBarW = BL - (TEXT_OFFSET - 4) * 2 * MenuScale;
+
+	Accent = TextColor;
+	Accent.A = 255;
+	Plain = MakeColor(235, 235, 235, 255);
+	Hover = -1;
+	if (ClickActive() && bCursorPlaced)
+	{
+		i = LineAt(CursorPos.X, CursorPos.Y);
+		if (i != -1)
+			Hover = (i == 9) ? ITEMS_PER_PAGE : (i == 0 ? ITEMS_PER_PAGE + 1 : i - 1);
+	}
+	X = MenuX + TEXT_OFFSET * MenuScale;
+	Y = MenuY + TEXT_OFFSET * MenuScale;
+
+	if (bDrawBackground)
+	{
+		C.PushDepthSortPriority(DSP_Highest);
+		DrawStyledPanel(C, MenuX, MenuY, BL, MenuHeight - MenuY + 60 * MenuScale, BackgroundColor.A, MenuScale);
+		C.PopDepthSortPriority();
+	}
+
+	// The bars, and a line in the menu's colour under the title
+	C.PushDepthSortPriority(DSP_SkyHigh);
+	if (Title != "")
+		DrawStyled(C, STYLE_GLOW, StyledBarX, Y + TH, StyledBarW, 3 * MenuScale, Accent);
+	for (Slot = 0; Slot <= ITEMS_PER_PAGE + 1; Slot++)
+	{
+		if (!SlotRect(Slot, SX, SY, SW, SH))
+			continue;
+		SY += (TH - BarH) * 0.5;
+		if (Slot == Hover)
+			DrawStyled(C, STYLE_GLOW, StyledBarX, SY, StyledBarW, BarH, MakeColor(Accent.R, Accent.G, Accent.B, 170));
+		else
+			DrawStyled(C, STYLE_BAR, StyledBarX, SY, StyledBarW, BarH, MakeColor(255, 255, 255, 255));
+	}
+	C.PopDepthSortPriority();
+
+	// The text: the title in capitals, each line's number in the menu's colour
+	C.PushDepthSortPriority(DSP_Insane);
+	if (Title != "")
+		DrawShadowText(C, Caps(Title), X, Y, MenuScale, Accent);
+	Count = Min((MenuPage+1)*ITEMS_PER_PAGE, LineText.Length) - MenuPage*ITEMS_PER_PAGE;
+	for (Slot = 0; Slot <= ITEMS_PER_PAGE + 1; Slot++)
+	{
+		if (!SlotRect(Slot, SX, SY, SW, SH))
+			continue;
+		if (Slot < ITEMS_PER_PAGE)
+		{
+			if (Slot >= Count)
+				continue;
+			Num = (Slot + 1)$".";
+			Text = LineText[MenuPage * ITEMS_PER_PAGE + Slot];
+		}
+		else if (Slot == ITEMS_PER_PAGE)
+		{
+			Num = "9.";
+			Text = "Next";
+		}
+		else
+		{
+			Num = "0.";
+			Text = MenuPage > 0 ? "Previous" : "Exit";
+		}
+		DrawShadowText(C, Num, X, SY, MenuScale, Accent);
+		DrawShadowText(C, Text, X + NumW, SY, MenuScale, Slot == Hover ? MakeColor(255, 255, 255, 255) : Plain);
+		if (Slot == ITEMS_PER_PAGE + 1)
+			MenuHeight = SY;
+	}
+	C.PopDepthSortPriority();
+}
+
 function SetCMenuColor(color InColor, string Type)
 {
 	if (Type ~= "Text") TextColor = InColor;
@@ -1356,6 +1616,11 @@ defaultproperties
 
 	DefaultTexture_Black=Texture2D'EngineResources.Black'
 	DefaultTexture_White=Texture2D'EngineResources.WhiteSquareTexture'
+
+	StyleBar=Texture2D'ui_textures.Textures.button_transparent'
+	StyleGlow=Texture2D'ui_textures.HUD.DeathMessage.ui_killbar_gradient'
+	StyleSolid=Texture2D'ui_textures.Textures.button_white_alpha'
+	StyleFrame=Texture2D'ui_textures.menus.ui_Steel_Frame'
 
 	//Assigns the delegate to our Input function
 	OnReceivedNativeInputKey=InputKey
