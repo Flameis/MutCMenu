@@ -94,6 +94,7 @@ var array<LeftOutPlayer> LeftOut;
 var array<WatchedPlayer> Watched;
 var array<DeadPlayer> RecentDead;
 var array<TrackedShot> Tracked;
+var float LastTrackTime;      // when TrackProjectiles last looked: anything fired after it can't be in Tracked yet
 var array<FlashWatch> Flashes;
 var array<Pawn> FreshShooters; // who fired a bullet first seen in this look
 
@@ -429,10 +430,14 @@ function byte NearFlagFor(ROPlayerReplicationInfo PRI)
     return (Index != INDEX_NONE && WorldInfo.TimeSeconds < Watched[Index].NearUntil) ? 1 : 0;
 }
 
-function int FindTracked(Projectile P)
+// The projectiles come round in the same order each look, so the entry is nearly always the one after the last found:
+// that one is tried first, and the whole list only searched when it isn't
+function int FindTracked(Projectile P, optional int Guess = -1)
 {
     local int i;
 
+    if (Guess >= 0 && Guess < Tracked.Length && Tracked[Guess].Proj == P)
+        return Guess;
     for (i = 0; i < Tracked.Length; i++)
     {
         if (Tracked[i].Proj == P)
@@ -730,7 +735,7 @@ function TrackProjectiles()
     local vector HitLoc, HitNormal, Gone;
     local float Age;
     local bool bWanted, bTracers, bNear;
-    local int i, Index;
+    local int i, Index, Guess;
 
     // Tracers go to spectators who want them; near misses are noted whenever the spectator overlay is on and someone spectates
     if (TracersEnabled())
@@ -761,13 +766,15 @@ function TrackProjectiles()
     for (i = 0; i < Tracked.Length; i++)
         Tracked[i].bSeen = false;
     FreshShooters.Length = 0;
+    Guess = 0;
 
     foreach DynamicActors(class'Projectile', P)
     {
         if (P.bDeleteMe || ROFlameProjectile(P) != None)
             continue;
 
-        Index = FindTracked(P);
+        // One fired since the last look isn't tracked yet, so it needn't be searched for
+        Index = P.CreationTime > LastTrackTime ? INDEX_NONE : FindTracked(P, Guess);
         if (Index == INDEX_NONE)
         {
             if (Tracked.Length >= MAX_TRACKED)
@@ -785,6 +792,7 @@ function TrackProjectiles()
         }
 
         Tracked[Index].bSeen = true;
+        Guess = Index + 1;
         if (bNear && ROBullet(P) != None)
             NoteNearMiss(Tracked[Index].LastLoc, P.Location, P.Instigator);
         AddSegment(Segs, Tracked[Index].LastLoc, P.Location, Tracked[Index].Data);
@@ -792,6 +800,7 @@ function TrackProjectiles()
         Tracked[Index].LastVel = P.Velocity;
     }
 
+    LastTrackTime = WorldInfo.TimeSeconds;
     TrackHitscan(Segs, bNear, bTracers);
     TrackGunships(Segs, bNear, bTracers);
 
