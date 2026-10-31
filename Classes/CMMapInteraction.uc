@@ -435,7 +435,7 @@ static function int SlotForKey(name Key)
         case 'Eight':  return 7;
         case 'Nine':   return 8;
         case 'Zero':   return 9;
-        case 'Hyphen': return 10;
+        case 'Underscore': return 10; // the engine's name for the - key
     }
     return INDEX_NONE;
 }
@@ -861,11 +861,11 @@ static function string KeyChar(name Key, bool bShifted)
         case 'SpaceBar':    return " ";
         case 'Period':      return bShifted ? ">" : ".";
         case 'Comma':       return bShifted ? "<" : ",";
-        case 'Hyphen':      return bShifted ? "_" : "-";
+        case 'Underscore':  return bShifted ? "_" : "-"; // the engine's name for the - key
         case 'Equals':      return bShifted ? "+" : "=";
         case 'Slash':       return bShifted ? "?" : "/";
         case 'Semicolon':   return bShifted ? ":" : ";";
-        case 'Apostrophe':  return bShifted ? "\"" : "'";
+        case 'Quote':       return bShifted ? "\"" : "'";
         case 'Add':         return "+";
         case 'Subtract':    return "-";
         case 'Multiply':    return "*";
@@ -1202,14 +1202,13 @@ event PostRender(Canvas C)
     UIScale = FMax(0.75, C.ClipY / 1080.0);
     C.Font = class'Engine'.static.GetSmallFont();
 
-    // Everything on the map goes in one layer, below the toolbar and the cursor (see PushLayer): drawn in whatever layer
-    // was current, markers could end up over the cursor
-    if (ROCanvas(C) != None)
-        ROCanvas(C).PushDepthSortPriority(DSP_High);
-
+    // Each kind of thing on the map in its own layer, so what must be on top always is (see PushLayer for the order)
+    PushPriority(C, DSP_High);
     if (MapIconShown(MAPICON_BORDERS))
         DrawObjectiveBorders(C, PC);
+    PopLayer(C);
 
+    PushPriority(C, DSP_Highest);
     if (Info.bDrawingEnabled)
     {
         ValidateChannel(PC.PlayerReplicationInfo);
@@ -1268,10 +1267,12 @@ event PostRender(Canvas C)
         if (bTyping)
             DrawLabel(C, WorldToScreen(TypeAt), TypeText $ "_", class'CMMapInfo'.static.GetColour(Colour), false);
     }
+    PopLayer(C);
 
-    // Players over the drawings, so a drawing never hides one. A snapshot made for the other view (just after joining a team
-    // from spectating, or the other way round, before the server's next one) is left alone: drawn as teammates, a
-    // spectator's snapshot would show the whole server.
+    // Players in the game's own player layer, over the objectives and the drawings. A snapshot made for the other view
+    // (just after joining a team from spectating, or the other way round, before the server's next one) is left alone:
+    // drawn as teammates, a spectator's snapshot would show the whole server.
+    PushPriority(C, DSP_SkyHigh);
     if (Info.bSpectating == bSpectatorView)
         DrawSnapshotOnMap(C, H, bSpectatorView);
     if (bSpectatorView && MapIconShown(MAPICON_FLAGS))
@@ -1297,7 +1298,11 @@ event PostRender(Canvas C)
         if (Hover != INDEX_NONE)
         {
             if (Tool == TOOL_ERASER || Tool == TOOL_MOVE)
+            {
+                PushPriority(C, DSP_Highest);
                 DrawItem(C, Info.Items[Hover], true);
+                PopLayer(C);
+            }
             DrawLabel(C, V2(Mouse.X + 18 * UIScale, Mouse.Y + 22 * UIScale), Info.Items[Hover].OwnerName $ " ("
                 $ class'CMMapInfo'.static.AudienceName(PC.PlayerReplicationInfo, Info.Items[Hover].Team, Info.Items[Hover].Squad) $ ")",
                 MakeColor(255, 255, 255, 255), true);
@@ -1309,8 +1314,7 @@ event PostRender(Canvas C)
     CursorComp = MapWidget.HUDComponents[class'ROHUDWidgetOverheadMap'.const.ROOMT_MousePointer];
     if (bCursor && CursorComp != None)
     {
-        if (ROCanvas(C) != None)
-            ROCanvas(C).PushDepthSortPriority(DSP_Insane);
+        PushPriority(C, DSP_Insane);
         DrawCursor(C, CursorComp);
         PopLayer(C);
     }
@@ -1410,10 +1414,15 @@ function bool DrawPlayerHover(Canvas C, PlayerController PC, ROHUD H, bool bSpec
 
 // The canvas draws everything with the same texture together, in the order each texture was first used. So text drawn
 // after a box could end up under it when the same font had been used earlier in the frame (a label typed on the map took
-// the toolbar's text with it, a marker on the map the toolbar's marker icons). The toolbar and other boxes with text on
-// them are drawn in two layers above the map (which draws in the layers up to DSP_AboveNormal): the boxes (bTop false),
-// then what goes on them (bTop true). The top layer (DSP_Insane) is left to the cursor: the game draws its own cursor
-// there, and anything else in it would be drawn over the cursor.
+// the toolbar's text with it, a marker on the map the toolbar's marker icons), and an icon drawn after a line could end
+// up under it. Whatever has to be on top of something else goes in a higher layer. From the bottom:
+//  - DSP_AboveNormal: the game's map picture and grid.
+//  - DSP_High: CMenu's objective borders, with the game's objective links and its own vehicle icons.
+//  - DSP_Highest: the game's objective areas and icons; the map drawings; the toolbar's boxes (bTop false).
+//  - DSP_SkyHigh: player, vehicle, death and flag icons, in the game's own player layer; the toolbar's text and icons
+//    (bTop true); the boxes of the labels by the cursor (see DrawLabel).
+//  - DSP_Insane: the text of the labels by the cursor, as CMenu draws its text, and the cursor (the game draws its own
+//    cursor there and this one again last).
 function PushLayer(Canvas C, bool bTop)
 {
     if (ROCanvas(C) == None)
@@ -1422,6 +1431,12 @@ function PushLayer(Canvas C, bool bTop)
         ROCanvas(C).PushDepthSortPriority(DSP_SkyHigh);
     else
         ROCanvas(C).PushDepthSortPriority(DSP_Highest);
+}
+
+function PushPriority(Canvas C, DepthSortPriority Priority)
+{
+    if (ROCanvas(C) != None)
+        ROCanvas(C).PushDepthSortPriority(Priority);
 }
 
 function PopLayer(Canvas C)
@@ -1731,13 +1746,13 @@ function DrawLabel(Canvas C, vector2D At, string Text, color Col, bool bBox)
 
     if (bBox)
     {
-        // The box and its text in the layers above the map, or the text could end up under the box (see PushLayer)
-        PushLayer(C, false);
+        // The box over the player icons and its text above that, or the text could end up under the box (see PushLayer)
+        PushPriority(C, DSP_SkyHigh);
         C.SetDrawColor(0, 0, 0, 180);
         C.SetPos(At.X - 4 * UIScale, At.Y - YL * 0.5 - 2 * UIScale);
         C.DrawTile(C.DefaultTexture, XL + 8 * UIScale, YL + 4 * UIScale, 0, 0, C.DefaultTexture.SizeX, C.DefaultTexture.SizeY);
         PopLayer(C);
-        PushLayer(C, true);
+        PushPriority(C, DSP_Insane);
     }
     else
     {
