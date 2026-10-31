@@ -1116,6 +1116,60 @@ function EraseItem(PlayerController PC, int ID)
         PrivateMessage(PC, "You can only erase your own drawings (squad leaders: your squad's, the commander: the team's).");
 }
 
+// The move tool: shifts a drawing the player may erase by DX, DY unreal units, and sends it again to everyone who sees
+// it. A refused move puts it back on the mover's map.
+function MoveItem(PlayerController PC, int ID, int DX, int DY)
+{
+    local array<vector2D> Points;
+    local CMMapInfo Info;
+    local string S;
+    local int Index, i;
+    local bool bAdmin;
+
+    Index = FindItem(ID);
+    if (PC == None || Index == INDEX_NONE)
+        return;
+
+    bAdmin = IsAdmin(PC);
+    if (!class'CMMapInfo'.static.CanErase(PC.PlayerReplicationInfo, bAdmin, Items[Index].Team, Items[Index].Squad, Items[Index].OwnerID)
+        || (bDrawingLocked && !bAdmin))
+    {
+        if (bDrawingLocked && !bAdmin)
+            PrivateMessage(PC, "An admin has turned map drawing off for players.");
+        else
+            PrivateMessage(PC, "You can only move your own drawings (squad leaders: your squad's, the commander: the team's).");
+        Info = FindInfo(PC);
+        if (Info != None)
+            ResendItem(Info, ID);
+        return;
+    }
+
+    class'CMMapInfo'.static.DecodePoints(Items[Index].Points, Points);
+    for (i = 0; i < Points.Length; i++)
+    {
+        Points[i].X += DX;
+        Points[i].Y += DY;
+        S $= class'CMMapInfo'.static.EncodePoint(Points[i]);
+    }
+    Items[Index].Points = S;
+
+    for (i = 0; i < Infos.Length; i++)
+    {
+        if (Infos[i] != None && Infos[i].LastViewerKey != -1 && CanInfoSee(Infos[i], Items[Index].Team, Items[Index].Squad, Items[Index].OwnerID))
+            ResendItem(Infos[i], ID);
+    }
+}
+
+// The player is sent a drawing again as it is now: taken off their map, then added back (removals go first)
+function ResendItem(CMMapInfo Info, int ID)
+{
+    // Not sent to them yet: it will go as it is now
+    if (Info.AddQueue.Find(ID) != INDEX_NONE)
+        return;
+    Info.RemoveQueue.AddItem(ID);
+    Info.AddQueue.AddItem(ID);
+}
+
 // Takes away the player's newest drawing
 function Undo(PlayerController PC)
 {

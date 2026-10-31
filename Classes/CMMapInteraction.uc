@@ -7,8 +7,8 @@
 //  - Teammates the map leaves out (past 32 on a team): drawn like the game's own friendly icons, squad leaders with
 //    their "SL" label, and for a few seconds after dying.
 //  - CMenu's custom objectives: their borders, in the colour of the team holding them.
-//  - Map drawings and the drawing toolbar (pen, line, arrow, circle, box, markers, text, eraser, ruler, colours, who it
-//    is for, undo and clear). It works with the game's own map cursor (ActualMouseLocation), and only takes a mouse
+//  - Map drawings and the drawing toolbar (pointer, move, pen, line, arrow, circle, box, markers, text, eraser, ruler,
+//    colours, who it is for, undo and clear), with the number keys picking the tools while the map cursor is up. It works with the game's own map cursor (ActualMouseLocation), and only takes a mouse
 //    click for itself when the click is on the toolbar or a drawing tool is picked; with the pointer tool the map works
 //    as normal. With the map cursor hidden, a left click fires (the cursor comes with T, the tactical display key).
 class CMMapInteraction extends Interaction
@@ -26,7 +26,8 @@ const TOOL_MARKER = 6;
 const TOOL_TEXT = 7;
 const TOOL_ERASER = 8;
 const TOOL_RULER = 9;
-const NUM_TOOLS = 10;
+const TOOL_MOVE = 10;
+const NUM_TOOLS = 11;
 
 // What a toolbar button does
 const A_PANEL = 0;
@@ -147,6 +148,10 @@ var bool bGameFiring; // a click with the map cursor hidden started firing, so i
 var bool bDragging;
 var array<vector2D> DragPoints;
 var vector2D LastSample;
+
+var bool bMoving;    // the move tool is dragging the drawing MoveID, picked up at MoveFrom (world units)
+var int MoveID;
+var vector2D MoveFrom;
 
 var bool bTyping, bShift;
 var string TypeText;
@@ -362,6 +367,8 @@ function bool InputKey(int ControllerId, name Key, EInputEvent EventType, option
             bPressOwned = false;
             if (bDragging)
                 FinishDrag();
+            if (bMoving)
+                FinishMove();
             return true;
         }
         return false;
@@ -370,10 +377,77 @@ function bool InputKey(int ControllerId, name Key, EInputEvent EventType, option
     if (bTyping)
         return TypeKey(Key, EventType);
 
-    if (Key == 'Escape' && bDragging && EventType == IE_Pressed)
+    // The number keys pick a tool while the map cursor is up (each button shows its key); otherwise they go to the game
+    if (bCursor && !bToolsHidden && (EventType == IE_Pressed || EventType == IE_Repeat) && SlotForKey(Key) != INDEX_NONE && !CMenuOpen())
+    {
+        SelectTool(ToolInSlot(SlotForKey(Key)));
+        return true;
+    }
+
+    if (Key == 'Escape' && (bDragging || bMoving) && EventType == IE_Pressed)
     {
         Cancel();
         return true;
+    }
+    return false;
+}
+
+// The toolbar's order, which the number keys follow: 1 to 9, then 0 and - (the keys along the top of the keyboard)
+static function byte ToolInSlot(int Slot)
+{
+    switch (Slot)
+    {
+        case 0:  return TOOL_POINTER;
+        case 1:  return TOOL_MOVE;
+        case 2:  return TOOL_PEN;
+        case 3:  return TOOL_LINE;
+        case 4:  return TOOL_ARROW;
+        case 5:  return TOOL_CIRCLE;
+        case 6:  return TOOL_BOX;
+        case 7:  return TOOL_MARKER;
+        case 8:  return TOOL_TEXT;
+        case 9:  return TOOL_ERASER;
+    }
+    return TOOL_RULER;
+}
+
+static function int SlotForKey(name Key)
+{
+    switch (Key)
+    {
+        case 'One':    return 0;
+        case 'Two':    return 1;
+        case 'Three':  return 2;
+        case 'Four':   return 3;
+        case 'Five':   return 4;
+        case 'Six':    return 5;
+        case 'Seven':  return 6;
+        case 'Eight':  return 7;
+        case 'Nine':   return 8;
+        case 'Zero':   return 9;
+        case 'Hyphen': return 10;
+    }
+    return INDEX_NONE;
+}
+
+static function string SlotKeyName(int Slot)
+{
+    if (Slot < 9)
+        return string(Slot + 1);
+    return Slot == 9 ? "0" : "-";
+}
+
+// A CMenu is up and takes the number keys for its lines
+function bool CMenuOpen()
+{
+    local PlayerController PC;
+    local int i;
+
+    PC = PlayerController(Outer);
+    for (i = 0; PC != None && i < PC.Interactions.Length; i++)
+    {
+        if (CMenu(PC.Interactions[i]) != None && (PC.Interactions[i].IsInState('MenuVisible') || PC.Interactions[i].IsInState('FormVisible')))
+            return true;
     }
     return false;
 }
@@ -444,6 +518,8 @@ function bool MousePressed()
         bPressOwned = true;
         return true;
     }
+    if (Tool == TOOL_MOVE)
+        return StartMove();
     if (Tool == TOOL_POINTER || !InMap(Mouse) || !CanDraw())
         return false;
 
@@ -471,6 +547,79 @@ function bool MousePressed()
             LastSample = Mouse;
     }
     return true;
+}
+
+// The move tool picks up the drawing under the cursor, if it is one the player may erase (their own; their squad's for a
+// squad leader, the team's for the commander, anyone's for a scrim admin). Elsewhere the click goes to the map.
+function bool StartMove()
+{
+    local int Index;
+
+    if (!InMap(Mouse) || (Info.bDrawingLocked && !Info.bScrimAdmin))
+        return false;
+    Index = PickItem(Mouse, true);
+    if (Index == INDEX_NONE)
+        return false;
+
+    bPressOwned = true;
+    bMoving = true;
+    MoveID = Info.Items[Index].ID;
+    MoveFrom = ScreenToWorld(Mouse);
+    return true;
+}
+
+// How far (world units) the drawing being moved has been taken
+function vector2D MoveOffset()
+{
+    local vector2D W;
+
+    W = ScreenToWorld(ClampToMap(Mouse));
+    return V2(W.X - MoveFrom.X, W.Y - MoveFrom.Y);
+}
+
+// A drawing as it is shown: the one being moved goes with the cursor
+function MovedCopy(out CMMapInfo.ClientMapItem Item)
+{
+    local vector2D Offset;
+    local int i;
+
+    if (!bMoving || Item.ID != MoveID)
+        return;
+    Offset = MoveOffset();
+    for (i = 0; i < Item.Points.Length; i++)
+    {
+        Item.Points[i].X += Offset.X;
+        Item.Points[i].Y += Offset.Y;
+    }
+}
+
+// Let go: the server moves it for everyone who sees it. It is moved here straight away; the server's copy replaces it.
+function FinishMove()
+{
+    local vector2D Offset;
+    local int Index;
+
+    bMoving = false;
+    Index = Info.FindItem(MoveID);
+    if (Index == INDEX_NONE)
+        return;
+    Offset = MoveOffset();
+    if (Sqrt(Square(Offset.X * ScaleY) + Square(Offset.Y * ScaleX)) < 3.0 * UIScale)
+        return;
+
+    Info.ServerMoveItem(MoveID, Round(Offset.X), Round(Offset.Y));
+    MovedLocally(Index, Round(Offset.X), Round(Offset.Y));
+}
+
+function MovedLocally(int Index, int DX, int DY)
+{
+    local int i;
+
+    for (i = 0; i < Info.Items[Index].Points.Length; i++)
+    {
+        Info.Items[Index].Points[i].X += DX;
+        Info.Items[Index].Points[i].Y += DY;
+    }
 }
 
 function bool OverPanel(vector2D S)
@@ -643,6 +792,7 @@ function SelectTool(byte NewTool)
 function Cancel()
 {
     bDragging = false;
+    bMoving = false;
     bTyping = false;
     DragPoints.Length = 0;
     TypeText = "";
@@ -1008,7 +1158,7 @@ event PostRender(Canvas C)
     local PlayerController PC;
     local ROHUD H;
     local int i, Hover;
-    local CMMapInfo.ClientMapItem Preview;
+    local CMMapInfo.ClientMapItem Preview, Shown;
     local ROHUDWidgetComponent CursorComp;
     local bool bSpectatorView, bNameHover;
 
@@ -1042,6 +1192,11 @@ event PostRender(Canvas C)
     UIScale = FMax(0.75, C.ClipY / 1080.0);
     C.Font = class'Engine'.static.GetSmallFont();
 
+    // Everything on the map goes in one layer, below the toolbar and the cursor (see PushLayer): drawn in whatever layer
+    // was current, markers could end up over the cursor
+    if (ROCanvas(C) != None)
+        ROCanvas(C).PushDepthSortPriority(DSP_High);
+
     if (MapIconShown(MAPICON_BORDERS))
         DrawObjectiveBorders(C, PC);
 
@@ -1064,12 +1219,26 @@ event PostRender(Canvas C)
                 for (i = 0; i < Info.Items.Length; i++)
                 {
                     if (Info.Items[i].Team < 2 && ItemShown(Info.Items[i], PC.PlayerReplicationInfo))
-                        DrawGlow(C, Info.Items[i], TeamColour(H, Info.Items[i].Team));
+                    {
+                        Shown = Info.Items[i];
+                        MovedCopy(Shown);
+                        DrawGlow(C, Shown, TeamColour(H, Shown.Team));
+                    }
                 }
             }
             for (i = 0; i < Info.Items.Length; i++)
             {
-                if (ItemShown(Info.Items[i], PC.PlayerReplicationInfo))
+                if (!ItemShown(Info.Items[i], PC.PlayerReplicationInfo))
+                    continue;
+                if (bMoving && Info.Items[i].ID == MoveID)
+                {
+                    // The one being moved: its outline where it was, and the drawing at the cursor
+                    DrawItem(C, Info.Items[i], true);
+                    Shown = Info.Items[i];
+                    MovedCopy(Shown);
+                    DrawItem(C, Shown, false);
+                }
+                else
                     DrawItem(C, Info.Items[i], false);
             }
             for (i = 0; i < Sent.Length; i++)
@@ -1097,6 +1266,7 @@ event PostRender(Canvas C)
         DrawSnapshotOnMap(C, H, bSpectatorView);
     if (bSpectatorView && MapIconShown(MAPICON_FLAGS))
         DrawFlagsOnMap(C, H);
+    PopLayer(C);
 
     // The name of the player under the cursor, whether or not drawing is on
     bNameHover = DrawPlayerHover(C, PC, H, bSpectatorView);
@@ -1111,12 +1281,12 @@ event PostRender(Canvas C)
     SetMapState("drawn");
 
     // Who drew what under the cursor; the eraser also shows what it would take
-    if (bCursor && !bNameHover && !bToolsHidden && !bDragging && !OverPanel(Mouse) && InMap(Mouse))
+    if (bCursor && !bNameHover && !bToolsHidden && !bDragging && !bMoving && !OverPanel(Mouse) && InMap(Mouse))
     {
-        Hover = PickItem(Mouse, Tool == TOOL_ERASER);
+        Hover = PickItem(Mouse, Tool == TOOL_ERASER || Tool == TOOL_MOVE);
         if (Hover != INDEX_NONE)
         {
-            if (Tool == TOOL_ERASER)
+            if (Tool == TOOL_ERASER || Tool == TOOL_MOVE)
                 DrawItem(C, Info.Items[Hover], true);
             DrawLabel(C, V2(Mouse.X + 18 * UIScale, Mouse.Y + 22 * UIScale), Info.Items[Hover].OwnerName $ " ("
                 $ class'CMMapInfo'.static.AudienceName(PC.PlayerReplicationInfo, Info.Items[Hover].Team, Info.Items[Hover].Squad) $ ")",
@@ -1152,7 +1322,7 @@ function bool DrawPlayerHover(Canvas C, PlayerController PC, ROHUD H, bool bSpec
     local byte BestTeam;
     local color Col;
 
-    if (bNoPlayerNames || !bCursor || bDragging || OverPanel(Mouse) || !InMap(Mouse))
+    if (bNoPlayerNames || !bCursor || bDragging || bMoving || OverPanel(Mouse) || !InMap(Mouse))
         return false;
     // A spectator who hid the players gets no names for them either
     if (bSpectatorView && !MapIconShown(MAPICON_PLAYERS))
@@ -1501,10 +1671,8 @@ function DrawMarker(Canvas C, vector2D At, byte Which, color Col, bool bHighligh
 
     if (Which == class'CMMapInfo'.const.ICON_CROSS)
     {
-        DrawSegment(C, V2(At.X - Size * 0.4, At.Y - Size * 0.4), V2(At.X + Size * 0.4, At.Y + Size * 0.4), LINE_WIDTH * UIScale + 2, Black);
-        DrawSegment(C, V2(At.X - Size * 0.4, At.Y + Size * 0.4), V2(At.X + Size * 0.4, At.Y - Size * 0.4), LINE_WIDTH * UIScale + 2, Black);
-        DrawSegment(C, V2(At.X - Size * 0.4, At.Y - Size * 0.4), V2(At.X + Size * 0.4, At.Y + Size * 0.4), LINE_WIDTH * UIScale, Col);
-        DrawSegment(C, V2(At.X - Size * 0.4, At.Y + Size * 0.4), V2(At.X + Size * 0.4, At.Y - Size * 0.4), LINE_WIDTH * UIScale, Col);
+        DrawCross(C, At, Size * 0.4, LINE_WIDTH * UIScale + 2, Black, bAnywhere);
+        DrawCross(C, At, Size * 0.4, LINE_WIDTH * UIScale, Col, bAnywhere);
         return;
     }
 
@@ -1524,6 +1692,20 @@ function DrawMarker(Canvas C, vector2D At, byte Which, color Col, bool bHighligh
     C.SetDrawColor(Col.R, Col.G, Col.B, Col.A);
     C.SetPos(At.X - Size * 0.5, At.Y - Size * 0.5);
     C.DrawTile(Tex, Size, Size, 0, 0, Tex.SizeX, Tex.SizeY);
+}
+
+// The X marker. On the map its strokes are cut to the map; the toolbar's button is off the map, where cutting them left
+// nothing, so there (bAnywhere) they aren't.
+function DrawCross(Canvas C, vector2D At, float R, float Width, color Col, bool bAnywhere)
+{
+    if (bAnywhere)
+    {
+        DrawScreenLine(C, V2(At.X - R, At.Y - R), V2(At.X + R, At.Y + R), Width, Col);
+        DrawScreenLine(C, V2(At.X - R, At.Y + R), V2(At.X + R, At.Y - R), Width, Col);
+        return;
+    }
+    DrawSegment(C, V2(At.X - R, At.Y - R), V2(At.X + R, At.Y + R), Width, Col);
+    DrawSegment(C, V2(At.X - R, At.Y + R), V2(At.X + R, At.Y - R), Width, Col);
 }
 
 // Text with a dark shadow, its left edge at At.X and its middle at At.Y. With bBox it sits on a dark box instead.
@@ -1673,6 +1855,7 @@ function string ToolName(byte Which)
         case TOOL_TEXT:   return "Text";
         case TOOL_ERASER: return "Eraser";
         case TOOL_RULER:  return "Ruler";
+        case TOOL_MOVE:   return "Move";
     }
     return "Pointer";
 }
@@ -1691,6 +1874,7 @@ function string ToolHint(PlayerController PC)
         case TOOL_MARKER:  return class'CMMapInfo'.static.IconName(Icon)$": click to place";
         case TOOL_TEXT:    return "Click, type, then Enter";
         case TOOL_ERASER:  return "Click a drawing to erase";
+        case TOOL_MOVE:    return "Drag a drawing to move it";
         case TOOL_RULER:   return "Drag to measure (only you see it)";
     }
     return "Hold left mouse and drag";
@@ -1712,10 +1896,10 @@ function DrawToolbar(Canvas C, PlayerController PC)
     PanelW = Pad * 2 + BtnW * 2 + Gap;
     Inner = PanelW - Pad * 2;
 
-    // Left of the map if there is room, otherwise inside its left edge
-    PanelX = MapLeft - PanelW - 6 * UIScale;
-    if (PanelX < 4)
-        PanelX = MapLeft + 4 * UIScale;
+    // Right of the map, out of the way of the grid letters down its left side; inside its right edge if there is no room
+    PanelX = MapLeft + MapW + 6 * UIScale;
+    if (PanelX + PanelW > C.ClipX - 4)
+        PanelX = MapLeft + MapW - PanelW - 4 * UIScale;
     PanelY = MapTop;
 
     C.Font = class'Engine'.static.GetSmallFont();
@@ -1735,12 +1919,15 @@ function DrawToolbar(Canvas C, PlayerController PC)
     AddButton(X, Y, Inner, BtnH, A_PANEL, 0, "Hide drawing tools", false);
     Y += BtnH + Gap * 3;
 
+    // In toolbar order, each with the number key that picks it
     for (i = 0; i < NUM_TOOLS; i++)
     {
-        AddButton(X + (i % 2) * (BtnW + Gap), Y, BtnW, BtnH, A_TOOL, i, ToolName(i), Tool == i);
+        AddButton(X + (i % 2) * (BtnW + Gap), Y, BtnW, BtnH, A_TOOL, ToolInSlot(i), SlotKeyName(i)$"  "$ToolName(ToolInSlot(i)), Tool == ToolInSlot(i));
         if (i % 2 == 1)
             Y += BtnH + Gap;
     }
+    if (NUM_TOOLS % 2 == 1)
+        Y += BtnH + Gap;
     Y += Gap * 2;
 
     Cell = (Inner - Gap * (class'CMMapInfo'.const.NUM_COLOURS - 1)) / class'CMMapInfo'.const.NUM_COLOURS;

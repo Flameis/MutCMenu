@@ -258,7 +258,7 @@ Spectators normally only see players near them. With CMenu, spectators get:
 - **Hold to see every name:** hold **Left Alt** to show the name and role icon of every player on your screen at once, through walls, at any distance. Let go and it goes back to the one you look at. **Hold Shift and press Left Alt** to leave every name on; do the same again to switch it off, like the tracers key. The one you look at keeps its bigger name and role icon, at any distance. The camera strip at the bottom names the key and says when every name is left on. Left Alt is prone for players, which a spectator doesn't use, and the game still gets the key as normal. To use another key, set `ShowNamesKey` under `[MutCMenu.CMMapInteraction]` in `MutCMenu_Client.ini` (for example `ShowNamesKey=G`).
 - **Camera strip:** low in the middle of the screen, a strip shows your camera mode (first person, third person, third person with a free camera, free roam or map camera), who you are watching (with their vehicle, if they are in one), and the two players "previous" goes back to and the two "next" goes on to, in their team colours. Next and previous are worked out on the server the same way the game picks them. They are left out in free roam and the map cameras, where next and previous do not go to players.
 - **The game's own name display is turned off** while you spectate, so the two do not double up, and put back when you stop spectating. Your saved setting is never changed.
-- **Bullet and shell paths (tracers):** hold the tracers key to see the path of every bullet, rocket, tank shell, artillery shell, bomb and grenade, drawn in the world as a line in the colour of the team that fired it (white if it is not known), live as it happens. A new stretch burns white for a moment, then fades: bullets after about 2 seconds, grenades after 4 and shells and rockets after 5. Bullets are thin, grenades a little thicker, shells and rockets thickest. When a projectile hits something, its line runs on to the spot it hit. In a very big firefight some bullets are left out so shells and grenades always get through. Tracers are **off until you ask for them**, so a firefight does not cover the screen in lines.
+- **Bullet and shell paths (tracers):** hold the tracers key to see the path of every bullet, rocket, tank shell, artillery shell, bomb and grenade, drawn in the world as a line in the colour of the team that fired it (white if it is not known), live as it happens. Artillery, mortars, rockets, bombs and napalm (the commander's and CMenu's fire support) are in the colour of the team that called them in, even when the caller was a spectator or an admin calling for the other team. The **AC-47 gunship's** fire shows too: while it fires, lines run from the plane into its target area (the game only shows those shots as an effect, so they are drawn from the plane to where it is shooting rather than shot by shot). A new stretch burns white for a moment, then fades: bullets after about 2 seconds, grenades after 4 and shells and rockets after 5. Bullets are thin, grenades a little thicker, shells and rockets thickest. When a projectile hits something, its line runs on to the spot it hit. In a very big firefight some bullets are left out so shells and grenades always get through. Tracers are **off until you ask for them**, so a firefight does not cover the screen in lines.
   - **Hold Right Control** to see them for as long as you hold it. **Hold Shift and press Right Control** to switch them on and leave them on; do the same again to switch them off. The camera strip says which key to use, and when they are on.
   - To use another key, set `TracersKey` under `[MutCMenu.CMMapInteraction]` in `MutCMenu_Client.ini` (for example `TracersKey=G`).
   - `mutate tracers on` and `mutate tracers off` do the same from the console.
@@ -304,7 +304,9 @@ Point the map cursor at a player's icon and their **name** appears next to it. P
 
 Anyone can draw on the overhead map, like the map tools in Arma or Squad. Whatever you draw is sent to the players it is for, and they see it on their own map straight away. Players who join later get everything that is already drawn.
 
-**Opening the tools:** open the overhead map and press **T** (the game's tactical display key, or whatever you bound it to) to show the map cursor; press it again to hide it. A **toolbar** appears to the left of the map. "Hide drawing tools" folds it away to one small button; the game remembers which you chose.
+**Opening the tools:** open the overhead map and press **T** (the game's tactical display key, or whatever you bound it to) to show the map cursor; press it again to hide it. A **toolbar** appears to the right of the map, clear of the grid letters down the left side (on a narrow screen it sits just inside the map's right edge). "Hide drawing tools" folds it away to one small button; the game remembers which you chose.
+
+**Picking a tool with the keyboard:** while the map cursor is up, the keys along the top of the keyboard pick the tools, in the order they are on the toolbar: **1** Pointer, **2** Move, **3** Pen, **4** Line, **5** Arrow, **6** Circle, **7** Box, **8** Marker, **9** Text, **0** Eraser and **-** (minus) Ruler. Each button shows its key. With the cursor hidden (or a CMenu open, or while typing a label) the keys work as normal, so you can still change weapons with the map open.
 
 **Shooting with the map open:** while the map cursor is hidden, the left mouse button fires as normal. (Without CMenu, a click with the map open only shows the cursor.)
 
@@ -313,12 +315,13 @@ Anyone can draw on the overhead map, like the map tools in Arma or Squad. Whatev
 | Tool | How to use it |
 | :--- | :--- |
 | Pointer | The map works as normal (squad leader orders, the commander's map clicks). Pick this when you are not drawing |
+| Move | Hold the left mouse button on a drawing and drag it somewhere else. It moves for everyone who sees it. You can move the drawings you could erase (see "Who can erase what"). The drawing is highlighted when the cursor is over one you can move |
 | Pen | Hold the left mouse button and draw freehand |
 | Line | Hold and drag a straight line |
 | Arrow | Hold and drag a line with an arrow head where you let go, for movement and attacks |
 | Circle | Hold on the centre and drag out to the edge |
 | Box | Hold on one corner and drag to the other |
-| Marker | Click to place the marker picked below the colours: attack, defend, rally, enemy, enemy armour, enemy vehicle, enemy helicopter, artillery target, landing zone, X or a point. They use the game's own map icons |
+| Marker | Click to place the marker picked below the colours: attack, defend, rally, enemy, enemy armour, enemy vehicle, enemy helicopter, artillery target, landing zone, X or a point. They use the game's own map icons. (The X was missing from the toolbar's marker buttons; it is back.) |
 | Text | Click where the label goes, type it (up to 40 characters), press Enter. Escape cancels |
 | Eraser | Click a drawing to erase it. The drawing it would take is highlighted first |
 | Ruler | Drag to measure distance in meters and the compass bearing. Only you see it |
@@ -356,7 +359,7 @@ While you drag a line, arrow, circle or box, its length, bearing or size in mete
 
 **Spectators can tell the teams apart:** a spectator sees both teams' drawings, each with a soft edge in the colour of the team it was drawn for (a wider line under lines and shapes, a square under markers, a box under text).
 
-**Toolbar text and markers no longer vanish:** typing a label on the map, or placing a marker, used to make the toolbar's text or its marker icons disappear, because the game drew them under the buttons. The toolbar is now drawn in its own layers above the map, and the map cursor above the toolbar, its text and its marker icons. *This can only be checked by playing.*
+**Toolbar text and markers no longer vanish:** typing a label on the map, or placing a marker, used to make the toolbar's text or its marker icons disappear, because the game drew them under the buttons. The toolbar is now drawn in its own layers above the map, and the map cursor above the toolbar, its text and its marker icons. The drawings, markers and player icons on the map go in a layer below the toolbar and the cursor, so the cursor is always drawn on top of them. *This can only be checked by playing.*
 
 **If the toolbar doesn't appear:** the game's log (`ROGame\Logs\Launch.log`) gets a line starting `[MutCMenu] Map tools:` saying why, for example that map drawing is off on this server or that the map wasn't ready.
 
@@ -377,7 +380,7 @@ The other team never sees your team's drawings. Spectators see every drawing exc
 
 **Stopping players drawing:** a scrim admin can turn drawing off for players with `mutate mapdrawing off`, or **Admin Stop Players Drawing On The Map** in General Commands. Everyone is told. Players then cannot draw anything, not even for themselves, until a scrim admin turns it back on (`mutate mapdrawing on` or **Admin Let Players Draw On The Map**). Drawings already on the map stay, and players can still undo and clear their own. Scrim admins can always draw. It is back on after a map change.
 
-**Who can erase what:** everyone can erase their own drawings. Squad leaders can also erase their squad's, the commander the whole team's, and scrim admins anything. Clearing a whole group follows the same rule: only the squad leader clears the squad's drawings, only the commander the team's.
+**Who can erase (and move) what:** everyone can erase or move their own drawings. Squad leaders can also erase or move their squad's, the commander the whole team's, and scrim admins anything. While a scrim admin has stopped players drawing, players can't move drawings either. Clearing a whole group follows the same rule: only the squad leader clears the squad's drawings, only the commander the team's.
 
 **Limits:** each player can have 60 drawings at once (the server can change this); when you go over, your oldest one goes. A freehand line holds up to 200 points; a longer one carries on as a new line. Drawing very fast is slowed down so nobody floods the map. Drawings are cleared when a new round starts, unless the server keeps them, and what you drew only for yourself goes when you leave.
 

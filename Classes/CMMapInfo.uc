@@ -757,6 +757,13 @@ reliable server function ServerErase(int ID)
         Manager.EraseItem(PlayerController(Owner), ID);
 }
 
+// The move tool: shift a drawing by DX, DY unreal units (north, east)
+reliable server function ServerMoveItem(int ID, int DX, int DY)
+{
+    if (Manager != None)
+        Manager.MoveItem(PlayerController(Owner), ID, DX, DY);
+}
+
 reliable server function ServerUndo()
 {
     if (Manager != None)
