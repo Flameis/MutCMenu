@@ -2044,10 +2044,8 @@ function DrawToolbar(Canvas C, PlayerController PC)
     DrawButtonLayers(C);
 
     PushLayer(C, true);
-    C.SetDrawColor(220, 220, 220, 255);
     C.TextSize(ToolHint(PC), XL, YL);
-    C.SetPos(X, Y - BtnH * 0.5 - YL * TextScale * 0.5);
-    C.DrawText(ToolHint(PC), false, TextScale * 0.9, TextScale * 0.9);
+    DrawBoldText(C, ToolHint(PC), X, Y - BtnH * 0.5 - YL * TextScale * 0.5, TextScale * 0.9, MakeColor(220, 220, 220, 255));
     PopLayer(C);
 }
 
@@ -2118,20 +2116,37 @@ function DrawButtons(Canvas C, bool bTop)
             continue;
 
         C.TextSize(Buttons[i].Label, XL, YL);
-        if (bStyle)
-        {
-            class'CMenu'.static.DrawShadowText(C, Buttons[i].Label, Buttons[i].X + (Buttons[i].W - XL * TextScale) * 0.5,
-                Buttons[i].Y + (Buttons[i].H - YL * TextScale) * 0.5, TextScale,
-                Buttons[i].bDisabled ? MakeColor(110, 110, 110, 255) : MakeColor(235, 235, 235, 255));
-            continue;
-        }
         if (Buttons[i].bDisabled)
-            C.SetDrawColor(110, 110, 110, 255);
+            Col = MakeColor(110, 110, 110, 255);
         else
-            C.SetDrawColor(255, 255, 255, 255);
-        C.SetPos(Buttons[i].X + (Buttons[i].W - XL * TextScale) * 0.5, Buttons[i].Y + (Buttons[i].H - YL * TextScale) * 0.5);
-        C.DrawText(Buttons[i].Label, false, TextScale, TextScale);
+            Col = bStyle ? MakeColor(235, 235, 235, 255) : MakeColor(255, 255, 255, 255);
+        DrawBoldText(C, Buttons[i].Label, Buttons[i].X + (Buttons[i].W - XL * TextScale) * 0.5,
+            Buttons[i].Y + (Buttons[i].H - YL * TextScale) * 0.5, TextScale, Col);
     }
+}
+
+// The toolbar's text, a little bold so it reads well over the map: drawn twice a pixel apart, over a drop shadow in
+// RS2 style. All in the font's texture, so the canvas keeps the shadow under the text.
+function DrawBoldText(Canvas C, string Text, float X, float Y, float Scale, color Col)
+{
+    local float Bold, Offset;
+
+    Bold = FMax(1.0, Round(UIScale));
+    X -= Bold * 0.5;
+    if (bStyle)
+    {
+        Offset = FMax(1.0, Round(2.0 * Scale));
+        C.SetDrawColor(0, 0, 0, Col.A);
+        C.SetPos(X + Offset, Y + Offset);
+        C.DrawText(Text, false, Scale, Scale);
+        C.SetPos(X + Offset + Bold, Y + Offset);
+        C.DrawText(Text, false, Scale, Scale);
+    }
+    C.SetDrawColor(Col.R, Col.G, Col.B, Col.A);
+    C.SetPos(X, Y);
+    C.DrawText(Text, false, Scale, Scale);
+    C.SetPos(X + Bold, Y);
+    C.DrawText(Text, false, Scale, Scale);
 }
 
 // A toolbar button in RS2 style, as one piece so nothing in its layer has to go over it: selected lit in amber from the

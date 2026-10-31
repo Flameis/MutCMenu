@@ -20,6 +20,8 @@ const TEXT_OFFSET = 10;
 const REFERENCE_HEIGHT = 1440.0;
 const MENU_TOP = 240;
 const LINE_HEIGHT = 50;
+// RS2 style's extra room under the title, so its underline stays clear of the first line
+const STYLE_TITLE_GAP = 14;
 
 // RS2 style pieces (see DrawStyled)
 const STYLE_BAR = 0;
@@ -1076,7 +1078,7 @@ function bool SlotRect(int Slot, out float X, out float Y, out float W, out floa
 	bNext = MenuCommand.Length > ((MenuPage+1)*ITEMS_PER_PAGE);
 	X = TEXT_OFFSET * MenuScale;
 	H = LINE_HEIGHT * MenuScale;
-	LineY = (MENU_TOP + TEXT_OFFSET + (MenuName != "" ? LINE_HEIGHT : 0)) * MenuScale;
+	LineY = (MENU_TOP + TEXT_OFFSET + (MenuName != "" ? LINE_HEIGHT : 0)) * MenuScale + TitleGap();
 
 	if (Slot < ITEMS_PER_PAGE)
 	{
@@ -1102,6 +1104,26 @@ function bool SlotRect(int Slot, out float X, out float Y, out float W, out floa
 
 	Y = LineY + 4 * H;
 	return true;
+}
+
+// The room between the title and the first line beyond the usual line spacing (RS2 style's underline needs it)
+function float TitleGap()
+{
+	return (bStyledUI && MenuName != "") ? STYLE_TITLE_GAP * MenuScale : 0.0;
+}
+
+// How far the line text sits from the line numbers: past the widest number, so every line starts in the same place
+function float NumberWidth(Canvas C)
+{
+	local int i;
+	local float XL, YL, Widest;
+
+	for (i = 0; i <= 9; i++)
+	{
+		C.TextSize(i$". ", XL, YL);
+		Widest = FMax(Widest, XL);
+	}
+	return Widest * MenuScale;
 }
 
 // In RS2 style every line is a bar across the menu, and a click anywhere on it picks it
@@ -1215,7 +1237,7 @@ function DrawClickCursor(ROCanvas C, optional bool bNoHighlight)
 function DrawMenu(ROCanvas MenuCanvas, int MenuX, int MenuY, string title, array<string> LineText)
 {
 	local int i, key;
-	local float BL, BH, StandardBL, height, X, Y, FirstLineY;
+	local float BL, BH, StandardBL, height, X, Y, FirstLineY, NumW;
 
 	if (bStyledUI)
 	{
@@ -1230,6 +1252,7 @@ function DrawMenu(ROCanvas MenuCanvas, int MenuX, int MenuY, string title, array
 	MenuHeight = MenuY + TEXT_OFFSET * MenuScale + (title != "" ? height : 0.0) + (ITEMS_PER_PAGE + 4) * height;
 
 	MenuCanvas.Font = Font'VN_UI_Mega_Fonts.Font_VN_Mega_36';
+	NumW = NumberWidth(MenuCanvas);
 
 	if (bDrawBackground)
 	{
@@ -1262,11 +1285,11 @@ function DrawMenu(ROCanvas MenuCanvas, int MenuX, int MenuY, string title, array
 		Y += height; // next line
 	}
 
+	// Each number in its own column and the text after the widest one, so the lines all start in the same place
 	FirstLineY = Y;
 	for( i = MenuPage * ITEMS_PER_PAGE; i < Min((MenuPage+1)*ITEMS_PER_PAGE, LineText.Length); i++ )
 	{
-		MenuCanvas.SetPos(X, Y);
-		MenuCanvas.DrawText(key $ ". " $ LineText[i], false, MenuScale, MenuScale);
+		DrawMenuLine(MenuCanvas, key $ ".", LineText[i], X, Y, NumW);
 		key++;
 		Y += height; // next line
 	}
@@ -1276,18 +1299,11 @@ function DrawMenu(ROCanvas MenuCanvas, int MenuX, int MenuY, string title, array
 
 	// 9. Next Page
 	if(LineText.Length > ((MenuPage+1)*ITEMS_PER_PAGE))
-	{
-		MenuCanvas.SetPos(X, Y + height*2);
-		MenuCanvas.DrawText("9. Next", false, MenuScale, MenuScale);
-	}
+		DrawMenuLine(MenuCanvas, "9.", "Next", X, Y + height*2, NumW);
 
 	// 0. Exit Menu
 	Y += height*4;
-	MenuCanvas.SetPos(X, Y);
-	if(MenuPage > 0)
-		MenuCanvas.DrawText("0. Previous", false, MenuScale, MenuScale);
-	else
-		MenuCanvas.DrawText("0. Exit", false, MenuScale, MenuScale);
+	DrawMenuLine(MenuCanvas, "0.", MenuPage > 0 ? "Previous" : "Exit", X, Y, NumW);
 
 	MenuHeight = Y;
 
@@ -1295,6 +1311,15 @@ function DrawMenu(ROCanvas MenuCanvas, int MenuX, int MenuY, string title, array
 	MenuCanvas.PopDepthSortPriority();
 	if (bDrawBackground)
 		MenuCanvas.PopDepthSortPriority();
+}
+
+// One line of the plain menu, in the colour already set
+function DrawMenuLine(Canvas C, string Num, string Text, float X, float Y, float NumW)
+{
+	C.SetPos(X, Y);
+	C.DrawText(Num, false, MenuScale, MenuScale);
+	C.SetPos(X + NumW, Y);
+	C.DrawText(Text, false, MenuScale, MenuScale);
 }
 
 function MessageSelf(string Message)
@@ -1498,14 +1523,14 @@ function DrawStyledMenu(ROCanvas C, int MenuX, int MenuY, string Title, array<st
 	local string Num, Text;
 
 	Height = LINE_HEIGHT * MenuScale;
-	MenuHeight = MenuY + TEXT_OFFSET * MenuScale + (Title != "" ? Height : 0.0) + (ITEMS_PER_PAGE + 4) * Height;
+	MenuHeight = MenuY + TEXT_OFFSET * MenuScale + (Title != "" ? Height : 0.0) + TitleGap() + (ITEMS_PER_PAGE + 4) * Height;
 
 	C.Font = Font'VN_UI_Mega_Fonts.Font_VN_Mega_36';
 	C.StrLen("-----"$MENU_WIDTH_TEXT, StandardBL, BH);
 	C.StrLen("-----"$MenuBorderLengthString, BL, BH);
 	BL = FMax(BL, StandardBL) * MenuScale;
 	C.TextSize("8. ", NumW, TH);
-	NumW *= MenuScale;
+	NumW = NumberWidth(C);
 	TH *= MenuScale;
 	BarH = Height * 0.86;
 	StyledBarX = MenuX + (TEXT_OFFSET - 4) * MenuScale;
