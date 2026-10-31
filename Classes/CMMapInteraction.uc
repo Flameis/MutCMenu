@@ -208,6 +208,31 @@ var array<float> FlashUntil;
 // The map
 // ====================================================
 
+// When an objective is added or removed while the game runs (a custom objective), the game lays out every objective on
+// its map again and gives the pieces the wrong sizes: the capture areas come out too big and out of place, and the names
+// and letters the wrong size, until the screen is next resized (or the player changes team). The game's own resize puts
+// them right, so it is run whenever a capture area has a size that resize would not give it. True when it ran.
+static function bool KeepObjectiveSizes(ROHUDWidgetOverheadMap OM)
+{
+    local int i;
+
+    if (OM == None || OM.Canvas == None || OM.PlayerOwner == None || OM.PlayerOwner.CurrentSpawnSelectScene != None
+        || OM.HUDComponents.Length <= class'ROHUDWidgetOverheadMap'.const.ROOMT_Vingnette
+        || OM.HUDComponents[class'ROHUDWidgetOverheadMap'.const.ROOMT_Vingnette] == None)
+        return false;
+
+    for (i = class'ROHUDWidgetOverheadMap'.const.ROOMT_ObjectiveZoneStart;
+        i < class'ROHUDWidgetOverheadMap'.const.ROOMT_ObjectiveZoneStart + 16 && i < OM.HUDComponents.Length; i++)
+    {
+        if (OM.HUDComponents[i] != None && OM.HUDComponents[i].ScaleX != 1.0)
+        {
+            OM.ResetOverheadMapSize();
+            return true;
+        }
+    }
+    return false;
+}
+
 // The overhead map when it is open on this screen, with its position read into the variables above; none otherwise
 function ROHUDWidgetOverheadMap ReadMap()
 {
@@ -1183,6 +1208,8 @@ event PostRender(Canvas C)
         return;
     }
     H = ROHUD(PC.myHUD);
+    if (H != None)
+        KeepObjectiveSizes(H.OverheadMapWidget);
 
     // The spectator overlay is on while the owner spectates and the server sends them everyone
     bSpectatorView = Info.bSpectating && H != None && PC.PlayerReplicationInfo != None && PC.PlayerReplicationInfo.bOnlySpectator;
