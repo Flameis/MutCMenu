@@ -79,6 +79,9 @@ const SPEC_BOTH = 0;
 const SPEC_NORTH = 1;
 const SPEC_SOUTH = 2;
 
+const BORDER_FILL_ALPHA = 0.12; // the fill inside a custom objective's border: this part of the border's strength
+const BORDER_FILL_STEP = 2.0;   // pixels at 1080p: the height of each strip of that fill
+
 const LINE_WIDTH = 3.0;     // pixels at 1080p
 const ICON_SIZE = 26.0;     // marker size, pixels at 1080p
 const PICK_RADIUS = 12.0;   // how close (pixels at 1080p) the cursor must be to a drawing to pick it
@@ -2519,13 +2522,15 @@ static function bool NearStrobeOn(float Now)
 }
 
 // Borders of the capture objectives built with CMenu, in the colour of the team that holds them (white while nobody does),
-// fainter while the objective is closed. The shape is the one the objective captures in.
+// fainter while the objective is closed, with a very faint fill of the same colour inside. The shape is the one the
+// objective captures in.
 function DrawObjectiveBorders(Canvas C, PlayerController PC)
 {
     local CMAObjective Objective;
     local ROGameReplicationInfo ROGRI;
     local int i;
-    local color LineColor;
+    local color LineColor, FillColor;
+    local array<vector2D> Shape;
 
     ROGRI = ROGameReplicationInfo(PC.WorldInfo.GRI);
     if (ROGRI == None)
@@ -2546,12 +2551,81 @@ function DrawObjectiveBorders(Canvas C, PlayerController PC)
         if (!ROGRI.GetObjectiveActive(Objective.ObjIndex))
             LineColor.A = 110;
 
+        Shape.Length = Objective.Corners.Length;
         for (i = 0; i < Objective.Corners.Length; i++)
+            Shape[i] = WorldToScreen(Objective.Corners[i]);
+
+        // The fill first, so the border is drawn over its edge
+        FillColor = LineColor;
+        FillColor.A = Round(LineColor.A * BORDER_FILL_ALPHA);
+        FillShape(C, Shape, FillColor);
+
+        for (i = 0; i < Shape.Length; i++)
+            DrawSegment(C, Shape[i], Shape[(i + 1) % Shape.Length], 2.0 * UIScale, LineColor);
+    }
+}
+
+// Fills a shape (screen points) a strip at a time, each strip between pairs of the places it crosses the edges, so a shape
+// that curls round is filled only inside. Cut to the map.
+function FillShape(Canvas C, array<vector2D> Shape, color Col)
+{
+    local array<float> Xs;
+    local float Top, Bottom, Y, H, Left, Right, Step;
+    local int i;
+
+    if (Shape.Length < 3)
+        return;
+    Top = Shape[0].Y;
+    Bottom = Top;
+    for (i = 1; i < Shape.Length; i++)
+    {
+        Top = FMin(Top, Shape[i].Y);
+        Bottom = FMax(Bottom, Shape[i].Y);
+    }
+    Top = Round(FMax(Top, MapTop));
+    Bottom = FMin(Bottom, MapTop + MapH);
+    Step = FMax(1.0, Round(BORDER_FILL_STEP * UIScale));
+
+    C.SetDrawColor(Col.R, Col.G, Col.B, Col.A);
+    for (Y = Top; Y < Bottom; Y += Step)
+    {
+        H = FMin(Step, Bottom - Y);
+        Xs = RowCrossings(Shape, Y + H * 0.5);
+        for (i = 0; i + 1 < Xs.Length; i += 2)
         {
-            DrawSegment(C, WorldToScreen(Objective.Corners[i]), WorldToScreen(Objective.Corners[(i + 1) % Objective.Corners.Length]),
-                2.0 * UIScale, LineColor);
+            Left = FMax(Xs[i], MapLeft);
+            Right = FMin(Xs[i + 1], MapLeft + MapW);
+            if (Right > Left)
+            {
+                C.SetPos(Left, Y);
+                C.DrawTile(C.DefaultTexture, Right - Left, H, 0, 0, C.DefaultTexture.SizeX, C.DefaultTexture.SizeY);
+            }
         }
     }
+}
+
+// Where the line across the screen at height Y crosses the shape's edges, left to right
+static function array<float> RowCrossings(array<vector2D> Shape, float Y)
+{
+    local array<float> Xs;
+    local float X;
+    local int i, j, k;
+
+    j = Shape.Length - 1;
+    for (i = 0; i < Shape.Length; i++)
+    {
+        if ((Shape[i].Y > Y) != (Shape[j].Y > Y))
+        {
+            X = Shape[i].X + (Y - Shape[i].Y) * (Shape[j].X - Shape[i].X) / (Shape[j].Y - Shape[i].Y);
+            k = Xs.Length;
+            while (k > 0 && Xs[k - 1] > X)
+                k--;
+            Xs.Insert(k, 1);
+            Xs[k] = X;
+        }
+        j = i;
+    }
+    return Xs;
 }
 
 // Player on the screen, or false when they are behind the camera or off the edge
