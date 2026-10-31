@@ -290,7 +290,7 @@ Admins can build their own capture objectives in the Builder's **Actors** menu: 
 - **It captures by itself, on any server.** It works in every Territories game mode, including WW2, Winter War and GOM, not only in CMenu's own game modes. Players, vehicle crews and turret gunners standing inside the area capture it, with the same rules as the map's own objectives: more people capture faster, squad mates and leaders count for more, it drains when nobody is inside, and the capturing team gets the points. Height does not matter.
 - **It matches its border.** The area you marked is the area that captures, and the border drawn on the map is that same area. Corners clicked in a crossing order (a "bow tie") are put in outline order. A corner clicked twice counts once.
 - **It sits in the middle of its area.** The map's letter, "drop at objective" and the paradrops go to the middle of the area (to the widest part inside it for a curved shape), not to wherever you stood when you picked Spawn Obj.
-- **Everyone sees it.** The objective, its letter and its capture progress show on every player's map and HUD, and players who join later get it too. The border is drawn on the overhead map in the colour of the team that holds it (white while nobody does), and fainter while the objective is closed.
+- **Everyone sees it.** The objective, its letter and its capture progress show on every player's map and HUD, and players who join later get it too. The border is drawn on the overhead map in the colour of the team that holds it (white while nobody does), and fainter while the objective is closed. The inside of the border has a very faint shade of the same colour, so the area stands out without hiding the map.
 - **Realism Match works on it.** `openobj`, `closeobj`, `setobjnorth`, `setobjsouth`, `setobjneutral` and the capture time apply to it by its letter, like the map's own objectives.
 - **Admins only.** The server checks that you are an admin, and tells you if the objective could not be built (too few corners, corners too close together, or all 16 objective slots in use). When it is built you are told its letter, name, capture time and owner.
 - **No more server crashes with bots.** The server crashed when anyone spawned on their squad leader while a custom objective was open. Bots do that all the time, so it looked like bots were crashing the server. The game's search for a spot near the squad leader checks every open objective's area, and a custom objective has none. Custom objectives are now left out of that search for that moment only, and are open again before anything else can notice. The North commander's **ambush respawn** runs the same search before any mod can step in, so it is not available while a custom objective is open, and the North team is told so. *Tested by the test harness, which runs the game's own search with a custom objective open (compiled, not run yet). Not yet tried with bots on a server.*
@@ -386,6 +386,8 @@ The other team never sees your team's drawings. Spectators see every drawing exc
 
 **Limits:** each player can have 60 drawings at once (the server can change this); when you go over, your oldest one goes. A freehand line holds up to 200 points; a longer one carries on as a new line. Drawing very fast is slowed down so nobody floods the map. Drawings are cleared when a new round starts, unless the server keeps them, and what you drew only for yourself goes when you leave.
 
+**Markers stay until erased:** map markers are never taken away by themselves. They stay through new rounds, and going over your limit takes your oldest drawing that isn't a marker. If everything you have is markers, you are told to erase one before you can draw more. Erasing, undo and the clear buttons still remove them.
+
 The map on the spawn selection screen does not show the drawings. Turn the feature off with `bDisableMapDrawing`.
 
 ## 7. Other features
@@ -467,8 +469,8 @@ Set in WebAdmin under **Mutators > MutCMenu Settings**, or in `MutCMenu_Server.i
 | `bDisableEnhancedSpectator` | Turn the spectator view off (it is on by default) |
 | `bDisableSpectatorTracers` | Turn off the bullet and shell paths spectators see (they are on by default) |
 | `bDisableMapDrawing` | Turn drawing on the map off (it is on by default) |
-| `bKeepMapDrawingsBetweenRounds` | Keep drawings when a new round starts (they are cleared when off) |
-| `MaxMapDrawingsPerPlayer` | How many drawings one player can have at once before their oldest goes. 0 means the default, 60 |
+| `bKeepMapDrawingsBetweenRounds` | Keep drawings when a new round starts (they are cleared when off; markers are always kept) |
+| `MaxMapDrawingsPerPlayer` | How many drawings one player can have at once before their oldest goes (markers never go by themselves). 0 means the default, 60 |
 | `FSProfiles` (ini only) | The default size of each barrage type: salvos, shells per salvo, spread, time between salvos and delay before the first. The defaults are written the first time the server runs. A type added later (like `MIXED`) is added automatically without touching your values |
 
 ## 10. Works with other mods

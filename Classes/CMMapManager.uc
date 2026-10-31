@@ -40,7 +40,7 @@ const MAX_HITSCAN_TRACES = 64;      // shots rebuilt per look; in a bigger firef
 const MIN_SEGMENT = 25.0;      // a stretch shorter than this (half a meter) isn't worth a line
 const DEAD_ICON_TIME = 5.0;
 const GUNSHIP_LINES = 2;       // AC-47 tracer lines per look while it fires
-const GUNSHIP_DIP = 364;       // how much further down (rotation units, 2 degrees) the AC-47's lines point than at the aim point
+const GUNSHIP_DIP = 450;       // how much further down (rotation units, 2 degrees) the AC-47's lines point than at the aim point
 const STRIKE_SEARCH = 10000.0; // 200 meters: how far from a barrage or an aircraft a shell with no team can start and be counted as its
     // seconds a left-out teammate (or, for spectators, anyone) stays on the map after dying, as the game does
 
@@ -1200,21 +1200,37 @@ function bool CommitItem(CMMapInfo From, CMMapInfo.PendingMapItem P)
         return false;
     }
 
-    // Over their limit, their oldest drawing makes room
+    // Over their limit, their oldest drawing makes room. Markers stay until someone erases them, so a player with only
+    // markers left has to erase one first.
     Oldest = INDEX_NONE;
     for (i = 0; i < Items.Length; i++)
     {
         if (Items[i].OwnerID == PC.PlayerReplicationInfo.PlayerID)
         {
-            if (Oldest == INDEX_NONE)
+            if (Oldest == INDEX_NONE && Items[i].Kind != class'CMMapInfo'.const.KIND_MARKER)
                 Oldest = i;
             Count++;
         }
     }
-    if (Count >= PerPlayerLimit() && Oldest != INDEX_NONE)
+    if (Count >= PerPlayerLimit())
+    {
+        if (Oldest == INDEX_NONE)
+        {
+            PrivateMessage(PC, "You have "$Count$" markers on the map, the most you can have. Erase one to draw more.");
+            return false;
+        }
         RemoveItemAt(Oldest);
+    }
     if (Items.Length >= MAX_ITEMS)
-        RemoveItemAt(0);
+    {
+        Oldest = OldestNonMarker();
+        if (Oldest == INDEX_NONE)
+        {
+            PrivateMessage(PC, "The map is full of markers. Erase some to draw more.");
+            return false;
+        }
+        RemoveItemAt(Oldest);
+    }
 
     Item.ID = ++NextID;
     Item.Kind = P.Kind;
@@ -1235,6 +1251,19 @@ function bool CommitItem(CMMapInfo From, CMMapInfo.PendingMapItem P)
             Infos[i].AddQueue.AddItem(Item.ID);
     }
     return true;
+}
+
+// The oldest drawing that isn't a marker, INDEX_NONE when there are only markers
+function int OldestNonMarker()
+{
+    local int i;
+
+    for (i = 0; i < Items.Length; i++)
+    {
+        if (Items[i].Kind != class'CMMapInfo'.const.KIND_MARKER)
+            return i;
+    }
+    return INDEX_NONE;
 }
 
 function bool CanInfoSee(CMMapInfo Info, byte Team, byte Squad, int OwnerID)
@@ -1450,13 +1479,20 @@ function SetLocked(PlayerController PC, bool bLock)
         WorldInfo.Game.Broadcast(self, "[Map] "$PC.PlayerReplicationInfo.PlayerName$" turned map drawing back on.");
 }
 
-// A new round
+// A new round: the drawings go (unless the server keeps them), but markers stay until someone erases them
 function Reset()
 {
+    local int i;
+
     super.Reset();
 
-    if (Mut == None || !Mut.bKeepMapDrawingsBetweenRounds)
-        ClearAll();
+    if (Mut != None && Mut.bKeepMapDrawingsBetweenRounds)
+        return;
+    for (i = Items.Length - 1; i >= 0; i--)
+    {
+        if (Items[i].Kind != class'CMMapInfo'.const.KIND_MARKER)
+            RemoveItemAt(i);
+    }
 }
 
 // ====================================================
