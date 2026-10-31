@@ -40,6 +40,7 @@ const MAX_HITSCAN_TRACES = 64;      // shots rebuilt per look; in a bigger firef
 const MIN_SEGMENT = 25.0;      // a stretch shorter than this (half a meter) isn't worth a line
 const DEAD_ICON_TIME = 5.0;
 const GUNSHIP_LINES = 2;       // AC-47 tracer lines per look while it fires
+const GUNSHIP_DIP = 364;       // how much further down (rotation units, 2 degrees) the AC-47's lines point than at the aim point
 const STRIKE_SEARCH = 10000.0; // 200 meters: how far from a barrage or an aircraft a shell with no team can start and be counted as its
     // seconds a left-out teammate (or, for spectators, anyone) stays on the map after dying, as the game does
 
@@ -527,13 +528,14 @@ function byte ProjectileTeam(Projectile P, bool bStrikes)
 
 // The AC-47 fires traces into its target area from the server (no bullet anyone can follow); the game only shows them as
 // an effect. While it fires, each look adds lines from the plane into the target area (one at a player it is shooting at,
-// when there is one), cut where they hit something, in the team colour of whoever called it.
+// when there is one), cut where they hit something, in the team colour of whoever called it. The lines point a little
+// below the aim point (GUNSHIP_DIP), as the plane's own tracers do.
 function TrackGunships(out array<CMMapInfo.TraceSegment> Segs, bool bNear, bool bTracers)
 {
     local ROGunshipAircraft Ship;
     local ROGunshipTarget Zone;
     local Actor Victim;
-    local vector Aim, Start, Dir, HitLoc, HitNormal;
+    local vector Aim, Start, End, Dir, HitLoc, HitNormal;
     local float R, Height;
     local byte Data, Team;
     local int i;
@@ -562,17 +564,28 @@ function TrackGunships(out array<CMMapInfo.TraceSegment> Segs, bool bNear, bool 
                 Aim.Y += (FRand() * 2.0 - 1.0) * R;
             }
 
-            // From just outside the plane, on past the aim point to the ground
-            Dir = Normal(Aim - Ship.Location);
+            // From just outside the plane, on as far again as the aim point and a little more, to the ground
+            Dir = GunshipDir(Ship.Location, Aim);
             Start = Ship.Location + Dir * 300.0;
-            if (Trace(HitLoc, HitNormal, Aim + Dir * 2500.0, Start, true) == None)
-                HitLoc = Aim + Dir * 2500.0;
+            End = Start + Dir * (VSize(Aim - Start) + 2500.0);
+            if (Trace(HitLoc, HitNormal, End, Start, true) == None)
+                HitLoc = End;
             if (bTracers)
                 AddSegment(Segs, Start, HitLoc, Data);
             if (bNear)
                 NoteNearMiss(Start, HitLoc, None);
         }
     }
+}
+
+// The way an AC-47 line points: towards the aim point, tipped GUNSHIP_DIP further down
+static function vector GunshipDir(vector From, vector Aim)
+{
+    local rotator Rot;
+
+    Rot = rotator(Aim - From);
+    Rot.Pitch = Max(NormalizeRotAxis(Rot.Pitch) - GUNSHIP_DIP, -16384);
+    return vector(Rot);
 }
 
 // The pawns come round in the same order each look, so the entry is nearly always the one after the last found: that one
