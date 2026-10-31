@@ -38,7 +38,10 @@ const MAX_PER_STEP = 24;       // segments one spectator is sent per look (shell
 const MAX_HITSCAN_RANGE = 20000.0; // 400 meters: the furthest a shot rebuilt from its aim is followed
 const MAX_HITSCAN_TRACES = 64;      // shots rebuilt per look; in a bigger firefight the rest wait for the next shot
 const MIN_SEGMENT = 25.0;      // a stretch shorter than this (half a meter) isn't worth a line
-const DEAD_ICON_TIME = 5.0;    // seconds a left-out teammate (or, for spectators, anyone) stays on the map after dying, as the game does
+const DEAD_ICON_TIME = 5.0;
+const GUNSHIP_LINES = 2;       // AC-47 tracer lines per look while it fires
+const STRIKE_SEARCH = 10000.0; // 200 meters: how far from a barrage or an aircraft a shell with no team can start and be counted as its
+    // seconds a left-out teammate (or, for spectators, anyone) stays on the map after dying, as the game does
 
 // A living player as last seen, so a spectator can be shown when they are hurt and where they die
 struct WatchedPlayer
@@ -450,10 +453,112 @@ function byte TraceDataFor(Projectile P)
     else
         Kind = class'CMMapInfo'.const.TRACE_SHELL;
 
-    Team = (P.Instigator != None) ? P.Instigator.GetTeamNum() : 255;
+    Team = ProjectileTeam(P, Kind != class'CMMapInfo'.const.TRACE_BULLET);
     if (Team > 1)
         Team = class'CMMapInfo'.const.TRACE_NO_TEAM;
     return Kind + Team * class'CMMapInfo'.const.TRACE_TEAM_STEP;
+}
+
+// The team of whoever fired or threw a projectile. Fire support (the commander's artillery and aircraft, and CMenu's) has
+// no pawn behind its shells and bombs: their team is the controller that called it, or, when nobody on a team did (a
+// spectator or an admin calling for the other team), the barrage or aircraft it came from. With bStrikes those are looked
+// for; 255 when no team is found.
+function byte ProjectileTeam(Projectile P, bool bStrikes)
+{
+    local Controller C;
+    local ROArtillerySpawner Spawner;
+    local ROSupportAircraft Aircraft;
+    local float D, BestD;
+    local byte Team;
+
+    Team = (P.Instigator != None) ? P.Instigator.GetTeamNum() : 255;
+    if (Team <= 1)
+        return Team;
+
+    C = (P.InstigatorController != None) ? P.InstigatorController : Controller(P.Owner);
+    if (C != None && C.GetTeamNum() <= 1)
+        return C.GetTeamNum();
+    if (ROSupportAircraft(P.Owner) != None)
+        return ROSupportAircraft(P.Owner).OwningTeam;
+    if (ROArtillerySpawner(P.Owner) != None)
+        return ROArtillerySpawner(P.Owner).OwningTeam;
+    if (!bStrikes)
+        return 255;
+
+    // The barrage that fired it, or the nearest one (shells start above the target, spread around the barrage); bombs and
+    // napalm start at the aircraft
+    BestD = STRIKE_SEARCH;
+    foreach DynamicActors(class'ROArtillerySpawner', Spawner)
+    {
+        if (Spawner.LastSpawnedShell == P)
+            return Spawner.OwningTeam;
+        D = VSize2D(Spawner.Location - P.Location);
+        if (D < BestD)
+        {
+            BestD = D;
+            Team = Spawner.OwningTeam;
+        }
+    }
+    foreach DynamicActors(class'ROSupportAircraft', Aircraft)
+    {
+        D = VSize(Aircraft.Location - P.Location);
+        if (D < BestD)
+        {
+            BestD = D;
+            Team = Aircraft.OwningTeam;
+        }
+    }
+    return Team;
+}
+
+// The AC-47 fires traces into its target area from the server (no bullet anyone can follow); the game only shows them as
+// an effect. While it fires, each look adds lines from the plane into the target area (one at a player it is shooting at,
+// when there is one), cut where they hit something, in the team colour of whoever called it.
+function TrackGunships(out array<CMMapInfo.TraceSegment> Segs, bool bNear, bool bTracers)
+{
+    local ROGunshipAircraft Ship;
+    local ROGunshipTarget Zone;
+    local Actor Victim;
+    local vector Aim, Start, Dir, HitLoc, HitNormal;
+    local float R, Height;
+    local byte Data, Team;
+    local int i;
+
+    foreach DynamicActors(class'ROGunshipAircraft', Ship)
+    {
+        Zone = Ship.TargetZone;
+        if (Zone == None || !Zone.bFiring || Ship.bShotDown || Ship.bAbortStrike || Ship.bDeleteMe)
+            continue;
+
+        Team = Ship.OwningTeam;
+        if (Team > 1)
+            Team = class'CMMapInfo'.const.TRACE_NO_TEAM;
+        Data = class'CMMapInfo'.const.TRACE_BULLET + Team * class'CMMapInfo'.const.TRACE_TEAM_STEP;
+        Zone.GetBoundingCylinder(R, Height);
+
+        for (i = 0; i < GUNSHIP_LINES; i++)
+        {
+            Victim = (i == 0 && Zone.TargetList.Length > 0) ? Zone.TargetList[Rand(Zone.TargetList.Length)] : None;
+            if (Victim != None)
+                Aim = Victim.Location;
+            else
+            {
+                Aim = Zone.Location;
+                Aim.X += (FRand() * 2.0 - 1.0) * R;
+                Aim.Y += (FRand() * 2.0 - 1.0) * R;
+            }
+
+            // From just outside the plane, on past the aim point to the ground
+            Dir = Normal(Aim - Ship.Location);
+            Start = Ship.Location + Dir * 300.0;
+            if (Trace(HitLoc, HitNormal, Aim + Dir * 2500.0, Start, true) == None)
+                HitLoc = Aim + Dir * 2500.0;
+            if (bTracers)
+                AddSegment(Segs, Start, HitLoc, Data);
+            if (bNear)
+                NoteNearMiss(Start, HitLoc, None);
+        }
+    }
 }
 
 // The pawns come round in the same order each look, so the entry is nearly always the one after the last found: that one
@@ -688,6 +793,7 @@ function TrackProjectiles()
     }
 
     TrackHitscan(Segs, bNear, bTracers);
+    TrackGunships(Segs, bNear, bTracers);
 
     for (i = Tracked.Length - 1; i >= 0; i--)
     {
