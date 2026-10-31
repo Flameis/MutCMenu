@@ -3075,21 +3075,6 @@ function BindHelpOutput()
     }
 }
 
-// Smoke drifts with the wind, and a map without a wind direction gives it none. When the map has no wind source, one is
-// added facing a random direction (a different one each time the map loads).
-function EnsureWind()
-{
-    local WindDirectionalSource Wind;
-    local rotator Direction;
-
-    foreach AllActors(class'WindDirectionalSource', Wind)
-        return;
-
-    Direction.Yaw = Rand(65536);
-    Wind = Spawn(class'CMWindSource',,, vect(0, 0, 0), Direction);
-    `log("[CMenu] The map has no wind direction; added one facing yaw "$Direction.Yaw);
-}
-
 function LoadObjects()
 {
     local array<string> Names, Paths;
@@ -3097,7 +3082,6 @@ function LoadObjects()
     local bool bExtras, bGOM3, bGOM4, bWW, bWW2;
 
     BindHelpOutput();
-    EnsureWind();
 
     // Load settings object
     KeepLoaded("MutCMenu.MutCMenuSettings");
