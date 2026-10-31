@@ -14,7 +14,7 @@ const HELP_PART_CHARS = 400;
 
 var array<DummyActor>           DummyActors;
 
-var array<string>               LoggedInMutatorAdmins; // list of the names of all the players that are currently logged in as a mutator admin
+var array<int>                  LoggedInAdminIDs; // the player IDs of everyone logged in as a scrim admin (by ID, not name, so a rename or a newcomer with the same name can't take it)
 var int                         NumObjs;
 
 var config bool                 bLoadExtras, bLoadGOM3, bLoadGOM4, bLoadWW, bLoadWW2, bNewTankPhys;
@@ -247,6 +247,10 @@ simulated function NotifyLogout(Controller Exiting)
 
     if (MapManager != None)
         MapManager.RemovePlayer(Exiting);
+
+    // A scrim admin who leaves is logged out
+    if (Exiting != None && Exiting.PlayerReplicationInfo != None)
+        LoggedInAdminIDs.RemoveItem(Exiting.PlayerReplicationInfo.PlayerID);
 
     super.NotifyLogout(Exiting);
 }
@@ -1293,74 +1297,36 @@ function ToggleCMenuVisiblity(PlayerController PC, string CMenu, optional string
 // =================================================================
 // Admin Management
 // =================================================================
+// Scrim admins are kept by player ID, which stays the same through a rename and is never reused by someone else
 function LogInAdmin(PlayerController sender, string MyAdminInfo)
 {
-    local string PlayerName;
     local string AdminInfo;
-    local bool AlreadyAdmin;
-    local int i;
-    
-    PlayerName = sender.PlayerReplicationInfo.PlayerName;
-    AlreadyAdmin = False;
-    
-    // Check if the provided password matches any admin password
+
+    if (sender == None || sender.PlayerReplicationInfo == None || LoggedInAdminIDs.Find(sender.PlayerReplicationInfo.PlayerID) != INDEX_NONE)
+        return;
+
+    // Check if the provided password matches any admin password (exactly: Find would ignore case)
     foreach MutatorAdmins(AdminInfo)
-    if(MyAdminInfo == AdminInfo)
     {
-        // Check if the player is already logged in as admin
-        for(i = 0; i < LoggedInMutatorAdmins.Length; i++)
+        if (MyAdminInfo == AdminInfo)
         {
-            if(PlayerName == LoggedInMutatorAdmins[i])
-            {
-                AlreadyAdmin = True;
-            }
-        }
-        if(!AlreadyAdmin)
-        {
-            LoggedInMutatorAdmins.AddItem(PlayerName);
+            LoggedInAdminIDs.AddItem(sender.PlayerReplicationInfo.PlayerID);
+            return;
         }
     }
 }
 
 function LogOutAdmin(PlayerController sender)
 {
-    local string PlayerName;
-    local int i;
-    local array<string> MyArray;
-    
-    PlayerName = sender.PlayerReplicationInfo.PlayerName;
-    
-    // Rebuild the list of logged-in admins, excluding the logging-out player
-    for(i = 0; i < LoggedInMutatorAdmins.Length; i++)
-    {
-        if(PlayerName != LoggedInMutatorAdmins[i])
-        {
-            MyArray.AddItem(LoggedInMutatorAdmins[i]);
-        }
-    }
-    LoggedInMutatorAdmins = MyArray;
+    if (sender != None && sender.PlayerReplicationInfo != None)
+        LoggedInAdminIDs.RemoveItem(sender.PlayerReplicationInfo.PlayerID);
 }
 
 function bool IsAuthorized(PlayerController Sender)
 {
-    local bool IsServerAdmin;
-    local bool IsMutatorAdmin;
-    local int i;
-    local string PlayerName;
-    
-    PlayerName = sender.PlayerReplicationInfo.PlayerName;
-    IsServerAdmin = self.WorldInfo.Game.AccessControl.IsAdmin(Sender);
-    
-    IsMutatorAdmin = False;
-    // Check if the player is in the list of logged-in mutator admins
-    for(i = 0; i < LoggedInMutatorAdmins.Length; i++)
-    {
-        if(LoggedInMutatorAdmins[i] == PlayerName)
-        {
-            IsMutatorAdmin = True;
-        }
-    }
-    return IsServerAdmin || IsMutatorAdmin;
+    if (Sender == None || Sender.PlayerReplicationInfo == None)
+        return false;
+    return WorldInfo.Game.AccessControl.IsAdmin(Sender) || LoggedInAdminIDs.Find(Sender.PlayerReplicationInfo.PlayerID) != INDEX_NONE;
 }
 
 // =================================================================

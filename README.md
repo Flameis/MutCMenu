@@ -32,7 +32,7 @@ Long help text (for example `mutate firesupporthelp`) opens in the large console
 ## 2. Who can do what
 
 - **Server admins** (logged in to the server's WebAdmin or admin list) can use everything.
-- **Scrim admins** can use everything too. A scrim admin is a name on the Realism Match admin list who has logged in with `mutate scrimadminlogin`, or someone an admin has given **temporary** admin powers.
+- **Scrim admins** can use everything too. A scrim admin is a name on the Realism Match admin list who has logged in with `mutate scrimadminlogin`, or someone an admin has given **temporary** admin powers. Scrim admin belongs to the player who logged in, not to their name: it stays through a name change, nobody else gets it by taking the same name, and it ends when the player leaves the server.
 - **Spectators** can use the Builder too, even without a character: they aim with the camera and place things where it points.
 - **Everyone else** sees a smaller menu: General Commands, the Builder, the Weapon menu (for themselves only), CMenu Settings and, if the server allows it, Fire Support.
 
