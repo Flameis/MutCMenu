@@ -90,6 +90,9 @@ const NAME_SCALE = 1.4;
 const ROLE_ICON_DIST = 2000.0; // how close (unreal units, 40 meters) a looked at player must be to get their role icon
 const XRAY_NAME_DIST = 750.0;  // how close (15 meters) a looked at player's name and role show through walls
 const NAME_RADIUS = 0.07; // how close to the screen centre (as a part of its width) a player must be to be read as "looked at"
+const NAME_TRACES = 3;    // how many of the players nearest the crosshair are checked for being in sight, nearest first
+const SNAP_PLACES = 128;  // CMMapInfo's MAX_SNAPSHOT (array sizes must be a constant of this class)
+const PAWN_SLOTS = 256;   // the size of the player ID table that matches pawns to snapshot places (a power of two)
 
 // Why the map tools were or weren't drawn last frame, for the tests and the log
 var string MapState;
@@ -166,6 +169,13 @@ var byte SavedServerNames; // and the server's setting as this client was told i
 // Players who have just died: when this client first saw them dead, for the fade
 var array<PlayerReplicationInfo> DeadPRIs;
 var array<float> DeadSince;
+
+// The pawn shown for each snapshot player (as FindPawn gives it), found for all of them in one pass over the pawns once a
+// frame. The pass looks each pawn's player up in a small table of player IDs to snapshot places.
+var Pawn SnapPawn[SNAP_PLACES];
+var int PawnSlotID[PAWN_SLOTS];      // the player ID + 1 held in that slot, 0 for an empty slot
+var byte PawnSlotPlace[PAWN_SLOTS];  // and its snapshot place
+var float PawnTableTime;             // when SnapPawn was last filled
 
 // Spectators: the stretches of projectile paths still on screen, and how far into the server's ring this client has read
 struct ClientTracer
@@ -2229,6 +2239,8 @@ function DrawSnapshotOnMap(Canvas C, ROHUD H, bool bSpectatorView)
     // Under the players, so a crew getting in is drawn on top
     if (bSpectatorView && MapIconShown(MAPICON_VEHICLES))
         DrawEmptyVehicles(C, H, OM, BaseSize);
+    if (!bSpectatorView)
+        MatchPawns(PC);
 
     for (i = 0; i < class'CMMapInfo'.const.MAX_SNAPSHOT; i++)
     {
@@ -2262,7 +2274,7 @@ function DrawSnapshotOnMap(Canvas C, ROHUD H, bool bSpectatorView)
             // A teammate whose pawn this client can see is drawn where it really is, as the game does
             if (!bSpectatorView)
             {
-                P = FindPawn(PC, ROPRI);
+                P = SnapPawn[i];
                 if (P != None)
                     Loc = P.Location;
             }
@@ -2558,6 +2570,71 @@ function Pawn FindPawn(PlayerController PC, PlayerReplicationInfo PRI)
     return Own;
 }
 
+// Fills SnapPawn: for every snapshot player, the pawn FindPawn would give, in one pass over the pawns. Once a frame.
+function MatchPawns(PlayerController PC)
+{
+    local Pawn P, Shown;
+    local int i, Key, Slot;
+
+    if (PawnTableTime == PC.WorldInfo.RealTimeSeconds)
+        return;
+    PawnTableTime = PC.WorldInfo.RealTimeSeconds;
+
+    for (Slot = 0; Slot < PAWN_SLOTS; Slot++)
+        PawnSlotID[Slot] = 0;
+    for (i = 0; i < SNAP_PLACES; i++)
+    {
+        SnapPawn[i] = None;
+        if (Info.SnapPRI[i] == None)
+            continue;
+        Key = Info.SnapPRI[i].PlayerID + 1;
+        Slot = Key & (PAWN_SLOTS - 1);
+        while (PawnSlotID[Slot] != 0)
+            Slot = (Slot + 1) & (PAWN_SLOTS - 1);
+        PawnSlotID[Slot] = Key;
+        PawnSlotPlace[Slot] = byte(i);
+    }
+
+    foreach PC.WorldInfo.AllPawns(class'Pawn', P)
+    {
+        if (P.PlayerReplicationInfo == None || P.Health <= 0)
+            continue;
+        i = SnapPlaceOf(P.PlayerReplicationInfo);
+        if (i == INDEX_NONE)
+            continue;
+        // As FindPawn: the vehicle (or the vehicle's seat) they are in, else their own pawn
+        if (Vehicle(P) != None)
+            Shown = P;
+        else if (P.DrivenVehicle != None && !P.DrivenVehicle.bDeleteMe)
+            Shown = P.DrivenVehicle;
+        else
+            Shown = None;
+        if (Shown != None)
+        {
+            if (Vehicle(SnapPawn[i]) == None)
+                SnapPawn[i] = Shown;
+        }
+        else if (SnapPawn[i] == None)
+            SnapPawn[i] = P;
+    }
+}
+
+// The snapshot place of a player, from the table MatchPawns fills; INDEX_NONE if they aren't in the snapshot
+function int SnapPlaceOf(PlayerReplicationInfo PRI)
+{
+    local int Key, Slot, n;
+
+    Key = PRI.PlayerID + 1;
+    Slot = Key & (PAWN_SLOTS - 1);
+    for (n = 0; n < PAWN_SLOTS && PawnSlotID[Slot] != 0; n++)
+    {
+        if (PawnSlotID[Slot] == Key && Info.SnapPRI[PawnSlotPlace[Slot]] == PRI)
+            return PawnSlotPlace[Slot];
+        Slot = (Slot + 1) & (PAWN_SLOTS - 1);
+    }
+    return INDEX_NONE;
+}
+
 function vector HeadLocation(Pawn P, vector Fallback)
 {
     if (P == None)
@@ -2572,8 +2649,10 @@ function DrawWorld(Canvas C, PlayerController PC, ROHUD H)
     local vector CamLoc, ViewDir, Head, Screen;
     local rotator CamRot;
     local Pawn P;
-    local int i, Best;
-    local float D, BestD, Scale, Size, Dist2D, Now;
+    local int i, k, Best, NumCands;
+    local int CandPlace[NAME_TRACES];
+    local float CandD[NAME_TRACES];
+    local float D, Scale, Size, Dist2D, Now;
     local color Col;
     local bool bAllNames;
 
@@ -2582,15 +2661,16 @@ function DrawWorld(Canvas C, PlayerController PC, ROHUD H)
     Scale = FMax(1.0, C.ClipY / 1080.0);
     Now = PC.WorldInfo.RealTimeSeconds;
     bAllNames = ShowingAllNames(PC);
+    MatchPawns(PC);
+    NumCands = 0;
 
-    // The player looked at: nearest the crosshair and close enough to it, and in sight unless within XRAY_NAME_DIST
-    Best = -1;
-    BestD = C.ClipX * NAME_RADIUS;
-    for (i = 0; i < class'CMMapInfo'.const.MAX_SNAPSHOT; i++)
+    // The player looked at: nearest the crosshair and close enough to it, and in sight unless within XRAY_NAME_DIST. Only
+    // the NAME_TRACES nearest the crosshair are checked for being in sight, nearest first, so a crowd costs few traces.
+    for (i = 0; i < SNAP_PLACES; i++)
     {
         if (Info.SnapPRI[i] == None || (Info.SnapInfo[i] & class'CMMapInfo'.const.FLAG_DEAD) != 0)
             continue;
-        P = FindPawn(PC, Info.SnapPRI[i]);
+        P = SnapPawn[i];
         if (P != None && P == PC.ViewTarget)
             continue;
 
@@ -2598,16 +2678,30 @@ function DrawWorld(Canvas C, PlayerController PC, ROHUD H)
         if (!ProjectToScreen(C, Head, CamLoc, ViewDir, Screen))
             continue;
 
-        // Within 15 meters the name and role show through walls; further away only for a player in sight
         D = Sqrt(Square(Screen.X - C.ClipX * 0.5) + Square(Screen.Y - C.ClipY * 0.5));
-        if (D < BestD && (VSize(Head - CamLoc) <= XRAY_NAME_DIST || PC.FastTrace(Head, CamLoc)))
+        if (D >= C.ClipX * NAME_RADIUS || (NumCands == NAME_TRACES && D >= CandD[NAME_TRACES - 1]))
+            continue;
+        // Kept in order, nearest the crosshair first
+        for (k = Min(NumCands, NAME_TRACES - 1); k > 0 && CandD[k - 1] > D; k--)
         {
-            Best = i;
-            BestD = D;
+            CandD[k] = CandD[k - 1];
+            CandPlace[k] = CandPlace[k - 1];
         }
+        CandD[k] = D;
+        CandPlace[k] = i;
+        NumCands = Min(NumCands + 1, NAME_TRACES);
     }
 
-    for (i = 0; i < class'CMMapInfo'.const.MAX_SNAPSHOT; i++)
+    // Within 15 meters the name and role show through walls; further away only for a player in sight
+    Best = -1;
+    for (k = 0; k < NumCands && Best < 0; k++)
+    {
+        Head = HeadLocation(SnapPawn[CandPlace[k]], Info.SnapLoc[CandPlace[k]]);
+        if (VSize(Head - CamLoc) <= XRAY_NAME_DIST || PC.FastTrace(Head, CamLoc))
+            Best = CandPlace[k];
+    }
+
+    for (i = 0; i < SNAP_PLACES; i++)
     {
         if (Info.SnapPRI[i] == None)
             continue;
@@ -2620,7 +2714,7 @@ function DrawWorld(Canvas C, PlayerController PC, ROHUD H)
         }
         DeadPRIs.RemoveItem(Info.SnapPRI[i]); // alive again, so their next death fades from the start
 
-        P = FindPawn(PC, Info.SnapPRI[i]);
+        P = SnapPawn[i];
         if (P != None && P == PC.ViewTarget)
             continue;
 
