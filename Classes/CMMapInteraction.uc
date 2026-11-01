@@ -492,7 +492,9 @@ function bool CMenuOpen()
 }
 
 // Does what the left mouse button's Fire binding does (Button bFire | StartFire | OnRelease StopFire). Only when left
-// mouse really is bound to fire; otherwise the click goes to the game as before.
+// mouse really is bound to fire; otherwise the click goes to the game as before. Nor while the player can't shoot (Realism
+// Match's weapon safety, or the game holding fire): the click would do nothing at all, so it goes to the game's map, which
+// shows its cursor for drawing.
 function bool StartGameFire()
 {
     local PlayerController PC;
@@ -500,6 +502,8 @@ function bool StartGameFire()
 
     PC = PlayerController(Outer);
     if (PC == None || PC.PlayerInput == None)
+        return false;
+    if (ROPlayerController(PC) != None && ROPlayerController(PC).IsFiringInputIgnored())
         return false;
 
     Key = 'LeftMouseButton';

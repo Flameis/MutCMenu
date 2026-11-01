@@ -317,7 +317,7 @@ Anyone can draw on the overhead map, like the map tools in Arma or Squad. Whatev
 
 **Picking a tool with the keyboard:** while the map cursor is up, the keys along the top of the keyboard pick the tools, in the order they are on the toolbar: **1** Pointer, **2** Move, **3** Pen, **4** Line, **5** Arrow, **6** Circle, **7** Box, **8** Marker, **9** Text, **0** Eraser and **-** (minus) Ruler. Each button shows its key. With the cursor hidden (or a CMenu open, or while typing a label) the keys work as normal, so you can still change weapons with the map open.
 
-**Shooting with the map open:** while the map cursor is hidden, the left mouse button fires as normal. (Without CMenu, a click with the map open only shows the cursor.)
+**Shooting with the map open:** while the map cursor is hidden, the left mouse button fires as normal. (Without CMenu, a click with the map open only shows the cursor.) While you can't shoot (Realism Match's weapon safety is on, for example), a click on the open map shows the map cursor as it does without CMenu, so you can still draw. It used to do nothing at all. *Not yet tried in a game.*
 
 **Tools**
 
