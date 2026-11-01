@@ -1161,7 +1161,7 @@ function DrawClickCursor(ROCanvas C, optional bool bNoHighlight)
 	local int Hit, Slot;
 	local float X, Y, W, H, Size;
 	local ROHUD HUD;
-	local ROHUDWidgetComponent Pointer;
+	local ROHUDWidgetComponent PointerComp;
 
 	if (C == None)
 		return;
@@ -1207,16 +1207,16 @@ function DrawClickCursor(ROCanvas C, optional bool bNoHighlight)
 	C.PushDepthSortPriority(DSP_Insane);
 	HUD = (PC != None) ? ROHUD(PC.myHUD) : None;
 	if (HUD != None && HUD.OverheadMapWidget != None && HUD.OverheadMapWidget.HUDComponents.Length > class'ROHUDWidgetOverheadMap'.const.ROOMT_MousePointer)
-		Pointer = HUD.OverheadMapWidget.HUDComponents[class'ROHUDWidgetOverheadMap'.const.ROOMT_MousePointer];
+		PointerComp = HUD.OverheadMapWidget.HUDComponents[class'ROHUDWidgetOverheadMap'.const.ROOMT_MousePointer];
 
-	if (Pointer != None && Pointer.Tex != None)
+	if (PointerComp != None && PointerComp.Tex != None)
 	{
 		// The game's own cursor, so it looks the same as on the map
 		C.SetDrawColor(255, 255, 255, 255);
 		C.SetPos(CursorPos.X, CursorPos.Y);
-		C.DrawTile(Pointer.Tex, Pointer.CurWidth > 0 ? Pointer.CurWidth : 24 * MenuScale, Pointer.CurHeight > 0 ? Pointer.CurHeight : 24 * MenuScale,
-			Pointer.UOffset, Pointer.VOffset,
-			Pointer.TexWidth > 0 ? Pointer.TexWidth : float(Pointer.Tex.SizeX), Pointer.TexHeight > 0 ? Pointer.TexHeight : float(Pointer.Tex.SizeY));
+		C.DrawTile(PointerComp.Tex, PointerComp.CurWidth > 0 ? PointerComp.CurWidth : 24 * MenuScale, PointerComp.CurHeight > 0 ? PointerComp.CurHeight : 24 * MenuScale,
+			PointerComp.UOffset, PointerComp.VOffset,
+			PointerComp.TexWidth > 0 ? PointerComp.TexWidth : float(PointerComp.Tex.SizeX), PointerComp.TexHeight > 0 ? PointerComp.TexHeight : float(PointerComp.Tex.SizeY));
 	}
 	else
 	{
