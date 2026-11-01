@@ -40,7 +40,7 @@ const MAX_HITSCAN_TRACES = 64;      // shots rebuilt per look; in a bigger firef
 const MIN_SEGMENT = 25.0;      // a stretch shorter than this (half a meter) isn't worth a line
 const DEAD_ICON_TIME = 5.0;
 const GUNSHIP_LINES = 2;       // AC-47 tracer lines per look while it fires
-const GUNSHIP_DIP = 450;       // how much further down (rotation units, 2 degrees) the AC-47's lines point than at the aim point
+const GUNSHIP_DIP = 100;       // how much further down (rotation units, about half a degree) the AC-47's lines point than at the aim point
 const STRIKE_SEARCH = 10000.0; // 200 meters: how far from a barrage or an aircraft a shell with no team can start and be counted as its
     // seconds a left-out teammate (or, for spectators, anyone) stays on the map after dying, as the game does
 
