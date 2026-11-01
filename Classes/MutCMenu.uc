@@ -22,7 +22,6 @@ var config bool                 bDebugStandalone;   // In a standalone (single p
 var bool                        bForceModLoads;     // bDebugStandalone is on and this is a standalone game: every bLoad option counts as on (not saved to the ini)
 var config array<string>        MutatorAdmins; // A list of all mutator admins and their passwords
 var config array<string>        ExtrasToLoad, GOM3ToLoad, GOM4ToLoad, WWToLoad, WW2ToLoad; // Lists of all the objects to load
-var array<Object>                LoadedContent;      // what LoadObjects loaded, kept for the map
 var CMTankExitFix                TankExitFix;        // puts players' bodies back after a WW2 tank, on other maps
 
 struct WeaponMapping
@@ -3145,82 +3144,49 @@ function BindHelpOutput()
 
 function LoadObjects()
 {
-    local array<string> Names, Paths;
     local string Path;
-    local bool bExtras, bGOM3, bGOM4, bWW, bWW2;
     local int Shared;
 
     BindHelpOutput();
 
     // Load settings object
-    KeepLoaded("MutCMenu.MutCMenuSettings");
+    Shared += AddSharedContent("MutCMenu.MutCMenuSettings");
 
-    bExtras = bLoadExtras || bForceModLoads;
-    bGOM3 = bLoadGOM3 || bForceModLoads;
-    bGOM4 = bLoadGOM4 || bForceModLoads;
-    bWW = bLoadWW || bForceModLoads;
-    bWW2 = bLoadWW2 || bForceModLoads;
-
-    // The lists in the ini go in the map's shared content list, on the server only
-    if (bExtras)
+    // The mods' content that is on (the lists in the ini, vehicles included), on the server only
+    if (bLoadExtras || bForceModLoads)
         foreach ExtrasToLoad(Path)
             Shared += AddSharedContent(Path);
-    if (bGOM3)
+    if (bLoadGOM3 || bForceModLoads)
         foreach GOM3ToLoad(Path)
             Shared += AddSharedContent(Path);
-    if (bGOM4)
+    if (bLoadGOM4 || bForceModLoads)
         foreach GOM4ToLoad(Path)
             Shared += AddSharedContent(Path);
-    if (bWW)
+    if (bLoadWW || bForceModLoads)
         foreach WWToLoad(Path)
             Shared += AddSharedContent(Path);
-    if (bWW2)
+    if (bLoadWW2 || bForceModLoads)
         foreach WW2ToLoad(Path)
             Shared += AddSharedContent(Path);
-
-    // Every vehicle in the vehicle menu, so spawning one doesn't stall the server while it loads (each player's game
-    // loads the vehicles too: DummyActor.PreloadModVehicles)
-    class'CMenuBVehicles'.static.GetModVehicles(bWW2, bWW, bGOM3, bGOM4, bExtras, Names, Paths);
-    foreach Paths(Path)
-        KeepLoaded(Path);
-    `log("[MutCMenu] mod content loaded: "$Shared$" classes in the map's shared content, "$LoadedContent.Length$" vehicles and settings kept");
+    `log("[MutCMenu] mod content loaded into the map's shared content: "$Shared$" classes");
 }
 
-// Loads a class from the ini's load lists into the map's shared content list (the game empties that list while it starts
-// up, before this runs). 1 when it was added.
+// Loads a class into the map's shared content list (the game empties that list while it starts up, before this runs).
+// 1 when it was added.
 function int AddSharedContent(string Path)
 {
     local ROMapInfo ROMI;
     local Object O;
 
-    if (Path == "")
+    ROMI = ROMapInfo(WorldInfo.GetMapInfo());
+    if (Path == "" || ROMI == None)
         return 0;
     O = DynamicLoadObject(Path, class'Class', true);
     if (O == None)
         return 0;
-    ROMI = ROMapInfo(WorldInfo.GetMapInfo());
-    if (ROMI == None)
-    {
-        // No map info to hold it: kept here instead
-        if (LoadedContent.Find(O) == INDEX_NONE)
-            LoadedContent.AddItem(O);
-        return 1;
-    }
     if (ROMI.SharedContentReferences.Find(O) == INDEX_NONE)
         ROMI.SharedContentReferences.AddItem(O);
     return 1;
-}
-
-// Loads a class and keeps hold of it for the map, so it isn't loaded again (or let go) when it is first used
-function KeepLoaded(string Path)
-{
-    local Object O;
-
-    if (Path == "")
-        return;
-    O = DynamicLoadObject(Path, class'Class', true);
-    if (O != None && LoadedContent.Find(O) == INDEX_NONE)
-        LoadedContent.AddItem(O);
 }
 
 defaultproperties

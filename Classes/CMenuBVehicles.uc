@@ -93,8 +93,7 @@ function AddModOptions()
     }
 }
 
-// The vehicles of the mods that are on, with their menu names (also what the server and each player load when the map
-// starts: MutCMenu.LoadObjects, DummyActor.PreloadModVehicles)
+// The vehicles of the mods that are on, with their menu names
 static function GetModVehicles(bool bWW2, bool bWW, bool bGOM3, bool bGOM4, bool bExtras, out array<string> Names, out array<string> Paths)
 {
     // Every vehicle WW2.u has that can be placed. Its Churchill (_Content) is abstract, so it can't be.
