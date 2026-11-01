@@ -421,7 +421,7 @@ The map on the spawn selection screen does not show the drawings. Turn the featu
 
 ## 8. Typing commands instead of using the menu
 
-Commands can be typed in the console as `mutate <command> --option value` (short form `-o value`, like Linux commands). A value runs until the next option, so names and grid squares can contain spaces. `--option=value` also works. The older spellings still work too (for example `mutate giveweaponnorth L1A1`).
+Commands can be typed in the console as `mutate <command> --option value` (short form `-o value`, like Linux commands). A value runs until the next option, so names and grid squares can contain spaces. `--option=value` also works. The older spellings still work too (for example `mutate giveweaponnorth L1A1`). If you type an option the command doesn't have (a typo such as `--nmae`), you get a message saying it was ignored and listing the options the command does have; the command still runs without it.
 
 | Command | What it does | Options |
 | :--- | :--- | :--- |

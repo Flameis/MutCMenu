@@ -418,6 +418,10 @@ simulated function Mutate(string mutateString, PlayerController sender)
     // `log("mutateString = "$mutateString);
     CurrentMutateString = mutateString;
 
+    // Once, not again when a --look command runs a second time with the player's view
+    if (LookCaller == None)
+        WarnUnknownOptions(sender, SplitString(mutateString, " ", true));
+
     // Map drawing commands (mapundo, mapclear, mapdrawing) are for everyone; the map manager checks who may do what
     if (MapManager != None && MapManager.HandleCommand(sender, SplitString(mutateString, " ", true)))
     {
@@ -1127,6 +1131,104 @@ function FlagAdminCommand(PlayerController Sender, string Command)
 // =================================================================
 // Option syntax ("--option value" / "-o value")
 // =================================================================
+
+// The options each CMenu command takes, as "long/short" pairs (see CmdOptions). False for a command that is not CMenu's:
+// every mutator sees every command, and only the one it belongs to warns about it. (scrimadminlogin and scrimadminlogout
+// are Realism Match's, which warns for them.)
+function bool CommandOptions(string Command, out string Known)
+{
+    Known = "";
+    switch (Caps(Command))
+    {
+        case "CMENU":
+            Known = "menu/m player/p item/i";
+            return true;
+        case "GIVEWEAPON":
+        case "CLEARWEAPONS":
+            Known = "weapon/w team/t";
+            return true;
+        case "GIVEWEAPONALL":
+        case "GIVEWEAPONNORTH":
+        case "GIVEWEAPONSOUTH":
+            Known = "weapon/w";
+            return true;
+        case "SETCMENUCOLOR":
+            Known = "text/t background/b border/o";
+            return true;
+        case "FIRESUPPORT":
+            Known = "type/t grid/g mark/m sl/l look/k team salvos/s shells/n spread/r interval/i delay/d direction/b dir suppress/q persist/p";
+            return true;
+        case "CANCELFIRESUPPORT":
+            Known = "all/a";
+            return true;
+        case "SPAWNOBJ":
+            Known = "name/n time/t owner/o";
+            return true;
+        case "DELETEOBJ":
+            Known = "obj/o";
+            return true;
+        case "SPAWNFLAG":
+            Known = "team/t flag/f nobeam/n";
+            return true;
+        case "CMENUPCMANAGER":
+        case "KILLPLAYER":
+        case "TELEPORTTOME":
+        case "FORCESWITCHTEAM":
+        case "TEMPADMINLOGIN":
+        case "TEMPADMINLOGOUT":
+        case "FORCERESPAWN":
+        case "FORCESAFETYON":
+        case "FORCESAFETYOFF":
+            Known = "player/p";
+            return true;
+        case "FDAO":
+            Known = "player/p obj/o";
+            return true;
+        case "FDAG":
+            Known = "player/p grid/g";
+            return true;
+        case "FORCEUNITPATCH":
+            Known = "player/p unit/u";
+            return true;
+        case "FORCERANKPATCH":
+            Known = "player/p rank/r";
+            return true;
+        // No options
+        case "CLEARWEAPONSALL":
+        case "CLEARWEAPONSNORTH":
+        case "CLEARWEAPONSSOUTH":
+        case "SETCMENUTEXTCOLOR":
+        case "SETCMENUBGCOLOR":
+        case "SETCMENUBORDERCOLOR":
+        case "SWITCHTEAM":
+        case "FIRESUPPORTHELP":
+        case "CLEAROBJS":
+        case "CLEARCORNERS":
+        case "DELNORTHSPAWNS":
+        case "DELSOUTHSPAWNS":
+        case "DROPFLAG":
+        case "RESETFLAGS":
+        case "REMOVEFLAGS":
+        case "MAPUNDO":
+        case "MAPCLEAR":
+        case "MAPDRAWING":
+        case "TRACERS":
+            return true;
+    }
+    return false;
+}
+
+// Tells the player about options their command does not take (they are ignored, and so is what was typed after them)
+function WarnUnknownOptions(PlayerController Sender, array<string> Tokens)
+{
+    local string Known, Warning;
+
+    if (Sender == None || Tokens.Length == 0 || !CommandOptions(Tokens[0], Known))
+        return;
+    Warning = class'CmdOptions'.static.UnknownOptionsWarning(Tokens[0], Tokens, Known);
+    if (Warning != "")
+        PrivateMessage(Sender, "[CMenu] "$Warning);
+}
 // Maps the options of a command onto the primary/secondary arguments the command handlers use, so
 // "killplayer --player Name" and the older "killplayer Name" behave the same. Team options on the weapon
 // commands turn into the matching legacy command (giveweapon --team north -> GIVEWEAPONNORTH).
