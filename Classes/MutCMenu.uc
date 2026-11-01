@@ -23,6 +23,7 @@ var bool                        bForceModLoads;     // bDebugStandalone is on an
 var config array<string>        MutatorAdmins; // A list of all mutator admins and their passwords
 var config array<string>        ExtrasToLoad, GOM3ToLoad, GOM4ToLoad, WWToLoad, WW2ToLoad; // Lists of all the objects to load
 var array<Object>                LoadedContent;      // what LoadObjects loaded, kept for the map
+var array<string>                ContentPaths;       // the mod content that is on (ModContentPaths), which each player's game loads too
 var CMTankExitFix                TankExitFix;        // puts players' bodies back after a WW2 tank, on other maps
 
 struct WeaponMapping
@@ -210,6 +211,7 @@ simulated function NotifyLogin(Controller NewPlayer)
     DA.bTankPromptForAll = bTankPromptForAll;
 
     DA.CMenuSetup();
+    SendPreloadList(DA, PlayerController(NewPlayer));
 
     if (MapManager != None && PlayerController(NewPlayer) != None)
         MapManager.AddPlayer(PlayerController(NewPlayer));
@@ -3145,41 +3147,77 @@ function BindHelpOutput()
 
 function LoadObjects()
 {
-    local array<string> Names, Paths;
     local string Path;
-    local bool bExtras, bGOM3, bGOM4, bWW, bWW2;
 
     BindHelpOutput();
 
     // Load settings object
     KeepLoaded("MutCMenu.MutCMenuSettings");
 
-    // The mods' content that is on: the lists in the ini, and every vehicle in the vehicle menu, so spawning one doesn't
-    // stall the server while it loads (each player's game loads the vehicles too: DummyActor.PreloadModVehicles)
+    // The mods' content that is on, so spawning something from a mod doesn't stall the server while it loads (each
+    // player's game loads the same list: SendPreloadList)
+    if (ContentPaths.Length == 0)
+        ContentPaths = ModContentPaths();
+    foreach ContentPaths(Path)
+        KeepLoaded(Path);
+    `log("[MutCMenu] mod content loaded: "$LoadedContent.Length$" classes");
+}
+
+// The mods' content that is on: every vehicle in the vehicle menu first (spawning one is the longest stall), then the
+// lists in the ini
+function array<string> ModContentPaths()
+{
+    local array<string> Names, Paths;
+    local string Path;
+    local bool bExtras, bGOM3, bGOM4, bWW, bWW2;
+
     bExtras = bLoadExtras || bForceModLoads;
     bGOM3 = bLoadGOM3 || bForceModLoads;
     bGOM4 = bLoadGOM4 || bForceModLoads;
     bWW = bLoadWW || bForceModLoads;
     bWW2 = bLoadWW2 || bForceModLoads;
+    class'CMenuBVehicles'.static.GetModVehicles(bWW2, bWW, bGOM3, bGOM4, bExtras, Names, Paths);
     if (bExtras)
         foreach ExtrasToLoad(Path)
-            KeepLoaded(Path);
+            Paths.AddItem(Path);
     if (bGOM3)
         foreach GOM3ToLoad(Path)
-            KeepLoaded(Path);
+            Paths.AddItem(Path);
     if (bGOM4)
         foreach GOM4ToLoad(Path)
-            KeepLoaded(Path);
+            Paths.AddItem(Path);
     if (bWW)
         foreach WWToLoad(Path)
-            KeepLoaded(Path);
+            Paths.AddItem(Path);
     if (bWW2)
         foreach WW2ToLoad(Path)
-            KeepLoaded(Path);
-    class'CMenuBVehicles'.static.GetModVehicles(bWW2, bWW, bGOM3, bGOM4, bExtras, Names, Paths);
-    foreach Paths(Path)
-        KeepLoaded(Path);
-    `log("[MutCMenu] mod content loaded: "$LoadedContent.Length$" classes");
+            Paths.AddItem(Path);
+    return Paths;
+}
+
+// Tells a player's game which mod content to load (DummyActor.ClientPreload). The map's shared content list is only kept
+// on the machine that fills it, so the server's own loading never reached the players. Not for the player on this
+// machine (a listen server's host already has it all) or the camera a server demo is recorded from.
+function SendPreloadList(DummyActor DA, PlayerController PC)
+{
+    local string Joined, Path;
+
+    if (DA == None || PC == None || PC.IsLocalPlayerController() || PC.IsA('DemoRecSpectator'))
+        return;
+    if (ContentPaths.Length == 0)
+        ContentPaths = ModContentPaths();
+    foreach ContentPaths(Path)
+        Joined = (Joined == "") ? Path : Joined$","$Path;
+    if (Joined == "")
+        return;
+
+    // In pieces: one network call can only carry so much
+    while (Len(Joined) > HELP_PART_CHARS)
+    {
+        DA.ClientAddPreloadPart(Left(Joined, HELP_PART_CHARS));
+        Joined = Mid(Joined, HELP_PART_CHARS);
+    }
+    DA.ClientPreload(Joined);
 }
 
 // Loads a class and keeps hold of it for the map, so it isn't loaded again (or let go) when it is first used. Kept here

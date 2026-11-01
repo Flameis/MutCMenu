@@ -17,8 +17,10 @@ var float                       LastFlagTime;          // Server side: when this
 
 var string PendingHelp; // client-side: help received in pieces, waiting for ClientShowHelp
 var string PendingLookCommand; // server-side: the command waiting for ServerLookTarget (MutCMenu.AskClientForLook)
-var array<string> PreloadPaths; // client-side: the mod vehicles still to load (PreloadModVehicles)
-var array<Object> Preloaded;    // and those loaded, kept for the map
+var string PendingPreload;      // client-side: the server's content list received in pieces, waiting for ClientPreload
+var array<string> PreloadPaths; // client-side: the mod content still to load (PreloadNext)
+var array<Object> Preloaded;    // and that loaded, kept for the map
+var int PreloadFailed;          // how many of the paths this game could not load
 
 replication
 {
@@ -135,17 +137,28 @@ reliable server function ServerLookTarget(bool bHit, vector Target, vector Norma
         MyMut.RunWithClientLook(PlayerController(Owner), Command, bHit, Target, Normal);
 }
 
-// Each player's game loads the vehicles of the mods the server has on, a few seconds after joining and one at a time, so
-// that when one is spawned (or picked in the vehicle menu) the game doesn't stall loading it then. The server loads them
-// when the map starts (MutCMenu.LoadObjects).
-simulated function PreloadModVehicles()
+// Each player's game loads the same mod content the server loads when the map starts (MutCMenu.LoadObjects): the vehicles
+// of the mods that are on, then the server's content lists. Without it, spawning something from a mod made every player's
+// game stall while it loaded it. The map's shared content list is only kept on the machine that fills it, so the server
+// sends its list (MutCMenu.SendPreloadList), in pieces like long help. It is loaded a few seconds after it arrives, one
+// at a time.
+reliable client function ClientAddPreloadPart(string Part)
 {
-    local array<string> Names;
+    PendingPreload $= Part;
+}
 
-    PreloadPaths.Length = 0;
-    class'CMenuBVehicles'.static.GetModVehicles(bLoadWW2, bLoadWW, bLoadGOM3, bLoadGOM4, bLoadExtras, Names, PreloadPaths);
-    if (PreloadPaths.Length > 0)
-        SetTimer(0.25, true, 'PreloadNext');
+reliable client function ClientPreload(string Last)
+{
+    PreloadPaths = SplitString(PendingPreload$Last, ",", true);
+    PendingPreload = "";
+    if (Role < ROLE_Authority && PreloadPaths.Length > 0)
+        SetTimer(5.0, false, 'StartPreload');
+}
+
+simulated function StartPreload()
+{
+    `log("[MutCMenu] loading the server's mod content on this game: "$PreloadPaths.Length$" classes");
+    SetTimer(0.25, true, 'PreloadNext');
 }
 
 simulated function PreloadNext()
@@ -155,11 +168,16 @@ simulated function PreloadNext()
     if (PreloadPaths.Length == 0)
     {
         ClearTimer('PreloadNext');
-        `log("[MutCMenu] mod vehicles loaded on this game: "$Preloaded.Length);
+        `log("[MutCMenu] mod content loaded on this game: "$Preloaded.Length$" classes, "$PreloadFailed$" could not be loaded");
         return;
     }
     O = DynamicLoadObject(PreloadPaths[0], class'Class', true);
-    if (O != None && Preloaded.Find(O) == INDEX_NONE)
+    if (O == None)
+    {
+        PreloadFailed++;
+        `log("[MutCMenu] could not load mod content "$PreloadPaths[0]$" on this game");
+    }
+    else if (Preloaded.Find(O) == INDEX_NONE)
         Preloaded.AddItem(O);
     PreloadPaths.Remove(0, 1);
 }
@@ -203,10 +221,6 @@ reliable client function CMenuSetup()
     pc.Interactions.additem(new(pc) class'CMenuBPickups');
 
     pc.Interactions.additem(new(pc) class'CMenuWeapons');
-
-    // (the settings it goes by come in with this actor; a moment later they are surely here)
-    if (Role < ROLE_Authority)
-        SetTimer(5.0, false, 'PreloadModVehicles');
 
     TankEntry = new(pc) class'TankEntryInteraction';
     TankEntry.PC = PC;
