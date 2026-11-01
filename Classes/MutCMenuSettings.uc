@@ -168,10 +168,13 @@ function SaveMutSettings()
 // (Localization\INT, section [<this class>]), in the same order as below.
 defaultproperties
 {
-    SettingsGroups.Add((GroupID="Content",pMin=600,pMax=610,lMin=0,lMax=0))
-    SettingsGroups.Add((GroupID="FireSupport",pMin=610,pMax=620,lMin=0,lMax=0))
-    SettingsGroups.Add((GroupID="Map",pMin=620,pMax=630,lMin=0,lMax=0))
-    SettingsGroups.Add((GroupID="CTF",pMin=630,pMax=640,lMin=0,lMax=0))
+    // Tab ids are numbers: the game's WebAdmin checks a named tab against the admin's rights with a broken address on
+    // the Mutators page, so with multi-admin logins (the 29th's servers) every named tab was hidden. The titles come
+    // from the .int file.
+    SettingsGroups.Add((GroupID="0",pMin=600,pMax=610,lMin=0,lMax=0))
+    SettingsGroups.Add((GroupID="1",pMin=610,pMax=620,lMin=0,lMax=0))
+    SettingsGroups.Add((GroupID="2",pMin=620,pMax=630,lMin=0,lMax=0))
+    SettingsGroups.Add((GroupID="3",pMin=630,pMax=640,lMin=0,lMax=0))
 
     // Mod content
     Properties.Add((PropertyId=600,Data=(Type=SDT_Int32,Value1=0)))
