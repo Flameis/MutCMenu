@@ -283,10 +283,8 @@ simulated event Destroyed()
             GRI.ObjectiveRepIndices[ObjIndex] = `OBJECTIVE_REPINDEX_NONE;
             GRI.ObjectiveCapProgress[ObjIndex] = 0;
             GRI.ObjectiveForceRatio[ObjIndex] = 0;
-            if (ObjIndex < GRI.ObjectiveActive.Length)
-            {
-                GRI.ObjectiveActive[ObjIndex] = false;
-            }
+            GRI.ObjCappers[ObjIndex].NumOfCappers[`AXIS_TEAM_INDEX] = 0;
+            GRI.ObjCappers[ObjIndex].NumOfCappers[`ALLIES_TEAM_INDEX] = 0;
 
             // Players inside it are not inside anything any more
             for (I = 0; I < PlayerCappers.Length; I++)
@@ -302,6 +300,14 @@ simulated event Destroyed()
         {
             GRI.Objectives[ObjIndex] = none;
         }
+
+        // Each game keeps its own "this objective is in use" flag and name (set when the objective arrived, never sent by
+        // the server). Left set, a player's map kept drawing the removed objective's letter and area.
+        if (ObjIndex < GRI.ObjectiveActive.Length)
+        {
+            GRI.ObjectiveActive[ObjIndex] = false;
+        }
+        GRI.ObjectiveNames[ObjIndex] = "";
         GRI.bNetDirty = true;
 
         if (WorldInfo.NetMode != NM_DedicatedServer)
@@ -398,6 +404,9 @@ function CaptureTick()
     if (ROGIT == none || ROGRI == none || !ROGIT.bRoundActive || !IsOpen()
         || ObjIndex >= ROGIT.Objectives.Length || ROGIT.Objectives[ObjIndex] != self)
     {
+        // Nobody counts as capturing it (Tick keeps the game's count at this)
+        NumCappers[`AXIS_TEAM_INDEX] = 0;
+        NumCappers[`ALLIES_TEAM_INDEX] = 0;
         return;
     }
 
@@ -573,6 +582,26 @@ function CaptureTick()
     if (ROGRI.ObjectiveStatus[ObjIndex] != OldStatus || ROGRI.ObjectiveCapProgress[ObjIndex] != OldProgress
         || ROGRI.ObjectiveForceRatio[ObjIndex] != OldRatio)
     {
+        ROGRI.bNetDirty = true;
+    }
+}
+
+// The game's own capture timer goes through this objective too (it is in the game's list) and, finding nobody inside (there
+// is no volume), sets the number of players capturing it back to none. The players inside then saw the HUD's objective
+// icon flicker between the two counts. The count is put back after the game's timer, every frame, before it is sent.
+event Tick(float DeltaTime)
+{
+    super.Tick(DeltaTime);
+
+    if (!bObjectiveReady || ROGRI == none || ObjIndex >= `MAX_OBJECTIVES)
+    {
+        return;
+    }
+    if (ROGRI.ObjCappers[ObjIndex].NumOfCappers[`AXIS_TEAM_INDEX] != NumCappers[`AXIS_TEAM_INDEX]
+        || ROGRI.ObjCappers[ObjIndex].NumOfCappers[`ALLIES_TEAM_INDEX] != NumCappers[`ALLIES_TEAM_INDEX])
+    {
+        ROGRI.ObjCappers[ObjIndex].NumOfCappers[`AXIS_TEAM_INDEX] = NumCappers[`AXIS_TEAM_INDEX];
+        ROGRI.ObjCappers[ObjIndex].NumOfCappers[`ALLIES_TEAM_INDEX] = NumCappers[`ALLIES_TEAM_INDEX];
         ROGRI.bNetDirty = true;
     }
 }
