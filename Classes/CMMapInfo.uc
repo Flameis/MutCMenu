@@ -474,6 +474,14 @@ static function bool CanSee(PlayerReplicationInfo Viewer, byte Team, byte Squad,
 }
 
 // Players may erase their own drawings; squad leaders their squad's, commanders their team's, scrim admins anything
+// The same, for one drawing: movement restrictions are for scrim admins only, to make, erase, move, change or clear
+static function bool CanEraseItem(PlayerReplicationInfo Viewer, bool bAdmin, byte Kind, byte Team, byte Squad, int OwnerID)
+{
+    if (IsZone(Kind) && !bAdmin)
+        return false;
+    return CanErase(Viewer, bAdmin, Team, Squad, OwnerID);
+}
+
 static function bool CanErase(PlayerReplicationInfo Viewer, bool bAdmin, byte Team, byte Squad, int OwnerID)
 {
     local ROPlayerReplicationInfo ROPRI;

@@ -338,7 +338,7 @@ Anyone can draw on the overhead map, like the map tools in Arma or Squad. Whatev
 | Text | Click where the label goes, type it (up to 40 characters), press Enter. Escape cancels |
 | Eraser | Click a drawing to erase it. The drawing it would take is highlighted first |
 | Ruler | Drag to measure distance in meters and the compass bearing. Only you see it |
-| Restrict | Marks a movement restriction (see below). Pick **Lines**, **Box** or **Circle** under the colours |
+| Restrict | (Logged in admins) Marks a movement restriction (see below). Pick **Lines**, **Box** or **Circle** under the colours |
 
 While you drag a line, arrow, circle or box, its length, bearing or size in meters is shown next to the cursor. Right mouse still drags the map and the mouse wheel still zooms.
 
@@ -356,7 +356,7 @@ With the map cursor up, click the **middle mouse button** on the map for a small
 
 **Movement restrictions (the Restrict tool)**
 
-Use it to show players where they may or may not go. What you mark with it shows on the map as a **dashed** line, and in the game itself as a line **on the ground**, in the colour you picked, for the same people who see your other drawings ("Draw for").
+Use it to show players where they may or may not go. **Only logged in admins** (scrim admins and server admins) can use it: for everyone else its button is greyed out and the `=` key does nothing, and the server refuses a restriction from anyone else too. Only admins can erase, move, recolour or clear restrictions as well, so a squad leader's or commander's clear leaves them alone. What you mark with it shows on the map as a **dashed** line, and in the game itself as a line **on the ground**, in the colour you picked, for the same people who see your other drawings ("Draw for").
 
 | Shape | How to use it |
 | :--- | :--- |

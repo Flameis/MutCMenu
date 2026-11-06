@@ -1185,6 +1185,11 @@ function bool CommitItem(CMMapInfo From, CMMapInfo.PendingMapItem P)
         return false;
 
     bAdmin = IsAdmin(PC);
+    if (class'CMMapInfo'.static.IsZone(P.Kind) && !bAdmin)
+    {
+        PrivateMessage(PC, "Only logged in admins can mark movement restrictions.");
+        return false;
+    }
     if (!class'CMMapInfo'.static.ResolveChannel(PC.PlayerReplicationInfo, P.Channel, bAdmin, bDrawingLocked, Team, Squad))
     {
         if (bDrawingLocked && !bAdmin)
@@ -1301,7 +1306,7 @@ function EraseItem(PlayerController PC, int ID)
     if (PC == None || Index == INDEX_NONE)
         return;
 
-    if (class'CMMapInfo'.static.CanErase(PC.PlayerReplicationInfo, IsAdmin(PC), Items[Index].Team, Items[Index].Squad, Items[Index].OwnerID))
+    if (class'CMMapInfo'.static.CanEraseItem(PC.PlayerReplicationInfo, IsAdmin(PC), Items[Index].Kind, Items[Index].Team, Items[Index].Squad, Items[Index].OwnerID))
         RemoveItemAt(Index);
     else
         PrivateMessage(PC, "You can only erase your own drawings (squad leaders: your squad's, the commander: the team's).");
@@ -1322,7 +1327,7 @@ function MoveItem(PlayerController PC, int ID, int DX, int DY)
         return;
 
     bAdmin = IsAdmin(PC);
-    if (!class'CMMapInfo'.static.CanErase(PC.PlayerReplicationInfo, bAdmin, Items[Index].Team, Items[Index].Squad, Items[Index].OwnerID)
+    if (!class'CMMapInfo'.static.CanEraseItem(PC.PlayerReplicationInfo, bAdmin, Items[Index].Kind, Items[Index].Team, Items[Index].Squad, Items[Index].OwnerID)
         || (bDrawingLocked && !bAdmin))
     {
         if (bDrawingLocked && !bAdmin)
@@ -1366,7 +1371,7 @@ function RestyleItem(PlayerController PC, int ID, byte NewColour, byte NewIcon)
         return;
 
     bAdmin = IsAdmin(PC);
-    if (!class'CMMapInfo'.static.CanErase(PC.PlayerReplicationInfo, bAdmin, Items[Index].Team, Items[Index].Squad, Items[Index].OwnerID)
+    if (!class'CMMapInfo'.static.CanEraseItem(PC.PlayerReplicationInfo, bAdmin, Items[Index].Kind, Items[Index].Team, Items[Index].Squad, Items[Index].OwnerID)
         || (bDrawingLocked && !bAdmin))
     {
         if (bDrawingLocked && !bAdmin)
@@ -1470,7 +1475,7 @@ function int Clear(PlayerController PC, byte Mode, byte Channel)
                 continue;
         }
         else if (Items[i].Team != Team || Items[i].Squad != Squad
-            || !class'CMMapInfo'.static.CanErase(PRI, bAdmin, Items[i].Team, Items[i].Squad, Items[i].OwnerID))
+            || !class'CMMapInfo'.static.CanEraseItem(PRI, bAdmin, Items[i].Kind, Items[i].Team, Items[i].Squad, Items[i].OwnerID))
             continue;
 
         RemoveItemAt(i);

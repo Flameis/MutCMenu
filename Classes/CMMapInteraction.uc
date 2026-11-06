@@ -1015,8 +1015,16 @@ function bool ItemShown(CMMapInfo.ClientMapItem Item, PlayerReplicationInfo View
 
 function SelectTool(byte NewTool)
 {
+    if (!ToolAllowed(NewTool))
+        return;
     Cancel();
     Tool = NewTool;
+}
+
+// The Restrict tool is for scrim admins only (the server refuses restrictions from anyone else too)
+function bool ToolAllowed(byte Which)
+{
+    return Which != TOOL_ZONE || Info.bScrimAdmin;
 }
 
 // Stops whatever was being drawn or typed, without sending it
@@ -1338,7 +1346,7 @@ function int PickItem(vector2D S, bool bErasable)
     {
         if (!ItemShown(Info.Items[i], PC.PlayerReplicationInfo))
             continue;
-        if (bErasable && !class'CMMapInfo'.static.CanErase(PC.PlayerReplicationInfo, Info.bScrimAdmin, Info.Items[i].Team, Info.Items[i].Squad, Info.Items[i].OwnerID))
+        if (bErasable && !class'CMMapInfo'.static.CanEraseItem(PC.PlayerReplicationInfo, Info.bScrimAdmin, Info.Items[i].Kind, Info.Items[i].Team, Info.Items[i].Squad, Info.Items[i].OwnerID))
             continue;
 
         D = DistToItem(Info.Items[i], S);
@@ -1533,6 +1541,9 @@ event PostRender(Canvas C)
     if (Info.bDrawingEnabled)
     {
         ValidateChannel(PC.PlayerReplicationInfo);
+        // A scrim admin who logs out loses the Restrict tool
+        if (!ToolAllowed(Tool))
+            SelectTool(TOOL_POINTER);
 
         for (i = Sent.Length - 1; i >= 0; i--)
         {
@@ -2365,7 +2376,8 @@ function DrawToolbar(Canvas C, PlayerController PC)
     // In toolbar order, each with the number key that picks it
     for (i = 0; i < NUM_TOOLS; i++)
     {
-        AddButton(X + (i % 2) * (BtnW + Gap), Y, BtnW, BtnH, A_TOOL, ToolInSlot(i), SlotKeyName(i)$"  "$ToolName(ToolInSlot(i)), Tool == ToolInSlot(i));
+        AddButton(X + (i % 2) * (BtnW + Gap), Y, BtnW, BtnH, A_TOOL, ToolInSlot(i), SlotKeyName(i)$"  "$ToolName(ToolInSlot(i)), Tool == ToolInSlot(i),
+            !ToolAllowed(ToolInSlot(i)));
         if (i % 2 == 1)
             Y += BtnH + Gap;
     }
@@ -3014,7 +3026,7 @@ function bool CanChangeItem(int Index)
 
     PC = PlayerController(Outer);
     return Index != INDEX_NONE && PC != None && (!Info.bDrawingLocked || Info.bScrimAdmin)
-        && class'CMMapInfo'.static.CanErase(PC.PlayerReplicationInfo, Info.bScrimAdmin, Info.Items[Index].Team, Info.Items[Index].Squad, Info.Items[Index].OwnerID);
+        && class'CMMapInfo'.static.CanEraseItem(PC.PlayerReplicationInfo, Info.bScrimAdmin, Info.Items[Index].Kind, Info.Items[Index].Team, Info.Items[Index].Squad, Info.Items[Index].OwnerID);
 }
 
 static function string KindName(CMMapInfo.ClientMapItem Item)
