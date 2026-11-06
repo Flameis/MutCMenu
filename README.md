@@ -196,6 +196,8 @@ Open **Builder Menu** from the main menu. You aim at the spot you want, and conf
 - Only the Builder's own turrets and resupply points are spawned, and a mesh or vehicle that doesn't exist is refused with a message.
 - Placing and clearing can't be lost on a bad connection any more. A pasted structure used to arrive with pieces missing.
 
+**Every player sees the same pieces.** A placed piece's mesh is also sent by name, and a player's game loads it by that name when it doesn't have the mesh yet (a mesh from a map package or another map's set). Before, such a piece could be invisible for that player while still solid on the server. *Tested by the harness on one game; the network test for it is written but has not been run yet.*
+
 **Clear All Meshes takes only Builder mesh pieces.** Resupply points, team spawns and the corner poles of custom objectives stay.
 
 **Placing fixes:**

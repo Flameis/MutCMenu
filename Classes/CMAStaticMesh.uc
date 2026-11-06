@@ -4,6 +4,10 @@ var StaticMeshComponent	StaticMeshComponent;
 var DynamicLightEnvironmentComponent LightEnvironment;
 /** Used to replicate mesh to clients */
 var repnotify StaticMesh ReplicatedMesh;
+/** And its path: a mesh from a package a player's game hasn't loaded (a map package, another map's set) arrives as no
+    mesh at all, so the player's game loads it by name. Without this the piece could be invisible for that player but
+    solid on the server. */
+var repnotify string ReplicatedMeshPath;
 /** used to replicate the material in index 0 */
 var repnotify MaterialInterface ReplicatedMaterial;
 
@@ -35,7 +39,7 @@ var repnotify ECrateMeshDisplayStatus 		CrateDisplayStatus;
 replication
 {
 	if (bNetDirty && (Role == ROLE_Authority))
-		CrateDisplayStatus, ReplicatedMesh, ReplicatedMaterial, ReplicatedMeshTranslation, ReplicatedMeshRotation, ReplicatedMeshScale3D, Health;
+		CrateDisplayStatus, ReplicatedMesh, ReplicatedMeshPath, ReplicatedMaterial, ReplicatedMeshTranslation, ReplicatedMeshRotation, ReplicatedMeshScale3D, Health;
 }
 
 simulated event ReplicatedEvent( name VarName )
@@ -46,7 +50,15 @@ simulated event ReplicatedEvent( name VarName )
 	}
 	else if (VarName == 'ReplicatedMesh')
 	{
-		SetStaticMesh(ReplicatedMesh);
+		// No mesh can mean only that this game hasn't loaded its package: the path is used then
+		if (ReplicatedMesh != None)
+			SetStaticMesh(ReplicatedMesh);
+		else
+			LoadMeshByPath();
+	}
+	else if (VarName == 'ReplicatedMeshPath')
+	{
+		LoadMeshByPath();
 	}
 	else if (VarName == 'ReplicatedMaterial')
 	{
@@ -193,6 +205,7 @@ reliable server function ServerSetStaticMesh(StaticMesh NewMesh)
 {
 	StaticMeshComponent.SetStaticMesh(NewMesh);
 	ReplicatedMesh = NewMesh;
+	ReplicatedMeshPath = (NewMesh != None) ? PathName(NewMesh) : "";
 	RefreshLighting();
 
 	ForceNetRelevant();
@@ -229,6 +242,20 @@ reliable server function ServerSetScale3D(vector NewScale3D)
 	RefreshLighting();
 
 	ForceNetRelevant();
+}
+
+// A player's game: the mesh by its path, when it isn't already there
+simulated function LoadMeshByPath()
+{
+	local StaticMesh SM;
+
+	if (ReplicatedMeshPath == "" || (StaticMeshComponent.StaticMesh != None && PathName(StaticMeshComponent.StaticMesh) == ReplicatedMeshPath))
+		return;
+	SM = StaticMesh(DynamicLoadObject(ReplicatedMeshPath, class'StaticMesh', true));
+	if (SM != None)
+		SetStaticMesh(SM);
+	else
+		`log("[CMenu] Builder piece: this game doesn't have the mesh "$ReplicatedMeshPath);
 }
 
 simulated function SetStaticMesh(StaticMesh NewMesh)
