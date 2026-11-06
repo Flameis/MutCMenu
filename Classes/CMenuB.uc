@@ -41,6 +41,7 @@ var StaticMeshComponent				MeasureMesh;	// the selected mesh at no turn and its 
 var StaticMesh						MeasuredMesh;
 var vector							MeasuredMin, MeasuredMax; // its size, in its own facing at scale 1
 var bool							bMeasured;
+var name							BuildWhat;		// what this menu places, for the server's match rules (MutCMenu.MayBuild); none: not checked here
 var bool 							SwitchRotDir;
 var Actor							TracedActor;
 
@@ -307,9 +308,74 @@ function ToggleChain(int Side)
 // Why it can't be placed where it is now, or "" when it can (the preview is red when it can't). Menus add their own.
 function string WhyCantPlace()
 {
+	local string Why;
+
+	Why = RuleWhyCantPlace();
+	if (Why != "")
+		return Why;
 	if (TracedActor == None && !bChain)
 		return "Aim at the ground or a wall to place it there.";
 	return "";
+}
+
+// The server's match rules, as it sent them (MutCMenu.MayBuild checks them again): why this player can't build this here
+function string RuleWhyCantPlace()
+{
+	local CMMapInfo MapInfo;
+	local byte Team;
+	local int Zones;
+
+	if (MyDA == None || BuildWhat == '')
+		return "";
+	if (MyDA.BuilderMode == class'MutCMenu'.const.BUILDER_OFF)
+		return "The Builder is turned off on this server.";
+	if (bIsAuthorized)
+		return "";
+	if (MyDA.BuilderMode == class'MutCMenu'.const.BUILDER_ADMINS)
+		return "Only admins can build on this server.";
+	if (MyDA.BuilderMode == class'MutCMenu'.const.BUILDER_BUILD_PHASE && !MyDA.bBuildPhaseOpen)
+		return "Players can only build during the match briefing, before LIVE.";
+	if (MyDA.bBuilderPiecesOnly && BuildWhat != 'Mesh')
+		return "Players can only place pieces from the Builder's lists here.";
+	Team = class'CMMapInfo'.static.PlayingTeam(PC.PlayerReplicationInfo);
+	if ((MyDA.bBuilderBudgets || MyDA.bBuilderZones) && Team == 255)
+		return "Join a team to build.";
+	if (MyDA.bBuilderZones)
+	{
+		MapInfo = PlayerMapInfo();
+		if (MapInfo != None && !MapInfo.ClientInBuildZone(Team, PlaceLoc, Zones))
+			return (Zones == 0) ? "No build zone has been drawn for your team yet." : "You can only build inside your team's build zones (see the map).";
+	}
+	return "";
+}
+
+// This player's map drawings (the build zones are among them)
+function CMMapInfo PlayerMapInfo()
+{
+	local int i;
+
+	for (i = 0; i < PC.Interactions.Length; i++)
+	{
+		if (CMMapInteraction(PC.Interactions[i]) != None)
+			return CMMapInteraction(PC.Interactions[i]).Info;
+	}
+	return None;
+}
+
+// The hints panel's line about the match rules, or ""
+function string RulesHint()
+{
+	local string S;
+
+	if (MyDA == None)
+		return "";
+	if (MyDA.bBuilderBudgets)
+		S = "Team points: "$MyDA.BuildPointsLeft$" of "$MyDA.BuildPointsTotal$" left"$(bIsAuthorized ? " (admins build for free)" : "");
+	if (MyDA.BuilderMode == class'MutCMenu'.const.BUILDER_BUILD_PHASE && MyDA.bBuildPhaseOpen)
+		S $= (S != "" ? "   " : "")$"Building closes when the match goes LIVE";
+	if (MyDA.bBuilderZones && !bIsAuthorized)
+		S $= (S != "" ? "   " : "")$"Build inside your team's build zones";
+	return S;
 }
 
 // While placing: the keys, how they are set, what the last key did and why it can't be placed (if it can't)
@@ -338,6 +404,9 @@ function DrawPlacingHints(ROCanvas C)
 	Lines.AddItem(L);
 	if (bCanChain)
 		Lines.AddItem("P / Shift+P: place the next one beside the last ("$(bChain ? (ChainSide > 0 ? "far end" : "near end") : "off")$")");
+	L = RulesHint();
+	if (L != "")
+		Lines.AddItem(L);
 	L = "Step: "$LocStepFor(StepLevel)$" units, "$(RotStepFor(StepLevel) * UnrRotToDeg)$" degrees";
 	if (bCanScale)
 		L $= "   Size: "$ModifyScale.X;

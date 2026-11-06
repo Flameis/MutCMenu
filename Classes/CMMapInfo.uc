@@ -110,6 +110,9 @@ const KIND_TEXT = 6;   // text at 1 point
 const KIND_ZONE_LINES = 7;  // straight lines joining 2 to MAX_POINTS points; the last point on the first closes it
 const KIND_ZONE_BOX = 8;    // two opposite corners
 const KIND_ZONE_CIRCLE = 9; // centre and a point on the edge
+// A movement restriction with this text is a build zone (the Restrict tool's Build zone switch): with the Builder's
+// build zones on, a team's players build only inside the build zones drawn for that team (or for everyone)
+const BUILD_ZONE_TEXT = "BUILD";
 const NUM_KINDS = 10;
 
 // Who sees a drawing: a team (with a squad, or SQUAD_ALL for the whole team), everyone, only spectators, or only the
@@ -657,6 +660,65 @@ static function string IconName(byte Icon)
 static function bool IsZone(byte Kind)
 {
     return Kind == KIND_ZONE_LINES || Kind == KIND_ZONE_BOX || Kind == KIND_ZONE_CIRCLE;
+}
+
+static function bool IsBuildZone(byte Kind, string Text)
+{
+    return IsZone(Kind) && Text ~= BUILD_ZONE_TEXT;
+}
+
+// A build zone counts for a team when it was drawn for that team or for everyone
+static function bool BuildZoneFor(byte ZoneTeam, byte Team)
+{
+    return ZoneTeam == TEAM_EVERYONE || (Team < 2 && ZoneTeam == Team);
+}
+
+// Whether a spot (seen from above) is inside a zone: a box, a circle, or lines that close (the last point on the first)
+static function bool PointInZone(byte Kind, array<vector2D> P, vector Loc)
+{
+    local int i, j;
+    local bool bIn;
+
+    switch (Kind)
+    {
+        case KIND_ZONE_BOX:
+            return P.Length >= 2 && Loc.X >= FMin(P[0].X, P[1].X) && Loc.X <= FMax(P[0].X, P[1].X)
+                && Loc.Y >= FMin(P[0].Y, P[1].Y) && Loc.Y <= FMax(P[0].Y, P[1].Y);
+        case KIND_ZONE_CIRCLE:
+            return P.Length >= 2 && Square(Loc.X - P[0].X) + Square(Loc.Y - P[0].Y) <= Square(P[1].X - P[0].X) + Square(P[1].Y - P[0].Y);
+        case KIND_ZONE_LINES:
+            // Open lines aren't an area
+            if (P.Length < 4 || Abs(P[0].X - P[P.Length - 1].X) > COORD_STEP || Abs(P[0].Y - P[P.Length - 1].Y) > COORD_STEP)
+                return false;
+            j = P.Length - 1;
+            for (i = 0; i < P.Length; i++)
+            {
+                if ((P[i].Y > Loc.Y) != (P[j].Y > Loc.Y)
+                    && Loc.X < (P[j].X - P[i].X) * (Loc.Y - P[i].Y) / (P[j].Y - P[i].Y) + P[i].X)
+                    bIn = !bIn;
+                j = i;
+            }
+            return bIn;
+    }
+    return false;
+}
+
+// This player's game: whether a spot is in a build zone for Team, from the drawings it has. Zones is how many there are.
+simulated function bool ClientInBuildZone(byte Team, vector Loc, out int Zones)
+{
+    local int i;
+
+    Zones = 0;
+    for (i = 0; i < Items.Length; i++)
+    {
+        if (IsBuildZone(Items[i].Kind, Items[i].Text) && BuildZoneFor(Items[i].Team, Team))
+        {
+            Zones++;
+            if (PointInZone(Items[i].Kind, Items[i].Points, Loc))
+                return true;
+        }
+    }
+    return false;
 }
 
 // Markers and movement restrictions stay until erased: through new rounds, and never pushed out by newer drawings

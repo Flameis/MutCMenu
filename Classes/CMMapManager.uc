@@ -1258,6 +1258,26 @@ function bool CommitItem(CMMapInfo From, CMMapInfo.PendingMapItem P)
     return true;
 }
 
+// The Builder's build zones: whether a spot is inside one drawn for Team (or for everyone). Zones is how many there are.
+function bool InBuildZone(byte Team, vector Loc, out int Zones)
+{
+    local array<vector2D> Pts;
+    local int i;
+
+    Zones = 0;
+    for (i = 0; i < Items.Length; i++)
+    {
+        if (class'CMMapInfo'.static.IsBuildZone(Items[i].Kind, Items[i].Text) && class'CMMapInfo'.static.BuildZoneFor(Items[i].Team, Team))
+        {
+            Zones++;
+            class'CMMapInfo'.static.DecodePoints(Items[i].Points, Pts);
+            if (class'CMMapInfo'.static.PointInZone(Items[i].Kind, Pts, Loc))
+                return true;
+        }
+    }
+    return false;
+}
+
 // The oldest drawing that isn't a marker or movement restriction, INDEX_NONE when there are only those
 function int OldestNonMarker()
 {

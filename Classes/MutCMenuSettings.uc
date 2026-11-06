@@ -75,6 +75,18 @@ function InitMutSettings()
 	if (self.myMut == None) { self.SetIntPropertyByName(name(Repl("CTFPlaceCooldown", ".", "_")), class'MutCMenu'.default.CTFPlaceCooldown); }
 	else { self.SetIntPropertyByName(name(Repl("CTFPlaceCooldown", ".", "_")), MutCMenu(myMut).CTFPlaceCooldown); }
 
+	// Builder match rules
+	if (self.myMut == None) { self.SetIntPropertyByName(name(Repl("BuilderMode", ".", "_")), class'MutCMenu'.default.BuilderMode); }
+	else { self.SetIntPropertyByName(name(Repl("BuilderMode", ".", "_")), MutCMenu(myMut).BuilderMode); }
+	if (self.myMut == None) { self.SetIntPropertyByName(name(Repl("bBuilderPiecesOnly", ".", "_")), int(class'MutCMenu'.default.bBuilderPiecesOnly)); }
+	else { self.SetIntPropertyByName(name(Repl("bBuilderPiecesOnly", ".", "_")), int(MutCMenu(myMut).bBuilderPiecesOnly)); }
+	if (self.myMut == None) { self.SetIntPropertyByName(name(Repl("bBuilderBudgets", ".", "_")), int(class'MutCMenu'.default.bBuilderBudgets)); }
+	else { self.SetIntPropertyByName(name(Repl("bBuilderBudgets", ".", "_")), int(MutCMenu(myMut).bBuilderBudgets)); }
+	if (self.myMut == None) { self.SetIntPropertyByName(name(Repl("BuilderTeamPoints", ".", "_")), class'MutCMenu'.default.BuilderTeamPoints); }
+	else { self.SetIntPropertyByName(name(Repl("BuilderTeamPoints", ".", "_")), MutCMenu(myMut).BuilderTeamPoints); }
+	if (self.myMut == None) { self.SetIntPropertyByName(name(Repl("bBuilderZones", ".", "_")), int(class'MutCMenu'.default.bBuilderZones)); }
+	else { self.SetIntPropertyByName(name(Repl("bBuilderZones", ".", "_")), int(MutCMenu(myMut).bBuilderZones)); }
+
 }
 
 /**
@@ -152,6 +164,18 @@ function SaveMutSettings()
 	if (self.myMut == None) { self.GetIntPropertyByName(name(Repl("CTFPlaceCooldown", ".", "_")), tempValue); class'MutCMenu'.default.CTFPlaceCooldown = Max(self.tempValue, 0); }
 	else { self.GetIntPropertyByName(name(Repl("CTFPlaceCooldown", ".", "_")), tempValue); MutCMenu(myMut).CTFPlaceCooldown = Max(self.tempValue, 0); }
 
+	// Builder match rules
+	if (self.myMut == None) { self.GetIntPropertyByName(name(Repl("BuilderMode", ".", "_")), tempValue); class'MutCMenu'.default.BuilderMode = Clamp(self.tempValue, 0, 3); }
+	else { self.GetIntPropertyByName(name(Repl("BuilderMode", ".", "_")), tempValue); MutCMenu(myMut).BuilderMode = Clamp(self.tempValue, 0, 3); }
+	if (self.myMut == None) { self.GetIntPropertyByName(name(Repl("bBuilderPiecesOnly", ".", "_")), tempValue); class'MutCMenu'.default.bBuilderPiecesOnly = (self.tempValue != 0); }
+	else { self.GetIntPropertyByName(name(Repl("bBuilderPiecesOnly", ".", "_")), tempValue); MutCMenu(myMut).bBuilderPiecesOnly = (self.tempValue != 0); }
+	if (self.myMut == None) { self.GetIntPropertyByName(name(Repl("bBuilderBudgets", ".", "_")), tempValue); class'MutCMenu'.default.bBuilderBudgets = (self.tempValue != 0); }
+	else { self.GetIntPropertyByName(name(Repl("bBuilderBudgets", ".", "_")), tempValue); MutCMenu(myMut).bBuilderBudgets = (self.tempValue != 0); }
+	if (self.myMut == None) { self.GetIntPropertyByName(name(Repl("BuilderTeamPoints", ".", "_")), tempValue); class'MutCMenu'.default.BuilderTeamPoints = Max(self.tempValue, 0); }
+	else { self.GetIntPropertyByName(name(Repl("BuilderTeamPoints", ".", "_")), tempValue); MutCMenu(myMut).BuilderTeamPoints = Max(self.tempValue, 0); }
+	if (self.myMut == None) { self.GetIntPropertyByName(name(Repl("bBuilderZones", ".", "_")), tempValue); class'MutCMenu'.default.bBuilderZones = (self.tempValue != 0); }
+	else { self.GetIntPropertyByName(name(Repl("bBuilderZones", ".", "_")), tempValue); MutCMenu(myMut).bBuilderZones = (self.tempValue != 0); }
+
     if (self.myMut != None)
 	{
 		MutCMenu(self.myMut).SendClientSettings();
@@ -175,6 +199,7 @@ defaultproperties
     SettingsGroups.Add((GroupID="1",pMin=610,pMax=620,lMin=0,lMax=0))
     SettingsGroups.Add((GroupID="2",pMin=620,pMax=630,lMin=0,lMax=0))
     SettingsGroups.Add((GroupID="3",pMin=630,pMax=640,lMin=0,lMax=0))
+    SettingsGroups.Add((GroupID="4",pMin=640,pMax=650,lMin=0,lMax=0))
 
     // Mod content
     Properties.Add((PropertyId=600,Data=(Type=SDT_Int32,Value1=0)))
@@ -227,4 +252,16 @@ defaultproperties
     PropertyMappings.Add((Id=631,Name="CTFMaxFlagsPerPlayer"))
     Properties.Add((PropertyId=632,Data=(Type=SDT_Int32,Value1=0)))
     PropertyMappings.Add((Id=632,Name="CTFPlaceCooldown"))
+
+    // Builder match rules (all as the Builder always was when left alone)
+    Properties.Add((PropertyId=640,Data=(Type=SDT_Int32,Value1=0)))
+    PropertyMappings.Add((Id=640,Name="BuilderMode",MappingType=PVMT_IdMapped,ValueMappings=((Id=0),(Id=1),(Id=2),(Id=3))))
+    Properties.Add((PropertyId=641,Data=(Type=SDT_Int32,Value1=0)))
+    PropertyMappings.Add((Id=641,Name="bBuilderPiecesOnly",MappingType=PVMT_IdMapped,ValueMappings=((Id=0),(Id=1))))
+    Properties.Add((PropertyId=642,Data=(Type=SDT_Int32,Value1=0)))
+    PropertyMappings.Add((Id=642,Name="bBuilderBudgets",MappingType=PVMT_IdMapped,ValueMappings=((Id=0),(Id=1))))
+    Properties.Add((PropertyId=643,Data=(Type=SDT_Int32,Value1=0)))
+    PropertyMappings.Add((Id=643,Name="BuilderTeamPoints"))
+    Properties.Add((PropertyId=644,Data=(Type=SDT_Int32,Value1=0)))
+    PropertyMappings.Add((Id=644,Name="bBuilderZones",MappingType=PVMT_IdMapped,ValueMappings=((Id=0),(Id=1))))
 }

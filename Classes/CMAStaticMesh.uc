@@ -22,6 +22,8 @@ var 	ParticleSystemComponent 			DestroyedPFX;
 
 var()	array<class<DamageType> >			AcceptedDamageTypes;	// Types of Damage that harm this Destructible
 var 	int									Health;
+var		byte								BuiltByTeam;	// Server side: the team of the player who placed it (255: none)
+var		int									PaidCost;		// Server side: the team points it took (team budgets)
 var		bool								bBuilderPiece;	// Server: placed as a mesh with the Builder (Clear All Meshes and player deletes take only these)
 var		int									PlacedByID;		// Server: the PlayerID of whoever placed it, -1 when not known
 
@@ -305,6 +307,7 @@ simulated function SetScale3D(vector NewScale3D)
 
 defaultproperties
 {
+	BuiltByTeam=255
     health=100
 	PlacedByID=-1
 	AcceptedDamageTypes.add(Class'ROGame.RODmgType_RPG7Rocket')

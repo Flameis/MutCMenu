@@ -199,6 +199,17 @@ Open **Builder Menu** from the main menu. You aim at the spot you want, and conf
 
 **Nothing is placed on a soldier.** A mesh that would trap a living soldier or a vehicle is refused by the server, with a message, for everyone (admins too). A wall built right up against someone is fine.
 
+**Rules for matches.** The **Builder** tab of the settings page sets how the Builder works in a match. Left alone, the Builder works as it always has: everyone builds anything, anywhere. The server checks every rule. The preview turns red and says why, and the hints panel shows the team's points and when building closes.
+
+| Setting | What it does |
+| :--- | :--- |
+| Who can build (`BuilderMode`) | **Everyone** (the default). **Players only in the match briefing**: players build while a Realism Match is in its briefing, and building closes when the match goes LIVE (admins can build any time; with no match on, players can't build). **Admins only**. **Nobody**: the Builder places nothing, not even for admins (they can still remove and clear) |
+| Pieces only (`bBuilderPiecesOnly`) | Players place only pieces from the Static Meshes lists (and structures made of them). No vehicles, pickups, turrets, resupply points, spawns or other meshes. Each piece gets the health its list gives it, and the keypad can't change that |
+| Team budgets (`bBuilderBudgets`, `BuilderTeamPoints`) | Each piece costs build points (shown next to it on the lists), and a team's standing pieces can cost up to `BuilderTeamPoints` together (100 when 0). Removing a piece with the Builder gives its points back. A destroyed piece still counts until it is removed. Admins build for free. A mesh that isn't on the lists costs 5 |
+| Build zones (`bBuilderZones`) | Players build only inside a build zone drawn for their team, or for everyone. Admins draw them with the map's **Restrict** tool switched to **Draws: build zones** (see section 6) |
+
+With team budgets or build zones on, a player who isn't on a team can't build. With any of these on, players can only remove their own team's pieces. Admins can remove anything.
+
 **The server checks everything the Builder does.** Before, the admin entries were only hidden in the menu.
 - Only admins can clear all meshes, vehicles, pickups or actors, and change collision.
 - Players can delete pieces placed with the Builder, and vehicles placed with the Builder while nobody is in them. Admins can delete any placed object.
@@ -239,8 +250,8 @@ BuilderCatalogue=(Category="Sandbags",Label="Sandbag Wall",Mesh="ENV_VN_Sandbags
 | `Category` | The list it is in on the menu. Lists appear in the order they first come up |
 | `Label` | Its name on the list |
 | `Mesh` | The mesh's full name (package, group and name). Use **Copy Mesh** on something in a map to get one. A mesh the game doesn't have is named in the server log |
-| `Cost` | Build points it takes from the team. Not used yet (team budgets are in development) |
-| `Health` | The health it starts with when picked (keypad + and - still change it). 0 or left out: it can't be destroyed |
+| `Cost` | Build points it takes from the team, with team budgets on |
+| `Health` | The health it starts with when picked (keypad + and - still change it, except for players with pieces only on). 0 or left out: it can't be destroyed |
 
 Up to 120 pieces. The built-in list has a cost for each piece, and no health (pieces can't be destroyed unless the player gives them health, as before).
 
@@ -420,7 +431,7 @@ With the map cursor up, click the **middle mouse button** on the map for a small
 
 **Movement restrictions (the Restrict tool)**
 
-Use it to show players where they may or may not go. **Only logged in admins** (scrim admins and server admins) can use it: for everyone else its button is greyed out and the `=` key does nothing, and the server refuses a restriction from anyone else too. Only admins can erase, move, recolour or clear restrictions as well, so a squad leader's or commander's clear leaves them alone. What you mark with it shows on the map as a **dashed** line, and in the game itself as a line **on the ground**, in the colour you picked, for the same people who see your other drawings ("Draw for").
+Use it to show players where they may or may not go. The button under the shapes switches what it draws: **Draws: restrictions** (movement restrictions, as below) or **Draws: build zones**, the areas where a team may build when the Builder's build zones are on (see **Rules for matches** in section 5). Draw a build zone for a team ("Draw for: North" or "South") or for everyone. A build zone must be an area: a box, a circle, or lines that are closed on their first point. It is shown like a restriction, and its name on the map is "Build zone". **Only logged in admins** (scrim admins and server admins) can use it: for everyone else its button is greyed out and the `=` key does nothing, and the server refuses a restriction from anyone else too. Only admins can erase, move, recolour or clear restrictions as well, so a squad leader's or commander's clear leaves them alone. What you mark with it shows on the map as a **dashed** line, and in the game itself as a line **on the ground**, in the colour you picked, for the same people who see your other drawings ("Draw for").
 
 | Shape | How to use it |
 | :--- | :--- |
@@ -553,7 +564,7 @@ Commands shared with the Realism Match and Paradrops mutators (`scrimadminlogin`
 
 ## 9. Settings
 
-Set in WebAdmin under **Mutators > MutCMenu Settings**, or in `MutCMenu_Server.ini`. The page has a tab for each group of settings. Each setting has a plain label, on/off settings are **On** and **Off** buttons, and settings with a few fixed values (such as the number of Canberra planes) offer just those. The labels and button names come from the mod's text file in `Localization\INT` (`MutCMenu.int`), which a server needs next to the mod; without it the page shows the setting names below and the buttons have no text. The tabs are **Mod content** (the `bLoad` settings, `bDebugStandalone`, `bNewTankPhys`, `bTankPromptForAll`), **Fire support**, **Overhead map** (spectator view and map drawing, shown as On / Off rather than as the `bDisable` settings) and **Capture the Flag**.
+Set in WebAdmin under **Mutators > MutCMenu Settings**, or in `MutCMenu_Server.ini`. The page has a tab for each group of settings. Each setting has a plain label, on/off settings are **On** and **Off** buttons, and settings with a few fixed values (such as the number of Canberra planes) offer just those. The labels and button names come from the mod's text file in `Localization\INT` (`MutCMenu.int`), which a server needs next to the mod; without it the page shows the setting names below and the buttons have no text. The tabs are **Mod content** (the `bLoad` settings, `bDebugStandalone`, `bNewTankPhys`, `bTankPromptForAll`), **Fire support**, **Overhead map** (spectator view and map drawing, shown as On / Off rather than as the `bDisable` settings), **Capture the Flag** and **Builder** (the rules for matches).
 
 | Setting | What it does |
 | :--- | :--- |
@@ -575,6 +586,11 @@ Set in WebAdmin under **Mutators > MutCMenu Settings**, or in `MutCMenu_Server.i
 | `bDisableMapDrawing` | Turn drawing on the map off (it is on by default) |
 | `bKeepMapDrawingsBetweenRounds` | Keep drawings when a new round starts (they are cleared when off; markers are always kept) |
 | `MaxMapDrawingsPerPlayer` | How many drawings one player can have at once before their oldest goes (markers never go by themselves). 0 means the default, 60 |
+| `BuilderMode` | Who can build: 0 everyone (the default), 1 players only in the Realism Match briefing (until LIVE), 2 admins only, 3 nobody. See **Rules for matches** in section 5 |
+| `bBuilderPiecesOnly` | Players place only pieces from the Builder's lists, with their listed health |
+| `bBuilderBudgets` | Team budgets: pieces cost build points |
+| `BuilderTeamPoints` | Build points per team with team budgets on. 0 means the default, 100 |
+| `bBuilderZones` | Players build only inside their team's build zones (drawn with the Restrict tool) |
 | `BuilderCatalogue` (ini only) | The Builder's own list of pieces, replacing the built-in one. See **The piece catalogue** in section 5 |
 | `FSProfiles` (ini only) | The default size of each barrage type: salvos, shells per salvo, spread, time between salvos and delay before the first. The defaults are written the first time the server runs. A type added later (like `MIXED`) is added automatically without touching your values |
 

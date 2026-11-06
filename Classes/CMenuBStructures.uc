@@ -474,6 +474,7 @@ defaultproperties
 
     // The placeable item material, which is in the shipped game (the editor's highlight material may not be)
     bUsesHealth=true
+    BuildWhat=Mesh
 
     MenuText.add("Select Mesh")
     MenuText.add("Copy Selection To Clipboard")

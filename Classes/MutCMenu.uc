@@ -74,6 +74,20 @@ var CMMapManager                MapManager;
 var config array<BuilderPiece>  BuilderCatalogue;   // The Builder's pieces (Static Meshes menu); empty or missing: the built-in list (CMBuilderCatalogue)
 var array<StaticMesh>           BuilderMeshes;      // the catalogue's meshes, loaded when the map starts so placing one doesn't stall the server
 
+// The Builder's match rules (the Builder tab of the settings page). Missing from the ini, each is as the Builder always
+// was: everyone builds, anything, anywhere, without limits.
+var config int                  BuilderMode;        // who builds: BUILDER_EVERYONE (0), BUILDER_BUILD_PHASE, BUILDER_ADMINS or BUILDER_OFF
+var config bool                 bBuilderPiecesOnly; // players place only the catalogue's pieces, with the catalogue's health (no vehicles, pickups, turrets or other meshes)
+var config bool                 bBuilderBudgets;    // each team's standing pieces may cost up to BuilderTeamPoints
+var config int                  BuilderTeamPoints;  // 0 or missing: DEFAULT_TEAM_POINTS
+var config bool                 bBuilderZones;      // players build only inside a build zone drawn for their team (the Restrict tool)
+const BUILDER_EVERYONE = 0;
+const BUILDER_BUILD_PHASE = 1;  // players only during the Realism Match briefing, until LIVE (admins any time)
+const BUILDER_ADMINS = 2;
+const BUILDER_OFF = 3;          // nobody, admins included
+const DEFAULT_TEAM_POINTS = 100;
+const UNLISTED_PIECE_COST = 5;  // with team budgets on, a mesh that isn't in the catalogue costs this
+
 // An aircraft strike waiting out its first strike delay
 struct FSPendingStrike
 {
@@ -212,6 +226,7 @@ simulated function NotifyLogin(Controller NewPlayer)
 
     DA.CMenuSetup();
     SendBuilderCatalogue(DA);
+    UpdateBuilderInfo();
 
     if (MapManager != None && PlayerController(NewPlayer) != None)
         MapManager.AddPlayer(PlayerController(NewPlayer));
@@ -231,6 +246,7 @@ function SendClientSettings()
         DA.bFSPlayersCanCall = bFSPlayersCanCall;
         DA.bTankPromptForAll = bTankPromptForAll;
     }
+    UpdateBuilderInfo();
 }
 
 simulated function NotifyLogout(Controller Exiting)
@@ -1451,16 +1467,175 @@ function LogOutAdmin(PlayerController sender)
         LoggedInAdminIDs.RemoveItem(sender.PlayerReplicationInfo.PlayerID);
 }
 
-// Who may place things with the Builder (meshes, structures, turrets, vehicles, pickups) right now. Why says what to
-// tell a player who may not.
-function bool MayBuild(PlayerController PC, out string Why)
+// Who may place things with the Builder right now, under the match rules (all off by default). What is the kind of thing:
+// 'Mesh' (a mesh or a structure's piece), 'Turret', 'Vehicle', 'Pickup', 'Spawn', or 'Delete' for removing a piece.
+// Loc is where it goes (bAtLoc), for the build zones. Why says what to tell a player who may not.
+function bool MayBuild(PlayerController PC, out string Why, optional name What, optional vector Loc, optional bool bAtLoc)
 {
+    local byte Team;
+
     if (PC == None || PC.PlayerReplicationInfo == None)
     {
         Why = "You can't build right now.";
         return false;
     }
+    if (BuilderMode == BUILDER_OFF)
+    {
+        Why = "The Builder is turned off on this server.";
+        return false;
+    }
+    if (IsAuthorized(PC))
+        return true;
+    if (BuilderMode == BUILDER_ADMINS)
+    {
+        Why = "Only admins can build on this server.";
+        return false;
+    }
+    if (BuilderMode == BUILDER_BUILD_PHASE && !InBuildPhase())
+    {
+        Why = "Players can only build during the match briefing, before LIVE.";
+        return false;
+    }
+    if (What == 'Delete')
+        return true;
+    if (bBuilderPiecesOnly && What != 'Mesh')
+    {
+        Why = "Players can only place pieces from the Builder's lists here.";
+        return false;
+    }
+    Team = class'CMMapInfo'.static.PlayingTeam(PC.PlayerReplicationInfo);
+    if ((bBuilderBudgets || bBuilderZones) && Team == 255)
+    {
+        Why = "Join a team to build.";
+        return false;
+    }
+    if (bBuilderZones && bAtLoc && !InBuildZone(Team, Loc, Why))
+        return false;
     return true;
+}
+
+// Any of the match rules is on: a player then only removes their own team's pieces
+function bool BuilderMatchRules()
+{
+    return BuilderMode == BUILDER_BUILD_PHASE || bBuilderPiecesOnly || bBuilderBudgets || bBuilderZones;
+}
+
+function MutRealismMatch FindRealismMatch()
+{
+    local Mutator M;
+
+    for (M = WorldInfo.Game.BaseMutator; M != None; M = M.NextMutator)
+    {
+        if (MutRealismMatch(M) != None)
+            return MutRealismMatch(M);
+    }
+    return None;
+}
+
+// The build phase: a Realism Match briefing (match mode on, not LIVE yet)
+function bool InBuildPhase()
+{
+    local MutRealismMatch RM;
+
+    RM = FindRealismMatch();
+    return RM != None && RM.bMatchEnabled && !RM.bMatchLive;
+}
+
+function bool InBuildZone(byte Team, vector Loc, out string Why)
+{
+    local int Zones;
+
+    if (MapManager != None && MapManager.InBuildZone(Team, Loc, Zones))
+        return true;
+    Why = (Zones == 0) ? "No build zone has been drawn for your team yet." : "You can only build inside your team's build zones (see the map).";
+    return false;
+}
+
+function int TeamBuildPoints()
+{
+    return BuilderTeamPoints > 0 ? BuilderTeamPoints : DEFAULT_TEAM_POINTS;
+}
+
+// The points a team's standing pieces cost (a destroyed piece still counts until it is removed)
+function int BuildPointsUsed(byte Team)
+{
+    local CMAStaticMesh P;
+    local int Used;
+
+    foreach DynamicActors(class'CMAStaticMesh', P)
+    {
+        if (P.bBuilderPiece && !P.bDeleteMe && P.BuiltByTeam == Team)
+            Used += P.PaidCost;
+    }
+    return Used;
+}
+
+// A mesh piece, after MayBuild: with pieces only on, a player's piece must be in the catalogue and gets the catalogue's
+// health (Health, otherwise -1); with team budgets on, the team must have the points (Cost, otherwise 0). Admins are
+// free of both. Team is the placer's team (255: none).
+function bool MayPlacePiece(PlayerController PC, string Mesh, out int Cost, out int Health, out byte Team, out string Why)
+{
+    local array<BuilderPiece> List;
+    local int i, Left;
+
+    Cost = 0;
+    Health = -1;
+    Team = class'CMMapInfo'.static.PlayingTeam(PC.PlayerReplicationInfo);
+    if (IsAuthorized(PC) || (!bBuilderPiecesOnly && !bBuilderBudgets))
+        return true;
+    GetBuilderPieces(List);
+    i = class'CMBuilderCatalogue'.static.FindMesh(List, Mesh);
+    if (bBuilderPiecesOnly)
+    {
+        if (i == INDEX_NONE)
+        {
+            Why = "Only pieces from the Builder's lists can be placed here.";
+            return false;
+        }
+        Health = Max(List[i].Health, 0);
+    }
+    if (bBuilderBudgets)
+    {
+        Cost = (i != INDEX_NONE) ? Max(List[i].Cost, 0) : UNLISTED_PIECE_COST;
+        Left = TeamBuildPoints() - BuildPointsUsed(Team);
+        if (Cost > Left)
+        {
+            Why = "Not enough team points: that piece needs "$Cost$", your team has "$Max(Left, 0)$" left.";
+            return false;
+        }
+    }
+    return true;
+}
+
+// Each player's game is told the rules and their team's points left (every second, and after a piece is placed or removed)
+function UpdateBuilderInfo()
+{
+    local DummyActor DA;
+    local PlayerController PC;
+    local int Used[2];
+    local byte Team;
+    local bool bPhase;
+
+    if (bBuilderBudgets)
+    {
+        Used[0] = BuildPointsUsed(0);
+        Used[1] = BuildPointsUsed(1);
+    }
+    bPhase = InBuildPhase();
+    foreach DummyActors(DA)
+    {
+        if (DA == None || DA.bDeleteMe)
+            continue;
+        DA.BuilderMode = BuilderMode;
+        DA.bBuildPhaseOpen = bPhase;
+        DA.bBuilderPiecesOnly = bBuilderPiecesOnly;
+        DA.bBuilderBudgets = bBuilderBudgets;
+        DA.bBuilderZones = bBuilderZones;
+        DA.BuildPointsTotal = TeamBuildPoints();
+        PC = PlayerController(DA.Owner);
+        Team = (PC != None) ? class'CMMapInfo'.static.PlayingTeam(PC.PlayerReplicationInfo) : 255;
+        DA.BuildPointsLeft = (Team < 2) ? Max(TeamBuildPoints() - Used[Team], 0) : 0;
+    }
 }
 
 function bool IsAuthorized(PlayerController Sender)
@@ -3255,6 +3430,8 @@ function LoadObjects()
     `log("[MutCMenu] mod content loaded into the map's shared content: "$Shared$" classes");
 
     LoadBuilderMeshes();
+    UpdateBuilderInfo();
+    SetTimer(1.0, true, 'UpdateBuilderInfo');
 }
 
 // The Builder's catalogue: the server's own list when it has one, otherwise the built-in one

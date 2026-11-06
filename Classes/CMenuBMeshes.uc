@@ -5,6 +5,8 @@ class CMenuBMeshes extends CMenuB
 
 var string CurrentCategory; // the catalogue category on show; "" for the menu's first page
 var bool bOpenCategory;     // set just before the menu is opened again to show CurrentCategory
+var bool bPieceListed;      // the mesh being placed is in the catalogue
+var int PieceCost;          // and its cost in team points (with team budgets on)
 
 function Initialize()
 {
@@ -29,7 +31,8 @@ function Initialize()
         {
             if (List[i].Category ~= CurrentCategory)
             {
-                MenuText.AddItem(List[i].Label);
+                // With team budgets on, each piece shows its cost
+                MenuText.AddItem(List[i].Label $ ((MyDA != None && MyDA.bBuilderBudgets) ? "  ("$List[i].Cost$")" : ""));
                 MenuCommand.AddItem("PIECE "$List[i].Mesh);
             }
         }
@@ -212,6 +215,48 @@ function PasteMesh()
         MessageSelf("No Mesh Name In Clipboard");
 }
 
+// The mesh being placed: whether it is in the catalogue, and its cost (for the match rules)
+function InitializePreview()
+{
+    local array<BuilderPiece> List;
+    local int i;
+
+    super.InitializePreview();
+    bPieceListed = false;
+    PieceCost = class'MutCMenu'.const.UNLISTED_PIECE_COST;
+    if (MyDA == None)
+        return;
+    MyDA.GetBuilderPieces(List);
+    i = class'CMBuilderCatalogue'.static.FindMesh(List, LastCmd);
+    if (i != INDEX_NONE)
+    {
+        bPieceListed = true;
+        PieceCost = Max(List[i].Cost, 0);
+    }
+}
+
+// The match rules for a piece: only the catalogue's pieces, and the team's points
+function string PieceRuleWhyCantPlace()
+{
+    if (bIsAuthorized || MyDA == None)
+        return "";
+    if (MyDA.bBuilderPiecesOnly && !bPieceListed)
+        return "Only pieces from the Builder's lists can be placed here.";
+    if (MyDA.bBuilderBudgets && PieceCost > MyDA.BuildPointsLeft)
+        return "Not enough team points: this piece needs "$PieceCost$", your team has "$MyDA.BuildPointsLeft$" left.";
+    return "";
+}
+
+function string RulesHint()
+{
+    local string S;
+
+    S = super.RulesHint();
+    if (MyDA != None && MyDA.bBuilderBudgets && !bIsAuthorized)
+        S $= "   This piece: "$PieceCost;
+    return S;
+}
+
 // Red also when a soldier stands where it would go: it would trap them (the server refuses it too)
 function string WhyCantPlace()
 {
@@ -219,6 +264,8 @@ function string WhyCantPlace()
     local Pawn P;
 
     Why = super.WhyCantPlace();
+    if (Why == "")
+        Why = PieceRuleWhyCantPlace();
     if (Why != "" || bPreviewIsSkeletal || PreviewStaticMesh[0] == None || PreviewStaticMesh[0].StaticMesh == None || PC == None)
         return Why;
     foreach PC.WorldInfo.AllPawns(class'Pawn', P, PlaceLoc, PreviewStaticMesh[0].Bounds.SphereRadius + 300)
@@ -243,6 +290,7 @@ defaultproperties
     MenuName="STATIC MESHES"
     bUsesHealth=true
     bCanChain=true
+    BuildWhat=Mesh
 
     MenuText.add("Copy Mesh")
     MenuText.add("Paste Mesh")

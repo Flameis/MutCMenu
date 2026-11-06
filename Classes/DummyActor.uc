@@ -8,7 +8,13 @@ const MIN_PIECE_SCALE = 0.1;
 const MAX_PIECE_SCALE = 10.0;
 const BUILT_VEHICLE_TAG = 'CMBuilderVehicle'; // vehicles placed with the Builder, which players may remove again
 const MAX_PIECE_HEALTH = 100000;
-var float LastBlockedTime; // Server side: when this player was last told a piece couldn't go on a soldier (once a second)
+var string LastTold;         // Server side: the last Builder refusal this player was told, and when (the same one only once a second)
+var float LastToldTime;
+
+// The Builder's match rules, sent by the server for this player's preview and hints panel (MutCMenu.UpdateBuilderInfo)
+var byte BuilderMode;
+var bool bBuildPhaseOpen, bBuilderPiecesOnly, bBuilderBudgets, bBuilderZones;
+var int BuildPointsLeft, BuildPointsTotal;
 
 var bool bIsAuthorized, bNewTankPhys, bLoadExtras, bLoadGOM3, bLoadGOM4, bLoadWW, bLoadWW2, bFSPlayersCanCall;
 var bool bClickModeActive;
@@ -33,7 +39,8 @@ var bool bServerCatalogue;
 replication
 {
     if (bNetDirty)
-        bIsAuthorized, bNewTankPhys, bLoadExtras, bLoadGOM3, bLoadGOM4, bLoadWW, bLoadWW2, bFSPlayersCanCall, bTankPromptForAll;
+        bIsAuthorized, bNewTankPhys, bLoadExtras, bLoadGOM3, bLoadGOM4, bLoadWW, bLoadWW2, bFSPlayersCanCall, bTankPromptForAll,
+        BuilderMode, bBuildPhaseOpen, bBuilderPiecesOnly, bBuilderBudgets, bBuilderZones, BuildPointsLeft, BuildPointsTotal;
 }
 
 // Guidance up to this size goes to the chat and the mini console; anything longer goes to the large console
@@ -332,16 +339,26 @@ function bool CallerIsAdmin()
 }
 
 // True when the caller may place things now; otherwise they are told why
-function bool CallerMayBuild()
+function bool CallerMayBuild(optional name What, optional vector Loc, optional bool bAtLoc)
 {
     local string Why;
 
     if (MyMut == None)
         return false;
-    if (MyMut.MayBuild(PlayerController(Owner), Why))
+    if (MyMut.MayBuild(PlayerController(Owner), Why, What, Loc, bAtLoc))
         return true;
-    MyMut.PrivateMessage(PlayerController(Owner), "[CMenu] "$Why);
+    TellBuilder(Why);
     return false;
+}
+
+// A Builder refusal, told once: a pasted structure's pieces would otherwise repeat it for every piece
+function TellBuilder(string Why)
+{
+    if (Why == LastTold && WorldInfo.TimeSeconds - LastToldTime < 1.0)
+        return;
+    LastTold = Why;
+    LastToldTime = WorldInfo.TimeSeconds;
+    MyMut.PrivateMessage(PlayerController(Owner), "[CMenu] "$Why);
 }
 
 // True when the caller is an admin; otherwise they are told that What is for admins
@@ -370,8 +387,11 @@ reliable server function SpawnActor(
 {
     local CMAStaticMesh Piece;
     local StaticMesh SM;
+    local int Cost, CatalogueHealth;
+    local byte Team;
+    local string Why;
 
-    if (!CallerMayBuild())
+    if (!CallerMayBuild(SpawnTag == 'StaticMesh' ? 'Mesh' : 'Turret', SpawnLocation, true))
         return;
 
     if (SpawnTag == 'StaticMesh')
@@ -380,6 +400,11 @@ reliable server function SpawnActor(
         if (SM == None)
         {
             MyMut.PrivateMessage(PlayerController(Owner), "[CMenu] There is no mesh called "$SMesh$".");
+            return;
+        }
+        if (!MyMut.MayPlacePiece(PlayerController(Owner), PathName(SM), Cost, CatalogueHealth, Team, Why))
+        {
+            TellBuilder(Why);
             return;
         }
         if (Scale <= 0.0)
@@ -404,18 +429,20 @@ reliable server function SpawnActor(
         }
         else
             Piece.ServerSetScale3D(Piece.StaticMeshComponent.Scale3D * Scale);
-        Piece.Health = Clamp(ModifyTime, 0, MAX_PIECE_HEALTH);
+        Piece.Health = (CatalogueHealth >= 0) ? CatalogueHealth : Clamp(ModifyTime, 0, MAX_PIECE_HEALTH);
 
         // Never on top of a soldier: they would be stuck inside it
         Piece.ForceUpdateComponents(true, false);
         if (SoldierInside(Piece))
         {
             Piece.Destroy();
-            if (WorldInfo.TimeSeconds - LastBlockedTime > 1.0 || LastBlockedTime == 0)
-                MyMut.PrivateMessage(PlayerController(Owner), "[CMenu] That can't go there: a soldier is in the way.");
-            LastBlockedTime = WorldInfo.TimeSeconds;
+            TellBuilder("That can't go there: a soldier is in the way.");
             return;
         }
+        Piece.BuiltByTeam = Team;
+        Piece.PaidCost = Cost;
+        if (Cost > 0)
+            MyMut.UpdateBuilderInfo();
     }
     else if ((SpawnTag == 'Turret' && (SpawnClass == class'CMATurret_M2_HMG_Destroyable' || SpawnClass == class'ROTurret_DShK_HMG_Destroyable'))
         || (SpawnTag == 'ResupplyPoint' && SpawnClass == class'CMAResupplyPoint'))
@@ -480,7 +507,16 @@ function bool MayDelete(Actor A, bool bAdmin, out string Why)
     if (bAdmin)
         return true;
     if (CMAStaticMesh(A) != None && CMAStaticMesh(A).bBuilderPiece)
+    {
+        // With the match rules on, only your own team's pieces
+        if (MyMut.BuilderMatchRules() && CMAStaticMesh(A).BuiltByTeam != 255
+            && CMAStaticMesh(A).BuiltByTeam != class'CMMapInfo'.static.PlayingTeam(PlayerController(Owner).PlayerReplicationInfo))
+        {
+            Why = "That piece belongs to the other team.";
+            return false;
+        }
         return true;
+    }
     if (V != None && V.Tag == BUILT_VEHICLE_TAG)
     {
         if (V.Driver == None && (ROVehicle(V) == None || ROVehicle(V).NumPassengers() == 0))
@@ -498,7 +534,7 @@ reliable server function DeleteActor(actor ActorToDelete)
     local bool bAdmin;
 
     bAdmin = CallerIsAdmin();
-    if (!bAdmin && !CallerMayBuild())
+    if (!bAdmin && !CallerMayBuild('Delete'))
         return;
     if (!MayDelete(ActorToDelete, bAdmin, Why))
     {
@@ -507,6 +543,7 @@ reliable server function DeleteActor(actor ActorToDelete)
     }
     ActorToDelete.ShutDown();
     ActorToDelete.Destroy();
+    MyMut.UpdateBuilderInfo(); // a piece's points go back to its team
 }
 
 // Admins: a Builder piece stops (or starts again) blocking players and bullets, for every player (the actor's collision
@@ -544,6 +581,7 @@ reliable server function ClearAllMeshes()
         }
     }
     MyMut.PrivateMessage(PlayerController(Owner), "[CMenu] Cleared "$Count$" mesh piece"$(Count == 1 ? "" : "s")$".");
+    MyMut.UpdateBuilderInfo();
 }
 
 reliable server function SpawnVehicle(string VehicleName, vector PlaceLoc, rotator PlaceRot)
@@ -553,7 +591,7 @@ reliable server function SpawnVehicle(string VehicleName, vector PlaceLoc, rotat
     local ROPawn                    ROP;
     local bool                      bLandVic;
 
-    if (!CallerMayBuild())
+    if (!CallerMayBuild('Vehicle', PlaceLoc, true))
         return;
     ROP = ROPawn(PlayerController(Owner).Pawn);
 
@@ -682,7 +720,7 @@ reliable server function SpawnPickup(class<ROWeapon> WeaponClass, float ModifyTi
 {
     local CMAPickupFactory CMAPF;
 
-    if (WeaponClass == None || !CallerMayBuild())
+    if (WeaponClass == None || !CallerMayBuild('Pickup', PlaceLoc, true))
         return;
     CMAPF = Spawn(class'CMAPickupFactory',,, PlaceLoc, PlaceRot);
     if (CMAPF == None)
@@ -806,7 +844,7 @@ reliable server function PlaceSpawn(
 {
     local CMASpawn SMS;
 
-    if (!CallerMayBuild())
+    if (!CallerMayBuild('Spawn', SpawnLocation, true))
         return;
     SMS = Spawn(class'CMASpawn',, SpawnTag, SpawnLocation, SpawnRotation,, bNoCollisionFail);
 	if (SMS != None)

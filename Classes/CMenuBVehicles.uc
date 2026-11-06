@@ -196,6 +196,7 @@ defaultproperties
     MenuName="VEHICLES"
 
     bCanScale=false // A vehicle is always placed at its own size
+    BuildWhat=Vehicle
 
     MenuText.add("Delete Vehicle")
     MenuText.add("Custom")

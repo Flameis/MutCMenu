@@ -62,6 +62,7 @@ const A_ZONE_SHAPE = 14;   // picks the Restrict tool's shape (Arg: a ZONE_ valu
 const A_CTX = 15;          // an entry of the middle-click menu (Arg: a CTX_ value)
 const A_CTX_ICON = 16;     // a marker icon in the middle-click menu (Arg: the icon)
 const A_CTX_COLOUR = 17;   // a colour in the middle-click menu on a drawing (Arg: the colour)
+const A_ZONE_BUILD = 18;   // the Restrict tool draws build zones (for the Builder) instead of movement restrictions
 
 // The middle-click menus
 const MENU_NONE = 0;
@@ -194,6 +195,7 @@ var config name ShowNamesKey; // spectators hold it to see every name on screen;
 var config name TracersKey;   // spectators hold it to see the tracers, or tap it with Shift held to switch them on and off; RightControl when not set
 var config byte SavedColour, SavedIcon;
 var config byte ZoneShape;    // the Restrict tool's shape (ZONE_LINES when not set)
+var config bool bZoneBuild;   // the Restrict tool draws build zones: where a team may build when the Builder's build zones are on
 
 var byte Tool, Colour, Icon, Channel;
 var bool bChannelPicked;       // the player picked Channel themselves, so it is only changed when no longer allowed
@@ -915,6 +917,11 @@ function PressButton(ToolButton B)
             ZoneShape = B.Arg;
             SaveConfig();
             break;
+        case A_ZONE_BUILD:
+            Cancel();
+            bZoneBuild = !bZoneBuild;
+            SaveConfig();
+            break;
         case A_CTX:
             ContextEntry(B.Arg);
             break;
@@ -1200,7 +1207,7 @@ function FinishDrag()
     else if (Tool != TOOL_RULER && DragPoints.Length == 2 && Dist(WorldToScreen(DragPoints[0]), WorldToScreen(DragPoints[1])) >= 4.0 * UIScale)
     {
         Kind = DragKind();
-        Send(Kind, DragPoints, "");
+        Send(Kind, DragPoints, class'CMMapInfo'.static.IsZone(Kind) ? ZoneText() : "");
     }
     DragPoints.Length = 0;
 }
@@ -1248,15 +1255,21 @@ function ZoneClick(vector2D W)
     // Too many points for one drawing: it goes in pieces, each starting where the last ended
     if (ZonePoints.Length >= class'CMMapInfo'.const.MAX_POINTS)
     {
-        Send(class'CMMapInfo'.const.KIND_ZONE_LINES, ZonePoints, "");
+        Send(class'CMMapInfo'.const.KIND_ZONE_LINES, ZonePoints, ZoneText());
         ZonePoints.Remove(0, ZonePoints.Length - 1);
     }
+}
+
+// What a Restrict tool drawing carries: the build zone mark, or nothing for a movement restriction
+function string ZoneText()
+{
+    return bZoneBuild ? class'CMMapInfo'.const.BUILD_ZONE_TEXT : "";
 }
 
 function FinishZoneLines()
 {
     if (ZonePoints.Length >= 2)
-        Send(class'CMMapInfo'.const.KIND_ZONE_LINES, ZonePoints, "");
+        Send(class'CMMapInfo'.const.KIND_ZONE_LINES, ZonePoints, ZoneText());
     bZoneLining = false;
     ZonePoints.Length = 0;
 }
@@ -2394,6 +2407,8 @@ function DrawToolbar(Canvas C, PlayerController PC)
         Cell = (Inner - Gap * (NUM_ZONE_SHAPES - 1)) / NUM_ZONE_SHAPES;
         for (i = 0; i < NUM_ZONE_SHAPES; i++)
             AddButton(X + i * (Cell + Gap), Y, Cell, BtnH, A_ZONE_SHAPE, i, ZoneShapeName(i), ZoneShape == i);
+        Y += BtnH + Gap;
+        AddButton(X, Y, Inner, BtnH, A_ZONE_BUILD, 0, bZoneBuild ? "Draws: build zones" : "Draws: restrictions", bZoneBuild);
         Y += BtnH + Gap * 3;
     }
 
@@ -3040,7 +3055,7 @@ static function string KindName(CMMapInfo.ClientMapItem Item)
         case class'CMMapInfo'.const.KIND_MARKER: return class'CMMapInfo'.static.IconName(Item.Icon)$" marker";
         case class'CMMapInfo'.const.KIND_TEXT:   return "Label";
     }
-    return "Restriction";
+    return class'CMMapInfo'.static.IsBuildZone(Item.Kind, Item.Text) ? "Build zone" : "Restriction";
 }
 
 // Kill and Switch Team take two clicks: the first turns the entry red, the second within CONFIRM_TIME runs it
