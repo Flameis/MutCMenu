@@ -9,6 +9,7 @@ class CMZoneDecals extends DecalManager;
 const NUM_PAINTS = 8; // CMMapInfo's NUM_COLOURS
 const FLAT_UP = 40.0;  // degrees off level a surface can be and get the full paint
 const STEEP = 60.0;    // and from here on, none
+const TURN_SIGN = 1.0; // which way the decal's own rotation turns it (see AddStrip)
 
 var MaterialInstanceConstant Paints[NUM_PAINTS];
 var MaterialInterface PaintParent;
@@ -70,17 +71,18 @@ function DecalComponent AddStrip(MaterialInterface M, vector At, int Yaw, float 
     local rotator Down;
     local vector2D Blend;
 
-    // Straight down, turned to Yaw. The decal's width runs along the strip: the first try had them the other way round,
-    // and every piece lay across the line.
+    // Straight down. A decal's orientation only gives the way it projects: pointing down, every piece lay the same way
+    // (its width running east) whatever way the line went. It is turned with its own rotation instead, in degrees about
+    // the downward axis, which turns the opposite way to yaw: a strip heading at Yaw needs 90 - Yaw (TURN_SIGN flips it if
+    // diagonal lines come out mirrored; lines running north-south or east-west are right either way).
     Down.Pitch = -16384;
-    Down.Yaw = Yaw;
     // Faces steeper than this are left bare (it fades out from FLAT_UP to STEEP degrees off level), so the paint doesn't
     // run down the sides of curbs, crates and walls
     Blend.X = FLAT_UP;
     Blend.Y = STEEP;
     D = GetPooledComponent();
-    SetDecalParameters(D, M, At, Down, Length, Width, Depth * 2, false, 0.0, None, true, false, '',
-        INDEX_NONE, INDEX_NONE, INDEX_NONE, DecalDepthBias, Blend);
+    SetDecalParameters(D, M, At, Down, Length, Width, Depth * 2, false, TURN_SIGN * (90.0 - Yaw * 360.0 / 65536.0), None, true,
+        false, '', INDEX_NONE, INDEX_NONE, INDEX_NONE, DecalDepthBias, Blend);
     AttachComponent(D);
     return D;
 }
