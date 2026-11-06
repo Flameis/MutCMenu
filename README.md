@@ -172,7 +172,7 @@ Open **Builder Menu** from the main menu. You aim at the spot you want, and conf
 | Builder section | What you can do |
 | :--- | :--- |
 | Vehicles | Place vehicles: Cobra, Loach, Huey, Bushranger, plus lists for WW2, Winter War and GOM (Gameplay Overhaul Mutator) vehicles and the GreenMen (GM) helicopters when those mods are loaded, plus the 29th's own helicopters. The WW2 list is every vehicle WW2 has that can be placed: Crusader Mk III, Ha-Go, LVT, M13, Panzer III, Panzer IV F, SdKfz 251 halftrack, Semovente, Sherman II and III, Stuart, StuG III G, T-34, T-70, and the Universal Carrier with and without its Bren. (Its Churchill can't be placed, and the Kubelwagen, SdKfz 222, Valentine and Willys entries are gone: WW2 doesn't have them.) **Custom** types `mutate cmenu --menu CMenuBVehicles --item ` for you to add any vehicle path. **Delete Vehicle** removes the one you aim at |
-| Structures | Copy buildings or whole areas you are aiming at and paste them somewhere else. Select several meshes, copy the selection, remove the last one, or clear the selection |
+| Structures | Copy buildings or whole areas you are aiming at and paste them somewhere else. Select several meshes, copy the selection, remove the last one, or clear the selection. See **Copying and pasting structures** below |
 | Static Meshes | Copy, paste and delete single objects. Presets: straight sandbags and an F4 Phantom. Admins also get **Toggle Collision (Builder Pieces)**, which turns a placed piece's collision off and on again for every player, and **Delete Any Placed Object** |
 | Pickups | Turn a weapon into a pickup on the ground: **Custom** (types `--item ` for you to add the weapon path) or **Copy Held Weapon** (the one in your hands) |
 | Actors | In this order: the **CTF Flag** entries for each team's flag (for example "CTF Flag: PAVN (North)") and **CTF Flag: Command Line**, for everyone, with **Reset Flags** and **Remove Flags** for admins (see below); **Mark Corner** and **Spawn Obj**, which let you draw and place a brand new capture objective of your own, with **Clear Corners**, **Delete Obj** and **Clear Objs** to take them away again; an M2 turret, a DShK turret and an ammo resupply point; **Clear All**, which removes everything you placed, flags included; and last the team spawn points (North and South) and their delete entries |
@@ -197,6 +197,13 @@ Open **Builder Menu** from the main menu. You aim at the spot you want, and conf
 - Placing and clearing can't be lost on a bad connection any more. A pasted structure used to arrive with pieces missing.
 
 **Every player sees the same pieces.** A placed piece's mesh is also sent by name, and a player's game loads it by that name when it doesn't have the mesh yet (a mesh from a map package or another map's set). Before, such a piece could be invisible for that player while still solid on the server. *Tested by the harness on one game; the network test for it is written but has not been run yet.*
+
+**Copying and pasting structures:**
+- **Copy Area** takes every mesh within 5 meters of where you aim. The mouse wheel makes that bigger or smaller, and you are told how many meshes it copied and how far it reached.
+- **Copy Selection** takes the meshes you selected. Selected meshes show in the green placeable look.
+- **Pasting:** the first mesh goes where you aim, and the structure faces the way you look. **C** turns it and the mouse wheel makes the whole structure bigger or smaller. The preview is green, so you can tell it from the real thing.
+- **Fixed:** every piece now comes back where it was, turned the right way (also when tilted or rolled) and the same size on each axis. Before, pieces came back in the wrong places, turned wrong and all one size. This was the old "scaling of built objects" problem.
+- **Old copies:** structures copied before this version can't be pasted; copy them again. Meshes this game doesn't have are left out, and you are told how many.
 
 **Clear All Meshes takes only Builder mesh pieces.** Resupply points, team spawns and the corner poles of custom objectives stay.
 

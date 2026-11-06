@@ -328,7 +328,8 @@ reliable server function SpawnActor(
 	optional bool	    bNoCollisionFail,
     optional string     SMesh,
     optional float      Scale,
-    optional int        ModifyTime)
+    optional int        ModifyTime,
+    optional vector     Scale3D)    // a mesh's own scale on each axis (a pasted structure's pieces); Scale when not given
 {
     local CMAStaticMesh Piece;
     local StaticMesh SM;
@@ -357,7 +358,15 @@ reliable server function SpawnActor(
         Piece.bBuilderPiece = true;
         Piece.PlacedByID = (PlayerController(Owner).PlayerReplicationInfo != None) ? PlayerController(Owner).PlayerReplicationInfo.PlayerID : -1;
         Piece.ServerSetStaticMesh(SM);
-        Piece.ServerSetScale3D(Piece.StaticMeshComponent.Scale3D * Scale);
+        if (VSizeSq(Scale3D) > 0)
+        {
+            Scale3D.X = FClamp(Abs(Scale3D.X), MIN_PIECE_SCALE, MAX_PIECE_SCALE);
+            Scale3D.Y = FClamp(Abs(Scale3D.Y), MIN_PIECE_SCALE, MAX_PIECE_SCALE);
+            Scale3D.Z = FClamp(Abs(Scale3D.Z), MIN_PIECE_SCALE, MAX_PIECE_SCALE);
+            Piece.ServerSetScale3D(Scale3D);
+        }
+        else
+            Piece.ServerSetScale3D(Piece.StaticMeshComponent.Scale3D * Scale);
         Piece.Health = ModifyTime;
     }
     else if ((SpawnTag == 'Turret' && (SpawnClass == class'CMATurret_M2_HMG_Destroyable' || SpawnClass == class'ROTurret_DShK_HMG_Destroyable'))

@@ -1,14 +1,24 @@
+// The Builder's Structures menu: copy meshes (an area, or a selection) to the clipboard and paste them somewhere else.
+// A copy keeps every piece relative to the first one, in that piece's facing: its offset, its own turn (relative to the
+// first, as a quaternion so pitch and roll come out right) and its real scale. A paste builds the structure again with the
+// first piece where you aim, facing the way you look (C turns it), and the mouse wheel making the whole thing bigger or
+// smaller. Copies made before this format (which stored the wrong offsets, rotations and scales) are refused.
 class CMenuBStructures extends CMenuB;
 
-var array<Vector> VecArray;
-var array<Rotator> RotArray;
+// The clipboard format: a header, then one piece per entry
+const FORMAT_HEADER = "CMS2";
+
+var array<Vector> VecArray;    // each pasted piece's offset from the first, in the first piece's facing
+var array<Rotator> RotArray;   // and its turn relative to the first piece
+var array<Vector> ScaleArray;  // and its own scale
 var array<Actor> SelectedActors;
 var array<MaterialInterface> OriginalMaterials;
+var MaterialInterface HighlightMaterial; // a selected mesh is drawn with this (the placeable item material)
 
 function Initialize()
 {
     MessageSelf("Welcome to the Structures Menu, login to scrim admin to see all the options.");
-    
+
     if (bIsAuthorized)
     {
         MenuText.additem("Clear All Meshes");
@@ -28,7 +38,6 @@ function bool CheckExceptions(string Command)
     LastCmd = Command;
 
 	PreviewMeshMIC = new class'MaterialInstanceConstant';
-	PreviewMeshMIC.SetParent(MaterialInstanceConstant(PreviewStaticMesh[0].GetMaterial(0)));
 	switch (Command)
 	{
 		case "COPYSTRUCT":
@@ -41,15 +50,14 @@ function bool CheckExceptions(string Command)
             GoToState('MenuVisible',, true);
             GarbageCollection();
             ClearSelectedMeshes();
-            PasteStructure();
-            GoToState('ReadyToPlace',, true);
+            if (PasteStructure() > 0)
+                GoToState('ReadyToPlace',, true);
             return true;
 
-        case "CLEARMESH": 
+        case "CLEARMESH":
             GarbageCollection();
             ClearSelectedMeshes();
             MyDA.ClearAllMeshes();
-	        MessageSelf("All meshes have been cleared.");
             return true;
 
         case "SELECTMESH":
@@ -75,45 +83,49 @@ function bool CheckExceptions(string Command)
     return false;
 }
 
+// ====================================================
+// Placing a pasted structure
+// ====================================================
+
+// The way the pasted structure faces: where the player looks, turned by C (yaw only, so it stands level)
+function rotator PasteFacing()
+{
+    local rotator R;
+
+    R.Yaw = PlaceRot.Yaw;
+    return R;
+}
+
+// Where piece i goes, how it is turned and how big it is
+function PieceTransform(int i, out vector Loc, out rotator Rot, out vector Scale)
+{
+    local rotator Facing;
+
+    Facing = PasteFacing();
+    Loc = PlaceLoc + ((VecArray[i] * ModifyScale.X) >> Facing);
+    Rot = QuatToRotator(QuatProduct(QuatFromRotator(Facing), QuatFromRotator(RotArray[i])));
+    Scale = ScaleArray[i] * ModifyScale.X;
+}
+
 function DoPlace()
 {
-	local string Mesh;
+    local vector Loc, Scale;
+    local rotator Rot;
 	local int i;
-
-    `log("DoPlace called. PreviewStaticMesh length: " $ PreviewStaticMesh.Length);
 
     if (LastCmd == "COPYSTRUCT")
     {
         CopyStructure();
         GoToState('MenuVisible',, true);
+        return;
     }
-    else
-	{
-		for ( i = 0; i < PreviewStaticMesh.Length; i++ )
-		{
-			// Ensure the mesh is valid before attempting to spawn
-			if (PreviewStaticMesh[i] != none)
-			{
-                `log("PreviewStaticMesh[i].StaticMesh: " $ PreviewStaticMesh[i].StaticMesh);
-			    Mesh = PathName(PreviewStaticMesh[i].StaticMesh);
-                if (Mesh == "None")
-                {
-                    // Try again
-                    Mesh = PathName(PreviewStaticMesh[i].StaticMesh);
-                }
-				// Remove or adjust collision checks here
-				// MyDA.SpawnActor(class'CMAStaticMesh',,'StaticMesh', PreviewStaticMesh[i].GetPosition(), PreviewStaticMesh[i].GetRotation(),, true, Mesh, ModifyScale.x);
-                MyDA.SpawnActor(class'CMAStaticMesh',,'StaticMesh', PreviewStaticMesh[i].GetPosition(), PreviewStaticMesh[i].GetRotation(),, true, Mesh, ModifyScale.x, ModifyTime*10);
 
-				`log("NewMesh: " $ Mesh);
-				`log("Translation: " $ VecArray[i]);
-				`log("Rotation: " $ RotArray[i]);
-			}
-			else
-			{
-				`log("Warning: Invalid mesh at index " $ i);
-			}
-		}
+	for (i = 0; i < PreviewStaticMesh.Length; i++)
+	{
+		if (PreviewStaticMesh[i] == none || PreviewStaticMesh[i].StaticMesh == None)
+			continue;
+        PieceTransform(i, Loc, Rot, Scale);
+        MyDA.SpawnActor(class'CMAStaticMesh',, 'StaticMesh', Loc, Rot,, true, PathName(PreviewStaticMesh[i].StaticMesh), 1.0, ModifyTime * 10, Scale);
 	}
 }
 
@@ -133,319 +145,274 @@ function GarbageCollection()
     PreviewStaticMesh.Remove(0, PreviewStaticMesh.Length);
     VecArray.Remove(0, VecArray.Length);
     RotArray.Remove(0, RotArray.Length);
-    `log("GarbageCollection completed. PreviewStaticMesh length: " $ PreviewStaticMesh.Length);
+    ScaleArray.Remove(0, ScaleArray.Length);
 }
 
 simulated function UpdatePreviewMesh() // Update the position of the Preview Mesh
 {
-    local Vector TranslatedVec;
-    local Rotator TranslatedRot, OriginRot;
+    local vector Loc, Scale;
+    local rotator Rot;
     local int i;
 
     if (LastCmd == "COPYSTRUCT")
     {
-        MyDA.DrawDebugSphere(PlaceLoc, ModifyScale.X * 250, 50, 0, 0, 255, false);
+        MyDA.DrawDebugSphere(PlaceLoc, CopyRadius(), 50, 0, 0, 255, false);
+        return;
     }
-    else
-    {
-        if (PreviewStaticMesh.Length > 0)
-        {
-            OriginRot = RotArray[0];
-        }
 
-        for ( i = 0; i < PreviewStaticMesh.Length; i++ )
-        {
-            // Translate and rotate each mesh based on the first mesh's position and rotation
-            TranslatedVec = VecArray[i] >> ModifyRot;
-            TranslatedRot = OriginRot + RotArray[i] + ModifyRot;
-            
-            PreviewStaticMesh[i].SetTranslation(TranslatedVec + PlaceLoc);
-            PreviewStaticMesh[i].SetRotation(TranslatedRot);
-            PreviewStaticMesh[i].SetScale3D(ModifyScale);
-        }
+    for (i = 0; i < PreviewStaticMesh.Length; i++)
+    {
+        PieceTransform(i, Loc, Rot, Scale);
+        PreviewStaticMesh[i].SetTranslation(Loc);
+        PreviewStaticMesh[i].SetRotation(Rot);
+        PreviewStaticMesh[i].SetScale3D(Scale);
     }
+}
+
+// ====================================================
+// Copying
+// ====================================================
+
+// Copy Area takes everything within this of where the player aims (5 meters, bigger or smaller with the mouse wheel)
+function float CopyRadius()
+{
+    return ModifyScale.X * 250;
+}
+
+// A mesh's whole scale: the actor's and the mesh component's, both kinds
+static function vector MeshScale(Actor A, StaticMeshComponent C)
+{
+    return A.DrawScale3D * A.DrawScale * C.Scale3D * C.Scale;
+}
+
+static function StaticMeshComponent MeshOf(Actor A)
+{
+    if (StaticMeshActor(A) != None)
+        return StaticMeshActor(A).StaticMeshComponent;
+    if (CMAStaticMesh(A) != None)
+        return CMAStaticMesh(A).StaticMeshComponent;
+    return None;
+}
+
+// The clipboard text for these meshes, the first one being where the others are measured from
+static function string StructureText(array<Actor> Meshes)
+{
+    local string Data;
+    local vector Origin, Offset, Scale;
+    local rotator Facing, Turn;
+    local StaticMeshComponent C;
+    local int i;
+
+    if (Meshes.Length == 0)
+        return "";
+    Origin = Meshes[0].Location;
+    Facing.Yaw = Meshes[0].Rotation.Yaw;
+
+    Data = FORMAT_HEADER$";";
+    for (i = 0; i < Meshes.Length; i++)
+    {
+        C = MeshOf(Meshes[i]);
+        if (C == None || C.StaticMesh == None)
+            continue;
+        // Into the first piece's facing: offsets with <<, turns relative to it
+        Offset = (Meshes[i].Location - Origin) << Facing;
+        Turn = QuatToRotator(QuatProduct(QuatInvert(QuatFromRotator(Facing)), QuatFromRotator(Meshes[i].Rotation)));
+        Scale = MeshScale(Meshes[i], C);
+        Data $= "StaticMesh=" $ PathName(C.StaticMesh) $ "&Translation=" $ Offset $ "&Rotation=" $ Turn $ "&Scale=" $ Scale $ ";";
+    }
+    return Data;
 }
 
 function CopyStructure()
 {
-    local array<StaticMeshActor> NearbyActors;
-    local array<CMAStaticMesh> NearbyCMAActors;
-    local StaticMeshActor Actor;
-    local CMAStaticMesh CMAActor;
-    local string StructureData;
-    local vector Origin, RelativeLocation;
-    local rotator OriginRot;
-    local vector RelativeScale;
-    local int i;
+    local array<Actor> Meshes;
+    local StaticMeshActor SMA;
+    local CMAStaticMesh CMA;
 
     ClearSelectedMeshes();
 
-    foreach MyDA.OverlappingActors(class'StaticMeshActor', Actor, ModifyScale.x*250, PlaceLoc)
+    // The map's own meshes first, then Builder pieces, as before
+    foreach MyDA.OverlappingActors(class'StaticMeshActor', SMA, CopyRadius(), PlaceLoc)
     {
-        `log("Actor: " $ Actor);
-        if (Actor != none && Actor.StaticMeshComponent.StaticMesh != none)
-        {
-            NearbyActors.AddItem(Actor);
-        }
+        if (SMA.StaticMeshComponent.StaticMesh != none)
+            Meshes.AddItem(SMA);
     }
-
-    foreach MyDA.OverlappingActors(class'CMAStaticMesh', CMAActor, ModifyScale.x*250, PlaceLoc)
+    foreach MyDA.OverlappingActors(class'CMAStaticMesh', CMA, CopyRadius(), PlaceLoc)
     {
-        `log("CMAActor: " $ CMAActor);
-        if (CMAActor != none && CMAActor.StaticMeshComponent.StaticMesh != none)
-        {
-            NearbyCMAActors.AddItem(CMAActor);
-        }
+        if (CMA.StaticMeshComponent.StaticMesh != none)
+            Meshes.AddItem(CMA);
     }
 
-    // Get the origin and rotation of the first actor
-    if (NearbyActors.Length > 0)
+    if (Meshes.Length == 0)
     {
-        Origin = NearbyActors[0].Location;
-        OriginRot = NearbyActors[0].Rotation;
+        MessageSelf("No meshes within "$int(CopyRadius() / 50)$" meters to copy.");
+        return;
     }
-    else if (NearbyCMAActors.Length > 0)
-    {
-        Origin = NearbyCMAActors[0].Location;
-        OriginRot = NearbyCMAActors[0].Rotation;
-    }
-
-    for (i = 0; i < NearbyActors.Length; i++)
-    {
-        if (NearbyActors[i] != none)
-        {
-            // Adjust the translation and rotation based on the origin's rotation
-            RelativeLocation = NearbyActors[i].Location - Origin;
-            RelativeLocation = RelativeLocation >> OriginRot;
-
-            // Calculate the relative scale based on the bounds
-            RelativeScale = NearbyActors[i].StaticMeshComponent.Bounds.BoxExtent;
-
-            StructureData $= "StaticMesh=" $ PathName(NearbyActors[i].StaticMeshComponent.StaticMesh) $ "&Translation=" $ RelativeLocation $ "&Rotation=" $ NearbyActors[i].Rotation $ "&Scale=" $ RelativeScale $ ";";
-        }
-    }
-
-    for (i = 0; i < NearbyCMAActors.Length; i++)
-    {
-        if (NearbyCMAActors[i] != none)
-        {
-            // Adjust the translation and rotation based on the origin's rotation
-            RelativeLocation = NearbyCMAActors[i].Location - Origin;
-            RelativeLocation = RelativeLocation >> OriginRot;
-
-            // Calculate the relative scale based on the bounds
-            RelativeScale = NearbyCMAActors[i].StaticMeshComponent.Bounds.BoxExtent;
-
-            StructureData $= "StaticMesh=" $ PathName(NearbyCMAActors[i].StaticMeshComponent.StaticMesh) $ "&Translation=" $ RelativeLocation $ "&Rotation=" $ NearbyCMAActors[i].Rotation $ "&Scale=" $ RelativeScale $ ";";
-        }
-    }
-
-    PC.CopyToClipboard(StructureData);
-    MessageSelf("Copied Structure To Clipboard");
-}
-
-function PasteStructure(optional string StructureData)
-{
-    local string ClipboardData;
-    local array<string> MeshData, MeshLine, MeshLine2;
-    local string Line;
-    local int i;
-    local string Mesh;
-    local vector Vec, Scale;
-    local rotator Rota;
-    local array<string> VecData, RotData, ScaleData;
-    local StaticMeshComponent PreviewComponent;
-
-    if (StructureData != "") {
-        ClipboardData = StructureData;
-    } else {
-        ClipboardData = PC.PasteFromClipboard();
-    }
-    MeshData = SplitString(ClipboardData, ";", True);
-
-    for (i = 0; i < MeshData.Length; i++)
-    {
-        // `log("MeshData: " $ MeshData[i]);
-
-        MeshLine = SplitString(MeshData[i], "&");
-        foreach MeshLine(Line) {
-            // `log("MeshLine: " $ Line);
-        }
-
-        // Parse StaticMesh
-        MeshLine2 = SplitString(MeshLine[0], "=");
-        Mesh = MeshLine2[1];
-        `log ("Mesh: " $ Mesh);
-        if (MeshLine2[1] == "") {
-            `log("StaticMesh Parsing Failed for Data: " $ MeshData[i]);
-            continue;
-        }
-
-        // Parse Vector (position)
-        MeshLine2 = SplitString(MeshLine[1], "=");
-        VecData = SplitString(MeshLine2[1], ",");
-        if (VecData.Length == 3)
-        {
-            Vec.X = float(VecData[0]);
-            Vec.Y = float(VecData[1]);
-            Vec.Z = float(VecData[2]);
-        }
-        else
-        {
-            `log("ParseVector Failed - Incorrect VecData Length: " $ VecData.Length);
-            continue;
-        }
-
-        // Parse Rotator (rotation)
-        MeshLine2 = SplitString(MeshLine[2], "=");
-        RotData = SplitString(MeshLine2[1], ",");
-        if (RotData.Length == 3)
-        {
-            Rota.Pitch = float(RotData[0]);
-            Rota.Yaw = float(RotData[1]);
-            Rota.Roll = float(RotData[2]);
-        }
-        else
-        {
-            `log("ParseRotator Failed - Incorrect RotData Length: " $ RotData.Length);
-            continue;
-        }
-
-        // Parse Scale
-        MeshLine2 = SplitString(MeshLine[3], "=");
-        ScaleData = SplitString(MeshLine2[1], ",");
-        if (ScaleData.Length == 3)
-        {
-            Scale.X = float(ScaleData[0]);
-            Scale.Y = float(ScaleData[1]);
-            Scale.Z = float(ScaleData[2]);
-        }
-        else
-        {
-            `log("ParseScale Failed - Incorrect ScaleData Length: " $ ScaleData.Length);
-            continue;
-        }
-
-        // Adjust PlaceLoc based on original mesh's relative position
-        VecArray.AddItem(Vec);
-        RotArray.AddItem(Rota);
-
-        // Create and show preview
-        PreviewComponent = new class'StaticMeshComponent';
-        PreviewComponent.SetStaticMesh(StaticMesh(DynamicLoadObject(Mesh, class'StaticMesh')));
-
-        // Calculate what the scale should be based on the bounds of the preview vs the bounds of the original
-        Scale.X = Scale.X / PreviewComponent.Bounds.BoxExtent.X;
-        Scale.Y = Scale.Y / PreviewComponent.Bounds.BoxExtent.Y;
-        Scale.Z = Scale.Z / PreviewComponent.Bounds.BoxExtent.Z;
-
-        // 
-        PreviewComponent.SetScale3D(Scale);
-        PreviewComponent.SetActorCollision(false, false);
-   		PreviewComponent.SetNotifyRigidBodyCollision(false);
-    	PreviewComponent.SetTraceBlocking(false, false);
-        PreviewComponent.SetAbsolute(true, true, true);
-        PreviewComponent.CastShadow = false;
-
-        PreviewStaticMesh.AddItem(PreviewComponent);
-    }
-}
-
-function SelectMesh()
-{
-    local Actor SelectedActor;
-    local int i;
-
-    if (StaticMeshActor(TracedActor) != none)
-    {
-        SelectedActor = StaticMeshActor(TracedActor);
-        // Check if the mesh is already selected
-        for (i = 0; i < SelectedActors.Length; i++)
-        {
-            if (SelectedActors[i] == StaticMeshActor(SelectedActor))
-            {
-                MessageSelf("Mesh already selected: " $ PathName(StaticMeshActor(SelectedActor).StaticMeshComponent.StaticMesh));
-                return;
-            }
-        }
-
-        SelectedActors.AddItem(SelectedActor);
-        OriginalMaterials.AddItem(StaticMeshActor(SelectedActor).StaticMeshComponent.GetMaterial(0));
-        `log(OriginalMaterials[OriginalMaterials.Length]);
-
-        StaticMeshActor(SelectedActor).StaticMeshComponent.SetMaterial(0, Material'NodeBuddies.Materials.NodeBuddy_White1');
-
-        MessageSelf("Selected Mesh: " $ PathName(StaticMeshActor(SelectedActors[SelectedActors.Length - 1]).StaticMeshComponent.StaticMesh));
-    }
-    else if (CMAStaticMesh(TracedActor) != none)
-    {
-        SelectedActor = CMAStaticMesh(TracedActor);
-        // Check if the mesh is already selected
-        for (i = 0; i < SelectedActors.Length; i++)
-        {
-            if (SelectedActors[i] == SelectedActor)
-            {
-                MessageSelf("Mesh already selected: " $ PathName(CMAStaticMesh(SelectedActor).StaticMeshComponent.StaticMesh));
-                return;
-            }
-        }
-
-        SelectedActors.AddItem(SelectedActor);
-        OriginalMaterials.AddItem(CMAStaticMesh(SelectedActor).StaticMeshComponent.GetMaterial(0));
-        `log(OriginalMaterials[OriginalMaterials.Length]);
-
-        CMAStaticMesh(SelectedActor).StaticMeshComponent.SetMaterial(0, Material'NodeBuddies.Materials.NodeBuddy_White1');
-
-        MessageSelf("Selected Mesh: " $ PathName(CMAStaticMesh(SelectedActors[SelectedActors.Length - 1]).StaticMeshComponent.StaticMesh));
-    }
-    else
-    {
-        MessageSelf("No Mesh Found");
-    }
+    PC.CopyToClipboard(StructureText(Meshes));
+    MessageSelf("Copied "$Meshes.Length$" mesh"$(Meshes.Length == 1 ? "" : "es")$" within "$int(CopyRadius() / 50)$" meters to the clipboard.");
 }
 
 function CopySelectedMeshesToClipboard()
 {
-    local string StructureData;
-    local vector Origin, RelativeLocation, RelativeScale;
-    local rotator OriginRot;
-    local int i;
-    local string StaticM;
-
-    // Get the origin and rotation of the first actor
-    if (SelectedActors.Length > 0)
+    if (SelectedActors.Length == 0)
     {
-        Origin = SelectedActors[0].Location;
-        OriginRot = SelectedActors[0].Rotation;
+        MessageSelf("No Meshes Selected");
+        return;
+    }
+    PC.CopyToClipboard(StructureText(SelectedActors));
+    MessageSelf("Copied "$SelectedActors.Length$" selected mesh"$(SelectedActors.Length == 1 ? "" : "es")$" to the clipboard.");
+}
+
+// ====================================================
+// Pasting
+// ====================================================
+
+static function bool ParseVector(string Text, out vector V)
+{
+    local array<string> P;
+
+    P = SplitString(Text, ",");
+    if (P.Length != 3)
+        return false;
+    V.X = float(P[0]);
+    V.Y = float(P[1]);
+    V.Z = float(P[2]);
+    return true;
+}
+
+static function bool ParseRotator(string Text, out rotator R)
+{
+    local array<string> P;
+
+    P = SplitString(Text, ",");
+    if (P.Length != 3)
+        return false;
+    R.Pitch = int(P[0]);
+    R.Yaw = int(P[1]);
+    R.Roll = int(P[2]);
+    return true;
+}
+
+// Reads one piece ("StaticMesh=...&Translation=...&Rotation=...&Scale=..."); false when it can't be read
+static function bool ParsePiece(string Entry, out string Mesh, out vector Offset, out rotator Turn, out vector Scale)
+{
+    local array<string> Fields, KV;
+    local int i;
+    local bool bMesh, bOffset, bTurn, bScale;
+
+    Fields = SplitString(Entry, "&");
+    for (i = 0; i < Fields.Length; i++)
+    {
+        KV = SplitString(Fields[i], "=");
+        if (KV.Length != 2)
+            continue;
+        // (A switch on the field's name never matched here, so plain comparisons)
+        if (KV[0] ~= "StaticMesh")
+        {
+            Mesh = KV[1];
+            bMesh = Mesh != "";
+        }
+        else if (KV[0] ~= "Translation")
+            bOffset = ParseVector(KV[1], Offset);
+        else if (KV[0] ~= "Rotation")
+            bTurn = ParseRotator(KV[1], Turn);
+        else if (KV[0] ~= "Scale")
+            bScale = ParseVector(KV[1], Scale);
+    }
+    return bMesh && bOffset && bTurn && bScale;
+}
+
+// Builds the previews from the clipboard (or StructureData); returns how many pieces it read
+function int PasteStructure(optional string StructureData)
+{
+    local string ClipboardData, Mesh;
+    local array<string> Entries;
+    local int i;
+    local vector Offset, Scale;
+    local rotator Turn;
+    local StaticMesh SM;
+    local StaticMeshComponent PreviewComponent;
+    local int Missing;
+
+    ClipboardData = (StructureData != "") ? StructureData : PC.PasteFromClipboard();
+    Entries = SplitString(ClipboardData, ";", True);
+    if (Entries.Length == 0 || Entries[0] != FORMAT_HEADER)
+    {
+        MessageSelf("The clipboard has no structure in it. (Structures copied before this version can't be pasted: copy them again.)");
+        return 0;
     }
 
+    for (i = 1; i < Entries.Length; i++)
+    {
+        if (!ParsePiece(Entries[i], Mesh, Offset, Turn, Scale))
+            continue;
+        SM = StaticMesh(DynamicLoadObject(Mesh, class'StaticMesh', true));
+        if (SM == None)
+        {
+            Missing++;
+            continue;
+        }
+
+        VecArray.AddItem(Offset);
+        RotArray.AddItem(Turn);
+        ScaleArray.AddItem(Scale);
+
+        PreviewComponent = new class'StaticMeshComponent';
+        PreviewComponent.SetStaticMesh(SM);
+        PreviewComponent.SetActorCollision(false, false);
+        PreviewComponent.SetNotifyRigidBodyCollision(false);
+        PreviewComponent.SetTraceBlocking(false, false);
+        PreviewComponent.SetAbsolute(true, true, true);
+        PreviewComponent.CastShadow = false;
+        SetPlaceableLook(PreviewComponent);
+        PreviewStaticMesh.AddItem(PreviewComponent);
+    }
+
+    if (PreviewStaticMesh.Length == 0)
+        MessageSelf("Nothing in the clipboard's structure could be loaded.");
+    else
+        MessageSelf("Pasting "$PreviewStaticMesh.Length$" mesh"$(PreviewStaticMesh.Length == 1 ? "" : "es")
+            $(Missing > 0 ? " ("$Missing$" left out: this game doesn't have them)" : "")$". Click to place, C turns it, the mouse wheel sizes it.");
+    return PreviewStaticMesh.Length;
+}
+
+// The green placeable look on every part of a pasted preview, so it can't be mistaken for the real thing
+function SetPlaceableLook(StaticMeshComponent C)
+{
+    local int i;
+
+    for (i = 0; i < Max(C.GetNumElements(), 1); i++)
+        C.SetMaterial(i, HighlightMaterial);
+}
+
+// ====================================================
+// Selecting
+// ====================================================
+
+function SelectMesh()
+{
+    local StaticMeshComponent C;
+    local int i;
+
+    C = MeshOf(TracedActor);
+    if (C == None)
+    {
+        MessageSelf("No Mesh Found");
+        return;
+    }
     for (i = 0; i < SelectedActors.Length; i++)
     {
-        `log("SelectedActors[i]: " $ SelectedActors[i]);
-        if (SelectedActors[i] != none)
+        if (SelectedActors[i] == TracedActor)
         {
-            // Adjust the translation and rotation based on the origin's rotation
-            RelativeLocation = SelectedActors[i].Location - Origin;
-            RelativeLocation = RelativeLocation >> OriginRot;
-
-            // Calculate the relative scale based on the bounds
-            if (StaticMeshActor(SelectedActors[i]) != none)
-            {
-                RelativeScale = StaticMeshActor(SelectedActors[i]).StaticMeshComponent.Bounds.BoxExtent;
-                StaticM = PathName(StaticMeshActor(SelectedActors[i]).StaticMeshComponent.StaticMesh);
-            }
-            else if (CMAStaticMesh(SelectedActors[i]) != none)
-            {                
-                RelativeScale = CMAStaticMesh(SelectedActors[i]).StaticMeshComponent.Bounds.BoxExtent;
-                StaticM = PathName(CMAStaticMesh(SelectedActors[i]).StaticMeshComponent.StaticMesh);
-            }
-
-            StructureData $= "StaticMesh=" $ StaticM $ "&Translation=" $ RelativeLocation $ "&Rotation=" $ SelectedActors[i].Rotation $ "&Scale=" $ RelativeScale $ ";";
+            MessageSelf("Mesh already selected: " $ PathName(C.StaticMesh));
+            return;
         }
     }
 
-    PC.CopyToClipboard(StructureData);
-    MessageSelf("Copied Selected Meshes To Clipboard");
+    SelectedActors.AddItem(TracedActor);
+    OriginalMaterials.AddItem(C.GetMaterial(0));
+    C.SetMaterial(0, HighlightMaterial);
+    MessageSelf("Selected Mesh: " $ PathName(C.StaticMesh));
 }
 
 // Each selected mesh gets back the material it had. (Entries used to be removed from the list while it was being read,
@@ -463,10 +430,8 @@ function ClearSelectedMeshes()
 
 function RestoreMaterial(Actor SelectedActor, MaterialInterface Original)
 {
-    if (StaticMeshActor(SelectedActor) != none)
-        StaticMeshActor(SelectedActor).StaticMeshComponent.SetMaterial(0, Original);
-    else if (CMAStaticMesh(SelectedActor) != none)
-        CMAStaticMesh(SelectedActor).StaticMeshComponent.SetMaterial(0, Original);
+    if (MeshOf(SelectedActor) != None)
+        MeshOf(SelectedActor).SetMaterial(0, Original);
 }
 
 function RemoveLastSelectedMesh()
@@ -495,6 +460,9 @@ function RemoveLastSelectedMesh()
 defaultproperties
 {
     MenuName="STRUCTURES"
+
+    // The placeable item material, which is in the shipped game (the editor's highlight material may not be)
+    HighlightMaterial=MaterialInstanceConstant'FX_VN_Materials.Materials.M_PlaceableItem'
 
     MenuText.add("Select Mesh")
     MenuText.add("Copy Selection To Clipboard")
