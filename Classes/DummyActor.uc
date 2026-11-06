@@ -1,4 +1,5 @@
-class DummyActor extends actor;
+class DummyActor extends actor
+    dependson(CMBuilderCatalogue);
 
 var MutCMenu                     MyMut;
 
@@ -6,6 +7,8 @@ var MutCMenu                     MyMut;
 const MIN_PIECE_SCALE = 0.1;
 const MAX_PIECE_SCALE = 10.0;
 const BUILT_VEHICLE_TAG = 'CMBuilderVehicle'; // vehicles placed with the Builder, which players may remove again
+const MAX_PIECE_HEALTH = 100000;
+var float LastBlockedTime; // Server side: when this player was last told a piece couldn't go on a soldier (once a second)
 
 var bool bIsAuthorized, bNewTankPhys, bLoadExtras, bLoadGOM3, bLoadGOM4, bLoadWW, bLoadWW2, bFSPlayersCanCall;
 var bool bClickModeActive;
@@ -22,6 +25,10 @@ var float                       LastFlagTime;          // Server side: when this
 
 var string PendingHelp; // client-side: help received in pieces, waiting for ClientShowHelp
 var string PendingLookCommand; // server-side: the command waiting for ServerLookTarget (MutCMenu.AskClientForLook)
+
+// Client side: the Builder's catalogue the server sent, when it has its own (otherwise the built-in one is used)
+var array<BuilderPiece> ServerCatalogue;
+var bool bServerCatalogue;
 
 replication
 {
@@ -136,6 +143,36 @@ reliable server function ServerLookTarget(bool bHit, vector Target, vector Norma
     PendingLookCommand = "";
     if (Command != "" && MyMut != None && PlayerController(Owner) != None)
         MyMut.RunWithClientLook(PlayerController(Owner), Command, bHit, Target, Normal);
+}
+
+reliable client function ClientClearCatalogue()
+{
+    ServerCatalogue.Length = 0;
+    bServerCatalogue = true;
+}
+
+reliable client function ClientAddCataloguePiece(string Category, string Label, string Mesh, int Cost, int Health)
+{
+    local BuilderPiece P;
+
+    if (ServerCatalogue.Length >= class'CMBuilderCatalogue'.const.MAX_PIECES)
+        return;
+    P.Category = Category;
+    P.Label = Label;
+    P.Mesh = Mesh;
+    P.Cost = Cost;
+    P.Health = Health;
+    ServerCatalogue.AddItem(P);
+    bServerCatalogue = true;
+}
+
+// The Builder's catalogue in this player's game: the server's, or the built-in one
+simulated function GetBuilderPieces(out array<BuilderPiece> List)
+{
+    if (bServerCatalogue)
+        List = ServerCatalogue;
+    else
+        List = class'CMBuilderCatalogue'.default.Pieces;
 }
 
 reliable client function CMenuSetup()
@@ -367,13 +404,53 @@ reliable server function SpawnActor(
         }
         else
             Piece.ServerSetScale3D(Piece.StaticMeshComponent.Scale3D * Scale);
-        Piece.Health = ModifyTime;
+        Piece.Health = Clamp(ModifyTime, 0, MAX_PIECE_HEALTH);
+
+        // Never on top of a soldier: they would be stuck inside it
+        Piece.ForceUpdateComponents(true, false);
+        if (SoldierInside(Piece))
+        {
+            Piece.Destroy();
+            if (WorldInfo.TimeSeconds - LastBlockedTime > 1.0 || LastBlockedTime == 0)
+                MyMut.PrivateMessage(PlayerController(Owner), "[CMenu] That can't go there: a soldier is in the way.");
+            LastBlockedTime = WorldInfo.TimeSeconds;
+            return;
+        }
     }
     else if ((SpawnTag == 'Turret' && (SpawnClass == class'CMATurret_M2_HMG_Destroyable' || SpawnClass == class'ROTurret_DShK_HMG_Destroyable'))
         || (SpawnTag == 'ResupplyPoint' && SpawnClass == class'CMAResupplyPoint'))
     {
         Spawn(SpawnClass,, SpawnTag, SpawnLocation, SpawnRotation,, true);
     }
+}
+
+// A living soldier (or vehicle) stands where the piece is: their body overlaps its collision. A little smaller than the
+// body, so a wall built right up against someone is still fine. Used by the server (the placed piece) and by the
+// player's game for the red preview (C is the preview); Tester is any actor (the check doesn't depend on it).
+static function bool PawnInPiece(Actor Tester, Pawn P, PrimitiveComponent C)
+{
+    local vector Extent;
+    local float Radius, Height;
+
+    if (Tester == None || P == None || P.bDeleteMe || P.Health <= 0 || C == None)
+        return false;
+    P.GetBoundingCylinder(Radius, Height);
+    Extent.X = Radius * 0.75;
+    Extent.Y = Extent.X;
+    Extent.Z = Height * 0.9;
+    return Tester.PointCheckComponent(C, P.Location, Extent);
+}
+
+function bool SoldierInside(CMAStaticMesh Piece)
+{
+    local Pawn P;
+
+    foreach WorldInfo.AllPawns(class'Pawn', P, Piece.StaticMeshComponent.Bounds.Origin, Piece.StaticMeshComponent.Bounds.SphereRadius + 200)
+    {
+        if (PawnInPiece(self, P, Piece.StaticMeshComponent))
+            return true;
+    }
+    return false;
 }
 
 // What may be removed with the Builder's delete entries: a Builder piece or a vehicle the Builder placed, by anyone who

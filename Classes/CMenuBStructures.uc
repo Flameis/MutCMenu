@@ -13,7 +13,7 @@ var array<Rotator> RotArray;   // and its turn relative to the first piece
 var array<Vector> ScaleArray;  // and its own scale
 var array<Actor> SelectedActors;
 var array<MaterialInterface> OriginalMaterials;
-var MaterialInterface HighlightMaterial; // a selected mesh is drawn with this (the placeable item material)
+var MaterialInstanceConstant SelectedLook; // a selected mesh is drawn with this (the placeable item look, in green)
 
 function Initialize()
 {
@@ -37,7 +37,6 @@ function bool CheckExceptions(string Command)
 {
     LastCmd = Command;
 
-	PreviewMeshMIC = new class'MaterialInstanceConstant';
 	switch (Command)
 	{
 		case "COPYSTRUCT":
@@ -125,7 +124,7 @@ function DoPlace()
 		if (PreviewStaticMesh[i] == none || PreviewStaticMesh[i].StaticMesh == None)
 			continue;
         PieceTransform(i, Loc, Rot, Scale);
-        MyDA.SpawnActor(class'CMAStaticMesh',, 'StaticMesh', Loc, Rot,, true, PathName(PreviewStaticMesh[i].StaticMesh), 1.0, ModifyTime * 10, Scale);
+        MyDA.SpawnActor(class'CMAStaticMesh',, 'StaticMesh', Loc, Rot,, true, PathName(PreviewStaticMesh[i].StaticMesh), 1.0, PieceHealth, Scale);
 	}
 }
 
@@ -167,6 +166,7 @@ simulated function UpdatePreviewMesh() // Update the position of the Preview Mes
         PreviewStaticMesh[i].SetRotation(Rot);
         PreviewStaticMesh[i].SetScale3D(Scale);
     }
+    PreviewLook().SetVectorParameterValue('color', CantPlaceWhy == "" ? GoodPlacementColour : BadPlacementColour);
 }
 
 // ====================================================
@@ -382,7 +382,18 @@ function SetPlaceableLook(StaticMeshComponent C)
     local int i;
 
     for (i = 0; i < Max(C.GetNumElements(), 1); i++)
-        C.SetMaterial(i, HighlightMaterial);
+        C.SetMaterial(i, PreviewLook());
+}
+
+function MaterialInstanceConstant GetSelectedLook()
+{
+    if (SelectedLook == None)
+    {
+        SelectedLook = new class'MaterialInstanceConstant';
+        SelectedLook.SetParent(PlaceableMaterial);
+        SelectedLook.SetVectorParameterValue('color', GoodPlacementColour);
+    }
+    return SelectedLook;
 }
 
 // ====================================================
@@ -411,7 +422,7 @@ function SelectMesh()
 
     SelectedActors.AddItem(TracedActor);
     OriginalMaterials.AddItem(C.GetMaterial(0));
-    C.SetMaterial(0, HighlightMaterial);
+    C.SetMaterial(0, GetSelectedLook());
     MessageSelf("Selected Mesh: " $ PathName(C.StaticMesh));
 }
 
@@ -462,7 +473,7 @@ defaultproperties
     MenuName="STRUCTURES"
 
     // The placeable item material, which is in the shipped game (the editor's highlight material may not be)
-    HighlightMaterial=MaterialInstanceConstant'FX_VN_Materials.Materials.M_PlaceableItem'
+    bUsesHealth=true
 
     MenuText.add("Select Mesh")
     MenuText.add("Copy Selection To Clipboard")

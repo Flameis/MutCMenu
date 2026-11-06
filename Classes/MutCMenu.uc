@@ -6,7 +6,7 @@
 // Code tech: T/4 Scovel
 // =================================================================
 class MutCMenu extends ROMutator
-    dependson(ROMapInfo)
+    dependson(ROMapInfo, CMBuilderCatalogue)
     config(MutCMenu_Server);
 
 // Help longer than this goes to the player in pieces (ShowHelpToPlayer); one network call can only carry so much
@@ -71,6 +71,8 @@ var config int                  MaxMapDrawingsPerPlayer;       // Drawings one p
 var config int                  CTFMaxFlagsPerPlayer;          // Flags one player (not an admin) can have placed at once; 0 or missing means 4
 var config int                  CTFPlaceCooldown;              // Seconds a player (not an admin) waits between placing flags; 0 or missing means 5
 var CMMapManager                MapManager;
+var config array<BuilderPiece>  BuilderCatalogue;   // The Builder's pieces (Static Meshes menu); empty or missing: the built-in list (CMBuilderCatalogue)
+var array<StaticMesh>           BuilderMeshes;      // the catalogue's meshes, loaded when the map starts so placing one doesn't stall the server
 
 // An aircraft strike waiting out its first strike delay
 struct FSPendingStrike
@@ -209,6 +211,7 @@ simulated function NotifyLogin(Controller NewPlayer)
     DA.bTankPromptForAll = bTankPromptForAll;
 
     DA.CMenuSetup();
+    SendBuilderCatalogue(DA);
 
     if (MapManager != None && PlayerController(NewPlayer) != None)
         MapManager.AddPlayer(PlayerController(NewPlayer));
@@ -3250,6 +3253,61 @@ function LoadObjects()
         foreach WW2ToLoad(Path)
             Shared += AddSharedContent(Path);
     `log("[MutCMenu] mod content loaded into the map's shared content: "$Shared$" classes");
+
+    LoadBuilderMeshes();
+}
+
+// The Builder's catalogue: the server's own list when it has one, otherwise the built-in one
+function GetBuilderPieces(out array<BuilderPiece> List)
+{
+    local int i;
+
+    if (BuilderCatalogue.Length == 0)
+    {
+        List = class'CMBuilderCatalogue'.default.Pieces;
+        return;
+    }
+    List.Length = 0;
+    for (i = 0; i < BuilderCatalogue.Length && i < class'CMBuilderCatalogue'.const.MAX_PIECES; i++)
+        List.AddItem(BuilderCatalogue[i]);
+}
+
+// Loads every catalogue mesh once, when the map starts: placing one then doesn't load a package in the middle of a match.
+// The log says which meshes this game doesn't have.
+function LoadBuilderMeshes()
+{
+    local array<BuilderPiece> List;
+    local StaticMesh SM;
+    local int i, Missing;
+
+    GetBuilderPieces(List);
+    BuilderMeshes.Length = 0;
+    for (i = 0; i < List.Length; i++)
+    {
+        SM = StaticMesh(DynamicLoadObject(List[i].Mesh, class'StaticMesh', true));
+        if (SM != None)
+            BuilderMeshes.AddItem(SM);
+        else
+        {
+            Missing++;
+            `log("[MutCMenu] Builder catalogue: there is no mesh called "$List[i].Mesh$" ("$List[i].Label$")");
+        }
+    }
+    `log("[MutCMenu] Builder catalogue: "$BuilderMeshes.Length$" pieces loaded"$(Missing > 0 ? ", "$Missing$" missing" : ""));
+}
+
+// A server with its own catalogue sends it to a player's game (which has the built-in one already)
+function SendBuilderCatalogue(DummyActor DA)
+{
+    local array<BuilderPiece> List;
+    local int i;
+
+    if (DA == None || BuilderCatalogue.Length == 0)
+        return;
+    GetBuilderPieces(List);
+    DA.ClientClearCatalogue();
+    for (i = 0; i < List.Length; i++)
+        DA.ClientAddCataloguePiece(List[i].Category, List[i].Label, List[i].Mesh, List[i].Cost, List[i].Health);
 }
 
 // Loads a class into the map's shared content list (the game empties that list while it starts up, before this runs).

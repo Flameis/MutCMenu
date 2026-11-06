@@ -17,7 +17,6 @@ var array<MeshComponent>			PartComps;		// The component showing each part, in th
 var array<StaticMeshComponent>		StaticPool;		// Made when first needed and reused
 var array<SkeletalMeshComponent>	SkeletalPool;
 var bool							bFixedRotation;	// The item is placed facing north whatever way the player looks (flags)
-var MaterialInterface				PlaceableMaterial;
 
 // How far up the turrets start, so their legs are not in the ground. The arrow keys still move them from there.
 const M2_RAISE = 20;
@@ -253,7 +252,7 @@ function InitializePreview()
 	{
 		PartComps.AddItem(PartComponent(i, NumStatic, NumSkeletal));
 		for (j = 0; j < Max(PartComps[i].GetNumElements(), 1); j++)
-			PartComps[i].SetMaterial(j, PlaceableMaterial);
+			PartComps[i].SetMaterial(j, PreviewLook());
 	}
 	bPreviewIsSkeletal = NumSkeletal > 0 && NumStatic == 0;
 }
@@ -292,6 +291,7 @@ simulated function UpdatePreviewMesh()
 		PartComps[i].SetRotation(ItemRot + Parts[i].Rotation);
 		PartComps[i].SetScale3D(Parts[i].Scale);
 	}
+	PreviewLook().SetVectorParameterValue('color', CantPlaceWhy == "" ? GoodPlacementColour : BadPlacementColour);
 }
 
 // Every pooled component and the base menu's own two, so nothing from an earlier item is left behind
@@ -325,7 +325,6 @@ defaultproperties
     MenuName="ACTORS"
 
 	bCanScale=false // Actors are always placed at their own size
-	PlaceableMaterial=MaterialInstanceConstant'FX_VN_Materials.Materials.M_PlaceableItem'
 
 	// The CTF flag entries go in front of these (Initialize)
 	MenuText.Add("Mark Corner")

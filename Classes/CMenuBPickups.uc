@@ -86,6 +86,7 @@ function DoPlace()
 
 defaultproperties
 {
+    bUsesTime=true
     MenuName="WEAPON PICKUPS"
 
     MenuText.add("Custom")

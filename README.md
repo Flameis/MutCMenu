@@ -173,7 +173,7 @@ Open **Builder Menu** from the main menu. You aim at the spot you want, and conf
 | :--- | :--- |
 | Vehicles | Place vehicles: Cobra, Loach, Huey, Bushranger, plus lists for WW2, Winter War and GOM (Gameplay Overhaul Mutator) vehicles and the GreenMen (GM) helicopters when those mods are loaded, plus the 29th's own helicopters. The WW2 list is every vehicle WW2 has that can be placed: Crusader Mk III, Ha-Go, LVT, M13, Panzer III, Panzer IV F, SdKfz 251 halftrack, Semovente, Sherman II and III, Stuart, StuG III G, T-34, T-70, and the Universal Carrier with and without its Bren. (Its Churchill can't be placed, and the Kubelwagen, SdKfz 222, Valentine and Willys entries are gone: WW2 doesn't have them.) **Custom** types `mutate cmenu --menu CMenuBVehicles --item ` for you to add any vehicle path. **Delete Vehicle** removes the one you aim at |
 | Structures | Copy buildings or whole areas you are aiming at and paste them somewhere else. Select several meshes, copy the selection, remove the last one, or clear the selection. See **Copying and pasting structures** below |
-| Static Meshes | Copy, paste and delete single objects. Presets: straight sandbags and an F4 Phantom. Admins also get **Toggle Collision (Builder Pieces)**, which turns a placed piece's collision off and on again for every player, and **Delete Any Placed Object** |
+| Static Meshes | The pieces to build with, in lists: **Sandbags**, **Barbed Wire**, **Bunkers**, **Wood Walls**, **Log Walls** and **Other** (see **The piece catalogue** below). Pick a list, then a piece; **0** goes back to the lists. Also copy, paste and delete single objects. Admins also get **Toggle Collision (Builder Pieces)**, which turns a placed piece's collision off and on again for every player, and **Delete Any Placed Object** |
 | Pickups | Turn a weapon into a pickup on the ground: **Custom** (types `--item ` for you to add the weapon path) or **Copy Held Weapon** (the one in your hands) |
 | Actors | In this order: the **CTF Flag** entries for each team's flag (for example "CTF Flag: PAVN (North)") and **CTF Flag: Command Line**, for everyone, with **Reset Flags** and **Remove Flags** for admins (see below); **Mark Corner** and **Spawn Obj**, which let you draw and place a brand new capture objective of your own, with **Clear Corners**, **Delete Obj** and **Clear Objs** to take them away again; an M2 turret, a DShK turret and an ammo resupply point; **Clear All**, which removes everything you placed, flags included; and last the team spawn points (North and South) and their delete entries |
 
@@ -184,10 +184,20 @@ Open **Builder Menu** from the main menu. You aim at the spot you want, and conf
 | Up / Down arrows | Raise or lower the item |
 | **Shift** + Up / Down | Move it forward or back |
 | Left / Right arrows | Slide it sideways (always to your right or left, level, whichever way you face) |
-| Z, X, C | Roll, pitch and turn (yaw) it. **Tab** reverses the direction of all three |
+| C, X, Z | Turn, tilt and roll it. **Tab** reverses the direction of all three |
 | Mouse wheel | Make it bigger or smaller (not vehicles or actors) |
-| Keypad + and - | Change how long it lasts, and so its health |
-| **Page Up / Page Down** | Make each key press move and turn it by more or less. The steps are 1, 5, 10, 20 (where it starts), 50 and 100 units for moving and raising, and 1, 2.8, 5.6, 11.25 (where it starts), 22.5 and 45 degrees for turning. You are told the step each time you change it, and it is kept for the next item |
+| Keypad + and - | Meshes and structures: the piece's **health** (how much damage it takes before it is destroyed), in steps of 100 up to 5000. It starts at "can't be destroyed", unless the catalogue gives the piece its own health, and never goes below that. Pickups: how long before a taken weapon comes back |
+| **Page Up / Page Down** | Make each key press move and turn it by more or less. The steps are 1, 5, 10, 20 (where it starts), 50 and 100 units for moving and raising, and 1, 2.8, 5.6, 11.25 (where it starts), 22.5 and 45 degrees for turning. It is kept for the next item |
+| **G** | Grid: the item snaps to a grid on the ground. Each press goes to the next size: 25 units (half a meter), 50 (1 m), 100 (2 m), then off |
+| **K** | Angle snap: the item faces in whole steps of 15, 45 or 90 degrees, then off. While it is on, **C** turns it by one step |
+| **L** | Lock facing: the item keeps facing the way it does now, wherever you look. Press again to let it follow your view |
+| **P** | Place next (single meshes): the preview goes right beside the last piece you placed, at its far end, facing the same way and as high above the ground. Click to place it, and the preview moves on to the next spot, so a wall goes up piece by piece. **Shift + P** puts it at the near end instead. Press P again to stop |
+
+**While placing**, a small panel under the menu lists these keys and how they are set (grid, angle snap, lock facing, place next, step, size, health). It shows what the last key did for a few seconds, instead of a chat line for every key press.
+
+**Green or red preview:** the preview is green when the item can go there, and red when it can't, with the reason on the panel in red. A click on a red preview places nothing. It is red when you aim at the sky (except with place next), and for meshes when a soldier stands where it would go. *How the panel and the colours look hasn't been checked by playing; the harness checks the text and the reasons behind them.*
+
+**Nothing is placed on a soldier.** A mesh that would trap a living soldier or a vehicle is refused by the server, with a message, for everyone (admins too). A wall built right up against someone is fine.
 
 **The server checks everything the Builder does.** Before, the admin entries were only hidden in the menu.
 - Only admins can clear all meshes, vehicles, pickups or actors, and change collision.
@@ -207,9 +217,37 @@ Open **Builder Menu** from the main menu. You aim at the spot you want, and conf
 
 **Clear All Meshes takes only Builder mesh pieces.** Resupply points, team spawns and the corner poles of custom objectives stay.
 
+**The piece catalogue.** The Static Meshes menu offers these pieces, all from the base game, so every player has them:
+
+| List | Pieces |
+| :--- | :--- |
+| Sandbags | Sandbag Wall, Sandbag Wall (Rough), Sandbag Wall Low, Corner Left, Corner Right, Curve, Wall Wide, Wall Wide and Long, Pyramid Low, Pile |
+| Barbed Wire | Wire Fence, Wire Fence Long, Wire Fence with Posts, Wire Coil, Wire Coil Tall, Wire Post |
+| Bunkers | Sandbag Bunker Wall Long and Short, Metal Matting, Bunker Roof, Bunker Post, Wood Walkway |
+| Wood Walls | Wood Wall, Long, Half Height, Half Width, with Window, with Door |
+| Log Walls | Log Wall, Log Wall Long, Log Stack, Log Stack Long, Single Log |
+| Other | F4 Phantom |
+
+The server loads all of them when the map starts, so placing one doesn't make the server stall in the middle of a match. A server can use its own list instead: add `BuilderCatalogue` lines under `[MutCMenu.MutCMenu]` in `MutCMenu_Server.ini`. With even one line, the built-in list is replaced (not added to), and every player gets the server's list when they join. Each line is one piece:
+
+```
+BuilderCatalogue=(Category="Sandbags",Label="Sandbag Wall",Mesh="ENV_VN_Sandbags.Mesh.S_ENV_Sandbags_112uu",Cost=2,Health=600)
+```
+
+| Part | What it means |
+| :--- | :--- |
+| `Category` | The list it is in on the menu. Lists appear in the order they first come up |
+| `Label` | Its name on the list |
+| `Mesh` | The mesh's full name (package, group and name). Use **Copy Mesh** on something in a map to get one. A mesh the game doesn't have is named in the server log |
+| `Cost` | Build points it takes from the team. Not used yet (team budgets are in development) |
+| `Health` | The health it starts with when picked (keypad + and - still change it). 0 or left out: it can't be destroyed |
+
+Up to 120 pieces. The built-in list has a cost for each piece, and no health (pieces can't be destroyed unless the player gives them health, as before).
+
 **Placing fixes:**
 - The sideways nudge used to go a different way depending on where you faced.
-- Aiming at the sky used to send the preview to the middle of the map. It now stays at the last spot you aimed at.
+- Aiming at the sky used to send the preview to the middle of the map. It now stays at the last spot you aimed at, and shows red: aim at the ground or a wall to place it.
+- Keypad - used to go below zero health, which made a piece that can't be destroyed by accident.
 - The preview no longer lands on your own soldier or a teammate.
 - A piece's list of what can damage it no longer grows every time it is hit.
 - In Structures, clearing or removing a selection now gives every mesh back its own colour.
@@ -537,6 +575,7 @@ Set in WebAdmin under **Mutators > MutCMenu Settings**, or in `MutCMenu_Server.i
 | `bDisableMapDrawing` | Turn drawing on the map off (it is on by default) |
 | `bKeepMapDrawingsBetweenRounds` | Keep drawings when a new round starts (they are cleared when off; markers are always kept) |
 | `MaxMapDrawingsPerPlayer` | How many drawings one player can have at once before their oldest goes (markers never go by themselves). 0 means the default, 60 |
+| `BuilderCatalogue` (ini only) | The Builder's own list of pieces, replacing the built-in one. See **The piece catalogue** in section 5 |
 | `FSProfiles` (ini only) | The default size of each barrage type: salvos, shells per salvo, spread, time between salvos and delay before the first. The defaults are written the first time the server runs. A type added later (like `MIXED`) is added automatically without touching your values |
 
 ## 10. Works with other mods
