@@ -1207,7 +1207,7 @@ function bool CommitItem(CMMapInfo From, CMMapInfo.PendingMapItem P)
     {
         if (Items[i].OwnerID == PC.PlayerReplicationInfo.PlayerID)
         {
-            if (Oldest == INDEX_NONE && Items[i].Kind != class'CMMapInfo'.const.KIND_MARKER)
+            if (Oldest == INDEX_NONE && !class'CMMapInfo'.static.StaysUntilErased(Items[i].Kind))
                 Oldest = i;
             Count++;
         }
@@ -1216,7 +1216,7 @@ function bool CommitItem(CMMapInfo From, CMMapInfo.PendingMapItem P)
     {
         if (Oldest == INDEX_NONE)
         {
-            PrivateMessage(PC, "You have "$Count$" markers on the map, the most you can have. Erase one to draw more.");
+            PrivateMessage(PC, "You have "$Count$" markers and movement restrictions on the map, the most you can have. Erase one to draw more.");
             return false;
         }
         RemoveItemAt(Oldest);
@@ -1226,7 +1226,7 @@ function bool CommitItem(CMMapInfo From, CMMapInfo.PendingMapItem P)
         Oldest = OldestNonMarker();
         if (Oldest == INDEX_NONE)
         {
-            PrivateMessage(PC, "The map is full of markers. Erase some to draw more.");
+            PrivateMessage(PC, "The map is full of markers and movement restrictions. Erase some to draw more.");
             return false;
         }
         RemoveItemAt(Oldest);
@@ -1253,14 +1253,14 @@ function bool CommitItem(CMMapInfo From, CMMapInfo.PendingMapItem P)
     return true;
 }
 
-// The oldest drawing that isn't a marker, INDEX_NONE when there are only markers
+// The oldest drawing that isn't a marker or movement restriction, INDEX_NONE when there are only those
 function int OldestNonMarker()
 {
     local int i;
 
     for (i = 0; i < Items.Length; i++)
     {
-        if (Items[i].Kind != class'CMMapInfo'.const.KIND_MARKER)
+        if (!class'CMMapInfo'.static.StaysUntilErased(Items[i].Kind))
             return i;
     }
     return INDEX_NONE;
@@ -1479,7 +1479,7 @@ function SetLocked(PlayerController PC, bool bLock)
         WorldInfo.Game.Broadcast(self, "[Map] "$PC.PlayerReplicationInfo.PlayerName$" turned map drawing back on.");
 }
 
-// A new round: the drawings go (unless the server keeps them), but markers stay until someone erases them
+// A new round: the drawings go (unless the server keeps them), but markers and movement restrictions stay until someone erases them
 function Reset()
 {
     local int i;
@@ -1490,7 +1490,7 @@ function Reset()
         return;
     for (i = Items.Length - 1; i >= 0; i--)
     {
-        if (Items[i].Kind != class'CMMapInfo'.const.KIND_MARKER)
+        if (!class'CMMapInfo'.static.StaysUntilErased(Items[i].Kind))
             RemoveItemAt(i);
     }
 }

@@ -7,6 +7,8 @@
 //  - Teammates the map leaves out (past 32 on a team): drawn like the game's own friendly icons, squad leaders with
 //    their "SL" label, and for a few seconds after dying.
 //  - CMenu's custom objectives: their borders, in the colour of the team holding them.
+//  - Movement restrictions (the Restrict tool): lines, boxes and circles drawn on the map show dashed there, and in the
+//    world as lines on the ground, for whoever the drawing is for (DrawZonesInWorld).
 //  - Enemies spotted with the spot key (Z): the game takes their mark off the map after 5 seconds; it is drawn on, in the
 //    same place with the game's own icon, until SPOT_MAP_LIFE seconds after the spot. Only on the map: the mark in the
 //    world and on the compass go when the game's does.
@@ -30,7 +32,14 @@ const TOOL_TEXT = 7;
 const TOOL_ERASER = 8;
 const TOOL_RULER = 9;
 const TOOL_MOVE = 10;
-const NUM_TOOLS = 11;
+const TOOL_ZONE = 11;   // movement restrictions, in the shape ZoneShape
+const NUM_TOOLS = 12;
+
+// The Restrict tool's shapes
+const ZONE_LINES = 0;   // click point after point; clicking the first point again closes it
+const ZONE_BOX = 1;
+const ZONE_CIRCLE = 2;
+const NUM_ZONE_SHAPES = 3;
 
 // What a toolbar button does
 const A_PANEL = 0;
@@ -47,6 +56,7 @@ const A_SPEC_TEAMS = 10;
 const A_PLAYER_NAMES = 11;
 const A_ICONS_MENU = 12;   // folds the Map icons menu open and shut
 const A_MAP_ICON = 13;     // shows or hides one kind of map icon (Arg: a MAPICON_ value)
+const A_ZONE_SHAPE = 14;   // picks the Restrict tool's shape (Arg: a ZONE_ value)
 
 // The kinds of map icon the Map icons menu shows and hides
 const MAPICON_PLAYERS = 0;  // spectators: every player
@@ -81,6 +91,21 @@ const NEAR_PLANE = 20.0;    // unreal units; a line is cut here where it passes 
 const SPEC_BOTH = 0;
 const SPEC_NORTH = 1;
 const SPEC_SOUTH = 2;
+
+// Movement restrictions on the ground. Each shape is followed along the ground in steps of GROUND_STEP, the ground under
+// each step found once with a trace from above (a few hundred a frame), and drawn as lines between them. Whether each
+// point can be seen from the camera is checked a few hundred points a frame, so hills and walls hide the lines behind them.
+const GROUND_STEP = 100.0;          // unreal units (2 meters) between points on the ground
+const GROUND_MAX_POINTS = 4000;     // per shape; a longer one gets a longer step
+const GROUND_TRACES_PER_FRAME = 300;
+const GROUND_SIGHT_PER_FRAME = 250;
+const GROUND_TRACE_HEIGHT = 40000.0; // the traces start this far above the shape and end this far below
+const GROUND_LIFT = 20.0;           // the sight check aims this far above the ground point, so the ground itself doesn't block it
+const ZONE_VIEW_DIST = 15000.0;     // (300 meters) the lines are drawn this far out
+const ZONE_FADE_DIST = 5000.0;      // and fade out over the last 100 meters of that
+const ZONE_DASH = 10.0;             // pixels at 1080p: the dashes of a restriction on the map
+const ZONE_GAP = 6.0;
+const ZONE_CLOSE_RADIUS = 14.0;     // pixels at 1080p: a click this close to the first point closes the lines
 
 const SPOT_MAP_LIFE = 30.0;  // seconds a spotted enemy's mark stays on the map, from the spot (the game's own goes after 5)
 const SPOT_FADE = 3.0;       // the last seconds of that, which it fades out over
@@ -136,6 +161,7 @@ var config bool bHideMapPlayers, bHideMapVehicles, bHideMapFlags, bHideMapDeaths
 var config name ShowNamesKey; // spectators hold it to see every name on screen; LeftAlt when not set (prone, which spectators don't use)
 var config name TracersKey;   // spectators hold it to see the tracers, or tap it with Shift held to switch them on and off; RightControl when not set
 var config byte SavedColour, SavedIcon;
+var config byte ZoneShape;    // the Restrict tool's shape (ZONE_LINES when not set)
 
 var byte Tool, Colour, Icon, Channel;
 var bool bChannelPicked;       // the player picked Channel themselves, so it is only changed when no longer allowed
@@ -165,6 +191,10 @@ var vector2D LastSample;
 var bool bMoving;    // the move tool is dragging the drawing MoveID, picked up at MoveFrom (world units)
 var int MoveID;
 var vector2D MoveFrom;
+
+var bool bZoneLining;          // the Restrict tool's lines are being clicked out
+var array<vector2D> ZonePoints; // and their points so far (world)
+var bool bRightOwned;          // the right mouse press finished the lines, so its release is taken too
 
 var bool bTyping, bShift;
 var string TypeText;
@@ -221,6 +251,19 @@ struct SpotMark
     var float Until;      // RealTimeSeconds the mark goes
 };
 var array<SpotMark> SpotMarks;
+
+// A movement restriction followed along the ground. Pts and Seen grow as the traces are done; Flat is the shape's path.
+struct GroundZone
+{
+    var int ID;
+    var string Sig;          // what the drawing was when this was made, so a moved one is made again
+    var byte Colour;
+    var array<vector2D> Flat;
+    var array<vector> Pts;   // the ground under each point of Flat, as far as traced
+    var array<byte> Seen;    // for each: 0 hidden from the camera, 1 in sight, 2 no ground found
+};
+var array<GroundZone> GroundZones;
+var int SightZone, SightPoint; // where the sight checks go on from next frame
 var int SeenSpotFade[`MAX_PLAYERS_PER_TEAM]; // the team's fade time for each slot, as last seen
 var byte SpotTeam;                           // the team those are for; 255 for none
 
@@ -436,6 +479,9 @@ function bool InputKey(int ControllerId, name Key, EInputEvent EventType, option
     if (bTyping)
         return TypeKey(Key, EventType);
 
+    if (ZoneLineKey(Key, EventType))
+        return true;
+
     // The number keys pick a tool while the map cursor is up (each button shows its key); otherwise they go to the game
     if (bCursor && !bToolsHidden && (EventType == IE_Pressed || EventType == IE_Repeat) && SlotForKey(Key) != INDEX_NONE && !CMenuOpen())
     {
@@ -443,7 +489,7 @@ function bool InputKey(int ControllerId, name Key, EInputEvent EventType, option
         return true;
     }
 
-    if (Key == 'Escape' && (bDragging || bMoving) && EventType == IE_Pressed)
+    if (Key == 'Escape' && (bDragging || bMoving || bZoneLining) && EventType == IE_Pressed)
     {
         Cancel();
         return true;
@@ -466,8 +512,9 @@ static function byte ToolInSlot(int Slot)
         case 7:  return TOOL_MARKER;
         case 8:  return TOOL_TEXT;
         case 9:  return TOOL_ERASER;
+        case 10: return TOOL_RULER;
     }
-    return TOOL_RULER;
+    return TOOL_ZONE;
 }
 
 static function int SlotForKey(name Key)
@@ -485,6 +532,7 @@ static function int SlotForKey(name Key)
         case 'Nine':   return 8;
         case 'Zero':   return 9;
         case 'Underscore': return 10; // the engine's name for the - key
+        case 'Equals': return 11;
     }
     return INDEX_NONE;
 }
@@ -493,6 +541,8 @@ static function string SlotKeyName(int Slot)
 {
     if (Slot < 9)
         return string(Slot + 1);
+    if (Slot == 11)
+        return "=";
     return Slot == 9 ? "0" : "-";
 }
 
@@ -601,6 +651,13 @@ function bool MousePressed()
         case TOOL_ERASER:
             EraseAt(Mouse);
             break;
+        case TOOL_ZONE:
+            if (ZoneShape == ZONE_LINES)
+            {
+                ZoneClick(W);
+                break;
+            }
+            // A box or circle is dragged out like the others
         default:
             bDragging = true;
             DragPoints.Length = 0;
@@ -757,6 +814,11 @@ function PressButton(ToolButton B)
             SavedIcon = Icon;
             SaveConfig();
             break;
+        case A_ZONE_SHAPE:
+            Cancel();
+            ZoneShape = B.Arg;
+            SaveConfig();
+            break;
         case A_CHANNEL:
             CycleChannel();
             break;
@@ -857,6 +919,8 @@ function Cancel()
     bDragging = false;
     bMoving = false;
     bTyping = false;
+    bZoneLining = false;
+    ZonePoints.Length = 0;
     DragPoints.Length = 0;
     TypeText = "";
 }
@@ -1018,10 +1082,95 @@ function FinishDrag()
     }
     else if (Tool != TOOL_RULER && DragPoints.Length == 2 && Dist(WorldToScreen(DragPoints[0]), WorldToScreen(DragPoints[1])) >= 4.0 * UIScale)
     {
-        Kind = Tool - TOOL_PEN; // the drag tools are in the same order as the kinds
+        Kind = DragKind();
         Send(Kind, DragPoints, "");
     }
     DragPoints.Length = 0;
+}
+
+// What the tool being dragged makes: the drag tools are in the same order as the kinds; the Restrict tool makes a box or
+// circle restriction, and the ruler measures with a line
+function byte DragKind()
+{
+    if (Tool == TOOL_RULER)
+        return class'CMMapInfo'.const.KIND_LINE;
+    if (Tool == TOOL_ZONE)
+        return ZoneShape == ZONE_CIRCLE ? class'CMMapInfo'.const.KIND_ZONE_CIRCLE : class'CMMapInfo'.const.KIND_ZONE_BOX;
+    return Tool - TOOL_PEN;
+}
+
+// The Restrict tool's lines: each click adds a point, joined to the last by a straight line. A click on the first point
+// closes the shape; a double click, a right click or Enter ends it where it is.
+function ZoneClick(vector2D W)
+{
+    local vector2D S;
+
+    S = WorldToScreen(W);
+    if (!bZoneLining)
+    {
+        bZoneLining = true;
+        ZonePoints.Length = 0;
+        ZonePoints.AddItem(W);
+        return;
+    }
+
+    if (ZonePoints.Length >= 2 && Dist(S, WorldToScreen(ZonePoints[0])) <= ZONE_CLOSE_RADIUS * UIScale)
+    {
+        ZonePoints.AddItem(ZonePoints[0]);
+        FinishZoneLines();
+        return;
+    }
+    // The second click of a double click lands on the point just made: it ends the lines
+    if (Dist(S, WorldToScreen(ZonePoints[ZonePoints.Length - 1])) < 4.0 * UIScale)
+    {
+        FinishZoneLines();
+        return;
+    }
+
+    ZonePoints.AddItem(W);
+    // Too many points for one drawing: it goes in pieces, each starting where the last ended
+    if (ZonePoints.Length >= class'CMMapInfo'.const.MAX_POINTS)
+    {
+        Send(class'CMMapInfo'.const.KIND_ZONE_LINES, ZonePoints, "");
+        ZonePoints.Remove(0, ZonePoints.Length - 1);
+    }
+}
+
+function FinishZoneLines()
+{
+    if (ZonePoints.Length >= 2)
+        Send(class'CMMapInfo'.const.KIND_ZONE_LINES, ZonePoints, "");
+    bZoneLining = false;
+    ZonePoints.Length = 0;
+}
+
+// Right click and Enter end the lines, Backspace takes the last point back. True when the key was taken.
+function bool ZoneLineKey(name Key, EInputEvent EventType)
+{
+    if (Key == 'RightMouseButton' && EventType == IE_Released && bRightOwned)
+    {
+        bRightOwned = false;
+        return true;
+    }
+    if (!bZoneLining || EventType != IE_Pressed)
+        return false;
+
+    switch (Key)
+    {
+        case 'RightMouseButton':
+            bRightOwned = true;
+            FinishZoneLines();
+            return true;
+        case 'Enter':
+            FinishZoneLines();
+            return true;
+        case 'BackSpace':
+            ZonePoints.Remove(ZonePoints.Length - 1, 1);
+            if (ZonePoints.Length == 0)
+                bZoneLining = false;
+            return true;
+    }
+    return false;
 }
 
 // Follows the mouse while a drag is on
@@ -1112,12 +1261,14 @@ function float DistToItem(CMMapInfo.ClientMapItem Item, vector2D S)
             return DistToSegment(S, A, V2(A.X + Len(Item.Text) * 8.0 * UIScale, A.Y));
 
         case class'CMMapInfo'.const.KIND_CIRCLE:
+        case class'CMMapInfo'.const.KIND_ZONE_CIRCLE:
             if (Item.Points.Length < 2)
                 return 100000.0;
             R = CircleRadius(Item);
             return Abs(Dist(S, A) - R);
 
         case class'CMMapInfo'.const.KIND_BOX:
+        case class'CMMapInfo'.const.KIND_ZONE_BOX:
             if (Item.Points.Length < 2)
                 return 100000.0;
             B = WorldToScreen(Item.Points[1]);
@@ -1245,10 +1396,14 @@ event PostRender(Canvas C)
     UpdateNamesLatch(PC, bSpectatorView);
     CollectTracers(bSpectatorView && (bTracersAsked || Info.bTracersOn), PC.WorldInfo.RealTimeSeconds);
     TrackSpots(PC);
+    UpdateGroundZones(PC);
 
     if (ReadMap() == None)
     {
         Cancel();
+        // The movement restrictions on the ground, with the map closed (open, it covers the view)
+        if (H != None && H.bShowHud && Info.bDrawingEnabled && !bHideDrawings)
+            DrawZonesInWorld(C, PC);
         // With the map closed, the spectator's names and triangles (with it open they would only clutter it)
         if (bSpectatorView && H.bShowHud)
             DrawWorld(C, PC, H);
@@ -1310,10 +1465,22 @@ event PostRender(Canvas C)
                 DrawItem(C, Sent[i].Item, false);
         }
 
+        if (bZoneLining)
+        {
+            Preview.Kind = class'CMMapInfo'.const.KIND_ZONE_LINES;
+            Preview.Colour = Colour;
+            Preview.Points = ZonePoints;
+            Preview.Points.AddItem(ScreenToWorld(ClampToMap(Mouse)));
+            DrawItem(C, Preview, false);
+            // The first point, where a click closes the shape
+            if (ZonePoints.Length >= 2)
+                DrawCross(C, WorldToScreen(ZonePoints[0]), ZONE_CLOSE_RADIUS * UIScale * 0.5, 2.0 * UIScale, class'CMMapInfo'.static.GetColour(Colour), false);
+        }
+
         if (bDragging)
         {
             UpdateDrag();
-            Preview.Kind = (Tool == TOOL_RULER) ? class'CMMapInfo'.const.KIND_LINE : Tool - TOOL_PEN;
+            Preview.Kind = DragKind();
             Preview.Colour = (Tool == TOOL_RULER) ? 6 : Colour;
             Preview.Points = DragPoints;
             DrawItem(C, Preview, false);
@@ -1653,6 +1820,35 @@ function DrawItem(Canvas C, CMMapInfo.ClientMapItem Item, bool bHighlight, optio
             DrawSegment(C, V2(A.X, B.Y), A, Width, Col);
             return;
 
+        // Movement restrictions are dashed, so they stand apart from the drawings
+        case class'CMMapInfo'.const.KIND_ZONE_CIRCLE:
+            R = CircleRadius(Item);
+            Prev = V2(A.X + R, A.Y);
+            for (i = 1; i <= 64; i++)
+            {
+                Next = V2(A.X + R * Cos(i * 2 * Pi / 64), A.Y + R * Sin(i * 2 * Pi / 64));
+                if (i % 2 == 1)
+                    DrawSegment(C, Prev, Next, Width, Col);
+                Prev = Next;
+            }
+            return;
+
+        case class'CMMapInfo'.const.KIND_ZONE_BOX:
+            DrawDashed(C, A, V2(B.X, A.Y), Width, Col);
+            DrawDashed(C, V2(B.X, A.Y), B, Width, Col);
+            DrawDashed(C, B, V2(A.X, B.Y), Width, Col);
+            DrawDashed(C, V2(A.X, B.Y), A, Width, Col);
+            return;
+
+        case class'CMMapInfo'.const.KIND_ZONE_LINES:
+            for (i = 1; i < Item.Points.Length; i++)
+            {
+                B = WorldToScreen(Item.Points[i]);
+                DrawDashed(C, A, B, Width, Col);
+                A = B;
+            }
+            return;
+
         case class'CMMapInfo'.const.KIND_ARROW:
             DrawSegment(C, A, B, Width, Col);
             if (Dist(A, B) < 1.0)
@@ -1673,6 +1869,22 @@ function DrawItem(Canvas C, CMMapInfo.ClientMapItem Item, bool bHighlight, optio
         DrawSegment(C, A, B, Width, Col);
         A = B;
     }
+}
+
+// A dashed line on the map
+function DrawDashed(Canvas C, vector2D A, vector2D B, float Width, color Col)
+{
+    local float Len2D, T, Dash, Step;
+    local vector2D Dir;
+
+    Len2D = Dist(A, B);
+    if (Len2D < 0.5)
+        return;
+    Dir = V2((B.X - A.X) / Len2D, (B.Y - A.Y) / Len2D);
+    Dash = ZONE_DASH * UIScale;
+    Step = Dash + ZONE_GAP * UIScale;
+    for (T = 0; T < Len2D; T += Step)
+        DrawSegment(C, V2(A.X + Dir.X * T, A.Y + Dir.Y * T), V2(A.X + Dir.X * FMin(T + Dash, Len2D), A.Y + Dir.Y * FMin(T + Dash, Len2D)), Width, Col);
 }
 
 // The edge in a team's colour behind a drawing, so a spectator can tell whose it is: a wider line under lines and
@@ -1938,8 +2150,19 @@ function string ToolName(byte Which)
         case TOOL_ERASER: return "Eraser";
         case TOOL_RULER:  return "Ruler";
         case TOOL_MOVE:   return "Move";
+        case TOOL_ZONE:   return "Restrict";
     }
     return "Pointer";
+}
+
+static function string ZoneShapeName(byte Which)
+{
+    switch (Which)
+    {
+        case ZONE_BOX:    return "Box";
+        case ZONE_CIRCLE: return "Circle";
+    }
+    return "Lines";
 }
 
 function string ToolHint(PlayerController PC)
@@ -1958,6 +2181,10 @@ function string ToolHint(PlayerController PC)
         case TOOL_ERASER:  return "Click a drawing to erase";
         case TOOL_MOVE:    return "Drag a drawing to move it";
         case TOOL_RULER:   return "Drag to measure (only you see it)";
+        case TOOL_ZONE:
+            if (ZoneShape != ZONE_LINES)
+                return "Drag out the area";
+            return bZoneLining ? "Right click or Enter to end" : "Click points for the lines";
     }
     return "Hold left mouse and drag";
 }
@@ -2017,6 +2244,14 @@ function DrawToolbar(Canvas C, PlayerController PC)
     for (i = 0; i < class'CMMapInfo'.const.NUM_COLOURS; i++)
         AddButton(X + i * (Cell + Gap), Y, Cell, BtnH, A_COLOUR, i, "", Colour == i);
     Y += BtnH + Gap * 3;
+
+    if (Tool == TOOL_ZONE)
+    {
+        Cell = (Inner - Gap * (NUM_ZONE_SHAPES - 1)) / NUM_ZONE_SHAPES;
+        for (i = 0; i < NUM_ZONE_SHAPES; i++)
+            AddButton(X + i * (Cell + Gap), Y, Cell, BtnH, A_ZONE_SHAPE, i, ZoneShapeName(i), ZoneShape == i);
+        Y += BtnH + Gap * 3;
+    }
 
     if (Tool == TOOL_MARKER)
     {
@@ -2578,6 +2813,266 @@ function DrawFlagIcon(Canvas C, vector2D At, float Size, color Col)
     C.SetDrawColor(Col.R, Col.G, Col.B, 255);
     C.SetPos(At.X + PoleW * 0.5, Top);
     C.DrawTile(C.DefaultTexture, ClothW, ClothH, 0, 0, C.DefaultTexture.SizeX, C.DefaultTexture.SizeY);
+}
+
+// ====================================================
+// Movement restrictions on the ground
+// ====================================================
+
+// Keeps a ground path for every movement restriction this player sees, makes a moved one again, drops the ones that went,
+// and carries on with the traces. Runs with the map open too, so the lines are ready when it closes.
+function UpdateGroundZones(PlayerController PC)
+{
+    local int i, k, Index, Budget;
+    local array<byte> Keep;
+    local GroundZone Z;
+    local string Sig;
+
+    Keep.Length = GroundZones.Length;
+    for (i = 0; i < Info.Items.Length; i++)
+    {
+        if (!class'CMMapInfo'.static.IsZone(Info.Items[i].Kind) || !ItemShown(Info.Items[i], PC.PlayerReplicationInfo))
+            continue;
+        Sig = ZoneSig(Info.Items[i]);
+        Index = INDEX_NONE;
+        for (k = 0; k < GroundZones.Length; k++)
+        {
+            if (GroundZones[k].ID == Info.Items[i].ID)
+            {
+                Index = k;
+                break;
+            }
+        }
+        if (Index != INDEX_NONE && GroundZones[Index].Sig == Sig)
+        {
+            Keep[Index] = 1;
+            continue;
+        }
+        if (Index == INDEX_NONE)
+        {
+            Index = GroundZones.Length;
+            GroundZones.AddItem(Z);
+            Keep.AddItem(0);
+        }
+        GroundZones[Index].ID = Info.Items[i].ID;
+        GroundZones[Index].Sig = Sig;
+        GroundZones[Index].Colour = Info.Items[i].Colour;
+        GroundZones[Index].Flat = GroundPath(Info.Items[i]);
+        GroundZones[Index].Pts.Length = 0;
+        GroundZones[Index].Seen.Length = 0;
+        Keep[Index] = 1;
+    }
+    for (i = GroundZones.Length - 1; i >= 0; i--)
+    {
+        if (Keep[i] == 0)
+            GroundZones.Remove(i, 1);
+    }
+
+    Budget = GROUND_TRACES_PER_FRAME;
+    for (i = 0; i < GroundZones.Length && Budget > 0; i++)
+        Budget -= TraceGround(PC, i, Budget);
+}
+
+// What a drawing is, as far as its ground path goes: its kind, how many points and where it starts and ends (a moved
+// drawing has every point moved)
+static function string ZoneSig(CMMapInfo.ClientMapItem Item)
+{
+    local int Last;
+
+    Last = Item.Points.Length - 1;
+    if (Last < 0)
+        return string(Item.Kind);
+    return Item.Kind$":"$Item.Points.Length$":"$int(Item.Points[0].X)$","$int(Item.Points[0].Y)$":"$int(Item.Points[Last].X)$","$int(Item.Points[Last].Y);
+}
+
+// The path a movement restriction takes over the map, a point every GROUND_STEP or so (a longer step for a very long one).
+// A box is its four sides, a circle its edge; both end where they start.
+static function array<vector2D> GroundPath(CMMapInfo.ClientMapItem Item)
+{
+    local array<vector2D> Corners, Path;
+    local vector2D A, B;
+    local float Length, Step, R, T;
+    local int i, n, Count;
+
+    if (Item.Points.Length < 2)
+        return Path;
+
+    if (Item.Kind == class'CMMapInfo'.const.KIND_ZONE_CIRCLE)
+    {
+        R = Sqrt(Square(Item.Points[1].X - Item.Points[0].X) + Square(Item.Points[1].Y - Item.Points[0].Y));
+        Count = Clamp(int(2 * Pi * R / GROUND_STEP), 24, GROUND_MAX_POINTS);
+        for (i = 0; i <= Count; i++)
+        {
+            A.X = Item.Points[0].X + R * Cos(i * 2 * Pi / Count);
+            A.Y = Item.Points[0].Y + R * Sin(i * 2 * Pi / Count);
+            Path.AddItem(A);
+        }
+        return Path;
+    }
+
+    if (Item.Kind == class'CMMapInfo'.const.KIND_ZONE_BOX)
+    {
+        A = Item.Points[0];
+        B = Item.Points[1];
+        Corners.AddItem(A);
+        A.Y = B.Y;
+        Corners.AddItem(A);
+        Corners.AddItem(B);
+        A = Item.Points[0];
+        A.X = B.X;
+        Corners.AddItem(A);
+        Corners.AddItem(Item.Points[0]);
+    }
+    else
+        Corners = Item.Points;
+
+    for (i = 1; i < Corners.Length; i++)
+        Length += Sqrt(Square(Corners[i].X - Corners[i - 1].X) + Square(Corners[i].Y - Corners[i - 1].Y));
+    Step = FMax(GROUND_STEP, Length / GROUND_MAX_POINTS);
+
+    Path.AddItem(Corners[0]);
+    for (i = 1; i < Corners.Length; i++)
+    {
+        A = Corners[i - 1];
+        B = Corners[i];
+        Length = Sqrt(Square(B.X - A.X) + Square(B.Y - A.Y));
+        n = Max(1, int(Length / Step + 0.999));
+        for (Count = 1; Count <= n; Count++)
+        {
+            T = float(Count) / n;
+            Path.AddItem(Lerp2(A, B, T));
+        }
+    }
+    return Path;
+}
+
+static function vector2D Lerp2(vector2D A, vector2D B, float T)
+{
+    local vector2D P;
+
+    P.X = A.X + (B.X - A.X) * T;
+    P.Y = A.Y + (B.Y - A.Y) * T;
+    return P;
+}
+
+// Finds the ground under up to Budget more points of the path. Traced from above, as bullets go, so the lines lie on
+// whatever is there (a roof too) and invisible walls that bullets pass are left out. Returns the traces it used.
+function int TraceGround(PlayerController PC, int Index, int Budget)
+{
+    local vector Start, End, HitLoc, HitNorm;
+    local int Used, k;
+
+    for (k = GroundZones[Index].Pts.Length; Used < Budget && k < GroundZones[Index].Flat.Length; k++)
+    {
+        Start.X = GroundZones[Index].Flat[k].X;
+        Start.Y = GroundZones[Index].Flat[k].Y;
+        Start.Z = GROUND_TRACE_HEIGHT;
+        End = Start;
+        End.Z = -GROUND_TRACE_HEIGHT;
+        Used++;
+        if (PC.Trace(HitLoc, HitNorm, End, Start, false,,, class'Actor'.const.TRACEFLAG_Bullet) != None)
+        {
+            GroundZones[Index].Pts.AddItem(HitLoc);
+            GroundZones[Index].Seen.AddItem(0);
+        }
+        else
+        {
+            GroundZones[Index].Pts.AddItem(Start);
+            GroundZones[Index].Seen.AddItem(2);
+        }
+    }
+    return Used;
+}
+
+// The lines on the ground: between each two points next to each other that are both in sight and close enough, in the
+// drawing's colour with a dark edge, thinner and fainter further away. The sight checks go on a few hundred a frame.
+function DrawZonesInWorld(Canvas C, PlayerController PC)
+{
+    local vector CamLoc, ViewDir, A, B, SA, SB;
+    local vector2D P1, P2;
+    local rotator CamRot;
+    local float Scale, D, Fade, Width;
+    local int i, k;
+    local color Col, Edge;
+
+    if (GroundZones.Length == 0)
+        return;
+    PC.GetPlayerViewPoint(CamLoc, CamRot);
+    ViewDir = vector(CamRot);
+    Scale = FMax(1.0, C.ClipY / 1080.0);
+    CheckGroundSight(PC, CamLoc);
+
+    for (i = 0; i < GroundZones.Length; i++)
+    {
+        Col = class'CMMapInfo'.static.GetColour(GroundZones[i].Colour);
+        for (k = 1; k < GroundZones[i].Pts.Length; k++)
+        {
+            if (GroundZones[i].Seen[k] != 1 || GroundZones[i].Seen[k - 1] != 1)
+                continue;
+            A = GroundZones[i].Pts[k - 1];
+            B = GroundZones[i].Pts[k];
+            D = VSize((A + B) * 0.5 - CamLoc);
+            if (D > ZONE_VIEW_DIST)
+                continue;
+            if (!ClipToView(CamLoc, ViewDir, A, B))
+                continue;
+
+            SA = C.Project(A);
+            SB = C.Project(B);
+            if ((SA.X < 0 && SB.X < 0) || (SA.X > C.ClipX && SB.X > C.ClipX) || (SA.Y < 0 && SB.Y < 0) || (SA.Y > C.ClipY && SB.Y > C.ClipY))
+                continue;
+
+            Fade = FClamp((ZONE_VIEW_DIST - D) / ZONE_FADE_DIST, 0.0, 1.0);
+            Width = FClamp(3000.0 / FMax(D, 1.0), 1.0, 5.0) * Scale;
+            P1.X = SA.X;
+            P1.Y = SA.Y;
+            P2.X = SB.X;
+            P2.Y = SB.Y;
+            if (!ClipToRect(P1, P2, -Width, -Width, C.ClipX + Width * 2, C.ClipY + Width * 2))
+                continue;
+
+            Edge = MakeColor(0, 0, 0, byte(140 * Fade));
+            DrawScreenLine(C, P1, P2, Width + 2 * Scale, Edge);
+            Col.A = byte(230 * Fade);
+            DrawScreenLine(C, P1, P2, Width, Col);
+        }
+    }
+}
+
+// Whether the next GROUND_SIGHT_PER_FRAME ground points can be seen from the camera, going on from where the last frame
+// stopped, at most once round all of them. Points too far away to be drawn are taken as hidden without a trace.
+function CheckGroundSight(PlayerController PC, vector CamLoc)
+{
+    local int Done, Steps, Total, i;
+    local vector P;
+
+    for (i = 0; i < GroundZones.Length; i++)
+        Total += GroundZones[i].Pts.Length;
+
+    for (Steps = 0; Steps < Total && Done < GROUND_SIGHT_PER_FRAME; Steps++)
+    {
+        while (SightZone >= GroundZones.Length || SightPoint >= GroundZones[SightZone].Pts.Length)
+        {
+            SightPoint = 0;
+            SightZone++;
+            if (SightZone >= GroundZones.Length)
+                SightZone = 0;
+        }
+
+        if (GroundZones[SightZone].Seen[SightPoint] != 2)
+        {
+            P = GroundZones[SightZone].Pts[SightPoint];
+            P.Z += GROUND_LIFT;
+            if (VSizeSq(P - CamLoc) > Square(ZONE_VIEW_DIST + GROUND_STEP))
+                GroundZones[SightZone].Seen[SightPoint] = 0;
+            else
+            {
+                GroundZones[SightZone].Seen[SightPoint] = PC.FastTrace(P, CamLoc) ? 1 : 0;
+                Done++;
+            }
+        }
+        SightPoint++;
+    }
 }
 
 // ====================================================

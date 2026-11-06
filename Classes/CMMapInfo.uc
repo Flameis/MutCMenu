@@ -106,7 +106,11 @@ const KIND_CIRCLE = 3; // centre and a point on the edge
 const KIND_BOX = 4;    // two opposite corners
 const KIND_MARKER = 5; // an icon at 1 point, optional text
 const KIND_TEXT = 6;   // text at 1 point
-const NUM_KINDS = 7;
+// Movement restrictions: shown on the map dashed, and on the ground in the game (CMMapInteraction.DrawZonesInWorld)
+const KIND_ZONE_LINES = 7;  // straight lines joining 2 to MAX_POINTS points; the last point on the first closes it
+const KIND_ZONE_BOX = 8;    // two opposite corners
+const KIND_ZONE_CIRCLE = 9; // centre and a point on the edge
+const NUM_KINDS = 10;
 
 // Who sees a drawing: a team (with a squad, or SQUAD_ALL for the whole team), everyone, only spectators, or only the
 // player who drew it
@@ -642,12 +646,24 @@ static function string IconName(byte Icon)
     return "Point";
 }
 
+static function bool IsZone(byte Kind)
+{
+    return Kind == KIND_ZONE_LINES || Kind == KIND_ZONE_BOX || Kind == KIND_ZONE_CIRCLE;
+}
+
+// Markers and movement restrictions stay until erased: through new rounds, and never pushed out by newer drawings
+static function bool StaysUntilErased(byte Kind)
+{
+    return Kind == KIND_MARKER || IsZone(Kind);
+}
+
 // How many points a drawing of this kind needs: exactly that many, or at least 2 for a freehand line
 static function bool PointCountOk(byte Kind, int Count)
 {
     switch (Kind)
     {
         case KIND_PEN:
+        case KIND_ZONE_LINES:
             return Count >= 2 && Count <= MAX_POINTS;
         case KIND_MARKER:
         case KIND_TEXT:

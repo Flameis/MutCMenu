@@ -319,7 +319,7 @@ Anyone can draw on the overhead map, like the map tools in Arma or Squad. Whatev
 
 **Opening the tools:** open the overhead map and press **T** (the game's tactical display key, or whatever you bound it to) to show the map cursor; press it again to hide it. A **toolbar** appears to the right of the map, clear of the grid letters down the left side (on a narrow screen it sits just inside the map's right edge). "Hide drawing tools" folds it away to one small button; the game remembers which you chose. The toolbar's text is slightly bold so it reads well over the map.
 
-**Picking a tool with the keyboard:** while the map cursor is up, the keys along the top of the keyboard pick the tools, in the order they are on the toolbar: **1** Pointer, **2** Move, **3** Pen, **4** Line, **5** Arrow, **6** Circle, **7** Box, **8** Marker, **9** Text, **0** Eraser and **-** (minus) Ruler. Each button shows its key. With the cursor hidden (or a CMenu open, or while typing a label) the keys work as normal, so you can still change weapons with the map open.
+**Picking a tool with the keyboard:** while the map cursor is up, the keys along the top of the keyboard pick the tools, in the order they are on the toolbar: **1** Pointer, **2** Move, **3** Pen, **4** Line, **5** Arrow, **6** Circle, **7** Box, **8** Marker, **9** Text, **0** Eraser, **-** (minus) Ruler and **=** Restrict. Each button shows its key. With the cursor hidden (or a CMenu open, or while typing a label) the keys work as normal, so you can still change weapons with the map open.
 
 **Shooting with the map open:** while the map cursor is hidden, the left mouse button fires as normal. (Without CMenu, a click with the map open only shows the cursor.) While you can't shoot (Realism Match's weapon safety is on, for example), a click on the open map shows the map cursor as it does without CMenu, so you can still draw. It used to do nothing at all. *Not yet tried in a game.*
 
@@ -338,8 +338,23 @@ Anyone can draw on the overhead map, like the map tools in Arma or Squad. Whatev
 | Text | Click where the label goes, type it (up to 40 characters), press Enter. Escape cancels |
 | Eraser | Click a drawing to erase it. The drawing it would take is highlighted first |
 | Ruler | Drag to measure distance in meters and the compass bearing. Only you see it |
+| Restrict | Marks a movement restriction (see below). Pick **Lines**, **Box** or **Circle** under the colours |
 
 While you drag a line, arrow, circle or box, its length, bearing or size in meters is shown next to the cursor. Right mouse still drags the map and the mouse wheel still zooms.
+
+**Movement restrictions (the Restrict tool)**
+
+Use it to show players where they may or may not go. What you mark with it shows on the map as a **dashed** line, and in the game itself as a line **on the ground**, in the colour you picked, for the same people who see your other drawings ("Draw for").
+
+| Shape | How to use it |
+| :--- | :--- |
+| Lines | Click point after point; each is joined to the last by a straight line. Click the first point again to close the shape, or end it where it is with a right click, a double click or Enter. Backspace takes the last point back, Escape stops without sending. Draw separate lines by ending one and starting the next |
+| Box | Hold on one corner and drag to the other |
+| Circle | Hold on the centre and drag out to the edge |
+
+- **On the ground:** the line follows the ground (a point every 2 meters), over hills and onto whatever is there, a roof included. Hills and walls hide it the way they would hide something lying on the ground. It is drawn up to 300 meters away, fading over the last 100, thinner further away, with a dark edge so it shows on any ground. It only shows with the map closed, and **Hide drawings** hides it too.
+- **Stays until erased:** like markers, restrictions stay through new rounds and are never pushed out by newer drawings. Erase, move, undo and the clear buttons work on them as on any drawing; a moved one moves on the ground too.
+- *Tested by the harness (the shapes, the ground path, the clicking); how the lines look on the ground, and how quickly they appear when you come over a hill, can only be checked by playing.*
 
 **The rest of the toolbar**
 
