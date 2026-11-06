@@ -789,49 +789,50 @@ function DrawForm(ROCanvas C)
 		DrawStyledFormBoxes(C, PanelX, PanelY, PanelW, PanelH);
 	else
 	{
-	C.PushDepthSortPriority(DSP_SkyHigh);
-	C.SetPos(PanelX, PanelY);
-	C.SetDrawColorStruct(BackgroundColor);
-	C.DrawRect(PanelW, PanelH);
-	C.SetPos(PanelX, PanelY);
-	C.SetDrawColorStruct(BorderColor);
-	C.DrawBox(PanelW, PanelH);
-	for (i = 0; i < FormFields.Length; i++)
-	{
-		bHover = CursorPos.X >= FormFields[i].X && CursorPos.X <= FormFields[i].X + FormFields[i].W
-			&& CursorPos.Y >= FormFields[i].Y && CursorPos.Y <= FormFields[i].Y + FormFields[i].H;
-		if (FormFields[i].bSwitch && FormFields[i].Value != "")
-			C.SetDrawColor(40, 130, 60, 235);
-		else
-			C.SetDrawColor(bHover ? 70 : 30, bHover ? 70 : 30, bHover ? 70 : 30, 235);
-		C.SetPos(FormFields[i].X, FormFields[i].Y);
-		C.DrawRect(FormFields[i].W, FormFields[i].H);
-		if (i == FormFocus)
-			C.SetDrawColor(255, 200, 40, 255);
-		else
-			C.SetDrawColor(120, 120, 120, 255);
-		C.SetPos(FormFields[i].X, FormFields[i].Y);
-		C.DrawBox(FormFields[i].W, FormFields[i].H);
-	}
-	bHover = CursorPos.X >= RunX && CursorPos.X <= RunX + RunW && CursorPos.Y >= RunY && CursorPos.Y <= RunY + RunH;
-	C.SetDrawColor(bHover ? 60 : 35, bHover ? 170 : 130, bHover ? 80 : 55, 240);
-	C.SetPos(RunX, RunY);
-	C.DrawRect(RunW, RunH);
-	bHover = CursorPos.X >= CancelX && CursorPos.X <= CancelX + CancelW && CursorPos.Y >= CancelY && CursorPos.Y <= CancelY + CancelH;
-	C.SetDrawColor(bHover ? 190 : 140, bHover ? 50 : 35, bHover ? 45 : 30, 240);
-	C.SetPos(CancelX, CancelY);
-	C.DrawRect(CancelW, CancelH);
-	C.PopDepthSortPriority();
-	}
+		C.PushDepthSortPriority(DSP_SkyHigh);
+		C.SetPos(PanelX, PanelY);
+		C.SetDrawColorStruct(BackgroundColor);
+		C.DrawRect(PanelW, PanelH);
+		C.SetPos(PanelX, PanelY);
+		C.SetDrawColorStruct(BorderColor);
+		C.DrawBox(PanelW, PanelH);
+		
+		for (i = 0; i < FormFields.Length; i++)
+		{
+			bHover = CursorPos.X >= FormFields[i].X && CursorPos.X <= FormFields[i].X + FormFields[i].W
+				&& CursorPos.Y >= FormFields[i].Y && CursorPos.Y <= FormFields[i].Y + FormFields[i].H;
+			if (FormFields[i].bSwitch && FormFields[i].Value != "")
+				C.SetDrawColor(40, 130, 60, 235);
+			else
+				C.SetDrawColor(bHover ? 70 : 30, bHover ? 70 : 30, bHover ? 70 : 30, 235);
+			C.SetPos(FormFields[i].X, FormFields[i].Y);
+			C.DrawRect(FormFields[i].W, FormFields[i].H);
+			if (i == FormFocus)
+				C.SetDrawColor(255, 200, 40, 255);
+			else
+				C.SetDrawColor(120, 120, 120, 255);
+			C.SetPos(FormFields[i].X, FormFields[i].Y);
+			C.DrawBox(FormFields[i].W, FormFields[i].H);
+		}
+			bHover = CursorPos.X >= RunX && CursorPos.X <= RunX + RunW && CursorPos.Y >= RunY && CursorPos.Y <= RunY + RunH;
+			C.SetDrawColor(bHover ? 60 : 35, bHover ? 170 : 130, bHover ? 80 : 55, 240);
+			C.SetPos(RunX, RunY);
+			C.DrawRect(RunW, RunH);
+			bHover = CursorPos.X >= CancelX && CursorPos.X <= CancelX + CancelW && CursorPos.Y >= CancelY && CursorPos.Y <= CancelY + CancelH;
+			C.SetDrawColor(bHover ? 190 : 140, bHover ? 50 : 35, bHover ? 45 : 30, 240);
+			C.SetPos(CancelX, CancelY);
+			C.DrawRect(CancelW, CancelH);
+			C.PopDepthSortPriority();
+		}
 
-	// Text
-	C.PushDepthSortPriority(DSP_Insane);
-	C.SetDrawColorStruct(TextColor);
-	C.SetPos(PanelX + Pad, PanelY + Pad);
-	C.DrawText(FormTitle, false, TitleScale, TitleScale);
+		// Text
+		C.PushDepthSortPriority(DSP_Insane);
+		C.SetDrawColorStruct(TextColor);
+		C.SetPos(PanelX + Pad, PanelY + Pad);
+		C.DrawText(FormTitle, false, TitleScale, TitleScale);
 
-	Y = PanelY + Pad + LineH;
-	C.SetDrawColor(220, 220, 220, 255);
+		Y = PanelY + Pad + LineH;
+		C.SetDrawColor(220, 220, 220, 255);
 	for (i = 0; i < FormNotes.Length; i++)
 	{
 		C.SetPos(PanelX + Pad, Y);
