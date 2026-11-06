@@ -23,29 +23,35 @@ var MaterialInterface				PlaceableMaterial;
 const M2_RAISE = 20;
 const DSHK_RAISE = 60;
 
+// The menu goes: the CTF flags, the custom objectives, the turrets and resupply point, Clear All, then the spawns
 function Initialize()
 {
-	// Capture the Flag flags for either team, labelled with the team's faction ("CTF Flag: DAK (Axis)"). Anyone can place
-	// a flag; resetting and removing them is for admins (the server checks again).
+	local int At;
+
+	// Capture the Flag flags for either team, labelled with the team's faction ("CTF Flag: DAK (Axis)"), first in the
+	// list. Anyone can place a flag; resetting and removing them is for admins (the server checks again).
 	if (PC != None)
 	{
-		MenuText.AddItem("CTF Flag: "$FlagEntry(`AXIS_TEAM_INDEX));
-		MenuText.AddItem("CTF Flag: "$FlagEntry(`ALLIES_TEAM_INDEX));
-		MenuCommand.AddItem("CTFFLAGNORTH");
-		MenuCommand.AddItem("CTFFLAGSOUTH");
+		AddEntryAt(At, "CTF Flag: "$FlagEntry(`AXIS_TEAM_INDEX), "CTFFLAGNORTH");
+		AddEntryAt(At, "CTF Flag: "$FlagEntry(`ALLIES_TEAM_INDEX), "CTFFLAGSOUTH");
 		// No preview: types the command in the console with the options explained, for flags the entries above can't make
-		MenuText.AddItem("CTF Flag: Command Line");
-		MenuCommand.AddItem("CTFFLAGCMD");
+		AddEntryAt(At, "CTF Flag: Command Line", "CTFFLAGCMD");
 	}
 	if (bIsAuthorized && PC != None)
 	{
-		MenuText.AddItem("Reset Flags");
-		MenuText.AddItem("Remove Flags");
-		MenuCommand.AddItem("RESETFLAGS");
-		MenuCommand.AddItem("REMOVEFLAGS");
+		AddEntryAt(At, "Reset Flags", "RESETFLAGS");
+		AddEntryAt(At, "Remove Flags", "REMOVEFLAGS");
 	}
 
 	super.Initialize();
+}
+
+// Puts an entry in at At, and moves At on past it
+function AddEntryAt(out int At, string Text, string Command)
+{
+	MenuText.InsertItem(At, Text);
+	MenuCommand.InsertItem(At, Command);
+	At++;
 }
 
 function string FlagEntry(int Team)
@@ -128,8 +134,6 @@ function bool CheckExceptions(string Command)
 			return true;
 
 		case "SETCORNER":
-		case "REDDECAL":
-		case "YELLOWDECAL":
 			StartParts();
 			AddPart(StaticMesh'ENV_VN_Flags.Meshes.S_VN_Flagpole', None, vect(0, 0, 0), rot(0, 0, 0), vect(1, 1, 1));
             GoToState('ReadyToPlace',, true);
@@ -198,14 +202,6 @@ function DoPlace()
 
 		case "SETCORNER":
 			MyDA.ServerMarkCorner(PlaceLoc, PlaceRot); // The server keeps the corner, stands the pole up and tells you
-			return;
-
-		case "REDDECAL":
-			MyDA.SpawnDecal(DecalMaterial'Effects_Mats.FX_Gore.BloodPool_001_DM', PlaceLoc, PlaceRot);
-			return;
-
-		case "YELLOWDECAL":
-			MyDA.SpawnDecal(DecalMaterial'FX_VN_Materials.Materials.D_CommanderMark', PlaceLoc, PlaceRot);
 			return;
 
 		case "TURRETM2":
@@ -331,37 +327,32 @@ defaultproperties
 	bCanScale=false // Actors are always placed at their own size
 	PlaceableMaterial=MaterialInstanceConstant'FX_VN_Materials.Materials.M_PlaceableItem'
 
-    MenuText.Add("Set North Spawn")
-    MenuText.Add("Set South Spawn")
-    MenuText.Add("Delete North Spawns")
-    MenuText.Add("Delete South Spawns")
+	// The CTF flag entries go in front of these (Initialize)
 	MenuText.Add("Mark Corner")
 	MenuText.Add("Spawn Obj")
 	MenuText.Add("Clear Corners")
 	MenuText.Add("Delete Obj")
 	MenuText.Add("Clear Objs")
-    MenuText.Add("Clear All")
-    MenuText.Add("M2 Turret")
+	MenuText.Add("M2 Turret")
 	MenuText.Add("DShK Turret")
 	MenuText.Add("Resupply Point")
+	MenuText.Add("Clear All")
+	MenuText.Add("Set North Spawn")
+	MenuText.Add("Set South Spawn")
+	MenuText.Add("Delete North Spawns")
+	MenuText.Add("Delete South Spawns")
 
-    // MenuText.Add("Red Decal")
-    // MenuText.Add("Yellow Decal")
-
-    MenuCommand.Add("NORTHSPAWN")
-    MenuCommand.Add("SOUTHSPAWN")
-    MenuCommand.Add("DELNORTHSPAWNS")
-    MenuCommand.Add("DELSOUTHSPAWNS")
 	MenuCommand.Add("SETCORNER")
 	MenuCommand.Add("SPAWNOBJ")
 	MenuCommand.Add("CLEARCORNERS")
 	MenuCommand.Add("DELETEOBJ")
 	MenuCommand.Add("CLEAROBJS")
-    MenuCommand.Add("CLEARALLACTORS")
 	MenuCommand.Add("TURRETM2")
 	MenuCommand.Add("TURRETDSHK")
 	MenuCommand.Add("RESUPPLYPOINT")
-
-    // MenuCommand.Add("REDDECAL")
-    // MenuCommand.Add("YELLOWDECAL")
+	MenuCommand.Add("CLEARALLACTORS")
+	MenuCommand.Add("NORTHSPAWN")
+	MenuCommand.Add("SOUTHSPAWN")
+	MenuCommand.Add("DELNORTHSPAWNS")
+	MenuCommand.Add("DELSOUTHSPAWNS")
 }

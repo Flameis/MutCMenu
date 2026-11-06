@@ -590,56 +590,13 @@ reliable server function PlaceSpawn(
 		SMS.SetSpawnTeam(TeamIdx);
 }
 
-unreliable server function SpawnDecal(
-    MaterialInterface DecalMaterial,
-	vector DecalLocation,
-	rotator DecalOrientation)
-{
-    local CMADecal Decal;
-	local float Height;
-
-    if (Corners.Length < 2)
-        return;
-
-    DecalLocation.x = FMin(Corners[Corners.Length-1].x, Corners[Corners.Length-2].x) + (Abs(Corners[Corners.Length-1].x - Corners[Corners.Length-2].x)/2);
-	DecalLocation.y = FMin(Corners[Corners.Length-1].y, Corners[Corners.Length-2].y) + (Abs(Corners[Corners.Length-1].y - Corners[Corners.Length-2].y)/2);
-	DecalLocation.z = DecalLocation.z;
-
-	DecalOrientation.Yaw = (atan2(Corners[Corners.Length-1].y - Corners[Corners.Length-2].y , Corners[Corners.Length-1].x - Corners[Corners.Length-2].x)*RadToUnrRot);
-	DecalOrientation.Pitch = 270*DegToUnrRot;
-	DecalOrientation.Roll = 0;
-
-	Height = V2DSize(Corners[Corners.Length-2] - Corners[Corners.Length-1]);
-
-	ClearCornerMarkers();
-
-    Decal = Spawn(class'CMADecal',,, DecalLocation, DecalOrientation);
-    /* Decal.DecalLocation = DecalLocation;
-    Decal.DecalOrientation = DecalOrientation;
-    Decal.DecalLength = Height;
-    Decal.DecalMaterial = DecalMaterial; */
-    Decal.Initialize(DecalMaterial, DecalLocation, DecalOrientation, Height);
-
-	`log(Decal);
-
-    // Decal = WorldInfo.MyDecalManager.SpawnDecal(DecalMaterial, DecalLocation, DecalOrientation, 10, Height, 10000, false, 0,, True, True,,,, 100000);
-	
-    /* WorldInfo.MyDecalManager.DetachComponent(Decal.Decal);
-	Decal.TileX = 0.2;
-	Decal.TileY = 0.2;
-	WorldInfo.MyDecalManager.AttachComponent(Decal);
-	Corners.Remove(0, Corners.Length);
-	`log(Decal.Location);
-	`log(Decal.Height); */
-}
-
 reliable server function ClearAllActors()
 {
     local Actor ActorToClear;
 
     foreach AllActors(class'Actor', ActorToClear)
     {
-        if (ActorToClear.IsA('CMASpawn') || ActorToClear.IsA('CMAObjective') || ActorToClear.IsA('DecalActor') || ActorToClear.IsA('CMAFlag'))
+        if (ActorToClear.IsA('CMASpawn') || ActorToClear.IsA('CMAObjective') || ActorToClear.IsA('CMAFlag'))
         {
             ActorToClear.Destroy();
         }
