@@ -342,6 +342,18 @@ Anyone can draw on the overhead map, like the map tools in Arma or Squad. Whatev
 
 While you drag a line, arrow, circle or box, its length, bearing or size in meters is shown next to the cursor. Right mouse still drags the map and the mouse wheel still zooms.
 
+**Middle-click menus**
+
+With the map cursor up, click the **middle mouse button** on the map for a small menu next to the cursor. What it offers depends on what is under the cursor. Pick an entry with a left click; Escape, a right click or a click anywhere else closes it.
+
+| Middle click on | The menu |
+| :--- | :--- |
+| An empty spot | **Mark this spot:** click a marker icon to put that marker there (it also becomes the Marker tool's icon), change the colour, or **Text label here** to type a label there. For whoever "Draw for" is set to |
+| A drawing (marker, line, label, restriction...) | Its name and who drew it, then **Move** (it follows the cursor until your next click puts it down), **Erase**, **Change icon** (markers) and **Change colour**. Greyed out unless you may erase it (see "Who can erase what"); the server checks too |
+| A player's icon (scrim admins) | Their name, then **Teleport To Me**, **Drop At A Spot...** (click on the map where they should go: they are dropped in that grid square and keypad), **Switch Team** and **Kill** (each asks "sure?" and needs a second click within 4 seconds), **Respawn**, **Safety On**, **Safety Off**, **Find Original Name**, and **More...** to open the full Manage Players menu for them |
+
+For anyone who is not a scrim admin, a middle click on a player opens the menu for the drawing or spot under it instead. The menus need map drawing to be on. *Tested by the harness (what each entry does); how the menus look can only be checked by playing.*
+
 **Movement restrictions (the Restrict tool)**
 
 Use it to show players where they may or may not go. What you mark with it shows on the map as a **dashed** line, and in the game itself as a line **on the ground**, in the colour you picked, for the same people who see your other drawings ("Draw for").

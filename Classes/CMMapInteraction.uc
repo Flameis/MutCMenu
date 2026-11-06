@@ -7,6 +7,8 @@
 //  - Teammates the map leaves out (past 32 on a team): drawn like the game's own friendly icons, squad leaders with
 //    their "SL" label, and for a few seconds after dying.
 //  - CMenu's custom objectives: their borders, in the colour of the team holding them.
+//  - Middle-click menus on the open map: on an empty spot, a quick menu to put a marker or label there; on a drawing,
+//    move, erase, recolour or change its icon; on a player (scrim admins), the common Manage Players commands.
 //  - Movement restrictions (the Restrict tool): lines, boxes and circles drawn on the map show dashed there, and in the
 //    world as lines on the ground, for whoever the drawing is for (DrawZonesInWorld).
 //  - Enemies spotted with the spot key (Z): the game takes their mark off the map after 5 seconds; it is drawn on, in the
@@ -57,6 +59,30 @@ const A_PLAYER_NAMES = 11;
 const A_ICONS_MENU = 12;   // folds the Map icons menu open and shut
 const A_MAP_ICON = 13;     // shows or hides one kind of map icon (Arg: a MAPICON_ value)
 const A_ZONE_SHAPE = 14;   // picks the Restrict tool's shape (Arg: a ZONE_ value)
+const A_CTX = 15;          // an entry of the middle-click menu (Arg: a CTX_ value)
+const A_CTX_ICON = 16;     // a marker icon in the middle-click menu (Arg: the icon)
+const A_CTX_COLOUR = 17;   // a colour in the middle-click menu on a drawing (Arg: the colour)
+
+// The middle-click menus
+const MENU_NONE = 0;
+const MENU_QUICK = 1;      // on an empty spot: a marker or label there
+const MENU_ITEM = 2;       // on a drawing
+const MENU_PLAYER = 3;     // on a player (scrim admins)
+
+const CTX_LABEL = 0;
+const CTX_MOVE = 1;
+const CTX_ERASE = 2;
+const CTX_ICONS = 3;
+const CTX_COLOURS = 4;
+const CTX_TELEPORT = 5;
+const CTX_DROP = 6;
+const CTX_SWITCH = 7;
+const CTX_RESPAWN = 8;
+const CTX_KILL = 9;
+const CTX_SAFETY_ON = 10;
+const CTX_SAFETY_OFF = 11;
+const CTX_WHOIS = 12;
+const CTX_MORE = 13;
 
 // The kinds of map icon the Map icons menu shows and hides
 const MAPICON_PLAYERS = 0;  // spectators: every player
@@ -191,6 +217,18 @@ var vector2D LastSample;
 var bool bMoving;    // the move tool is dragging the drawing MoveID, picked up at MoveFrom (world units)
 var int MoveID;
 var vector2D MoveFrom;
+
+var byte CtxMenu;              // the middle-click menu that is open (MENU_NONE for none)
+var vector2D CtxAt, CtxWorld;  // where it was opened: on the screen and in the world
+var int CtxItemID;             // MENU_ITEM: the drawing
+var string CtxPlayer;          // MENU_PLAYER: the player's name, as the commands take it
+var bool bCtxIcons, bCtxColours; // MENU_ITEM: the icon or colour choice is folded open
+var byte CtxArmed;             // an entry clicked once that needs a second click (Kill, Switch Team); 255 for none
+var float CtxArmedTime;
+var float CtxX, CtxY, CtxW, CtxH; // where the menu was drawn last frame
+var bool bCtxMove;             // the drawing CtxItemID follows the cursor until the next click puts it down
+var bool bCtxDrop;             // the next click on the map is where the player CtxPlayer is dropped
+var bool bMiddleOwned;         // the middle mouse press opened a menu, so its release is taken too
 
 var bool bZoneLining;          // the Restrict tool's lines are being clicked out
 var array<vector2D> ZonePoints; // and their points so far (world)
@@ -452,6 +490,23 @@ function bool InputKey(int ControllerId, name Key, EInputEvent EventType, option
         return false;
     }
 
+    if (Key == 'MiddleMouseButton')
+    {
+        if (EventType == IE_Pressed && bCursor)
+        {
+            if (bTyping)
+                FinishTyping();
+            bMiddleOwned = OpenContextMenu();
+            return bMiddleOwned;
+        }
+        if (EventType == IE_Released && bMiddleOwned)
+        {
+            bMiddleOwned = false;
+            return true;
+        }
+        return false;
+    }
+
     if (Key == 'LeftMouseButton')
     {
         if (EventType == IE_Pressed || EventType == IE_DoubleClick)
@@ -469,7 +524,8 @@ function bool InputKey(int ControllerId, name Key, EInputEvent EventType, option
             bPressOwned = false;
             if (bDragging)
                 FinishDrag();
-            if (bMoving)
+            // A move from the middle-click menu waits for the next click
+            if (bMoving && !bCtxMove)
                 FinishMove();
             return true;
         }
@@ -489,7 +545,13 @@ function bool InputKey(int ControllerId, name Key, EInputEvent EventType, option
         return true;
     }
 
-    if (Key == 'Escape' && (bDragging || bMoving || bZoneLining) && EventType == IE_Pressed)
+    if (Key == 'RightMouseButton' && CtxMenu != MENU_NONE && EventType == IE_Pressed)
+    {
+        CloseContextMenu();
+        return true;
+    }
+
+    if (Key == 'Escape' && (bDragging || bMoving || bZoneLining || CtxMenu != MENU_NONE || bCtxDrop) && EventType == IE_Pressed)
     {
         Cancel();
         return true;
@@ -626,6 +688,29 @@ function bool MousePressed()
         PressButton(Buttons[B]);
         return true;
     }
+    // A click off the open menu closes it, and does nothing else
+    if (CtxMenu != MENU_NONE)
+    {
+        bPressOwned = true;
+        if (!InContextMenu(Mouse))
+            CloseContextMenu();
+        return true;
+    }
+    if (bCtxMove)
+    {
+        bPressOwned = true;
+        bCtxMove = false;
+        FinishMove();
+        return true;
+    }
+    if (bCtxDrop)
+    {
+        bPressOwned = true;
+        bCtxDrop = false;
+        if (InMap(Mouse))
+            DropPlayerAt(ScreenToWorld(Mouse));
+        return true;
+    }
     if (OverPanel(Mouse))
     {
         bPressOwned = true;
@@ -747,11 +832,12 @@ function bool OverPanel(vector2D S)
     return S.X >= PanelX && S.X <= PanelX + PanelW && S.Y >= PanelY && S.Y <= PanelY + PanelH;
 }
 
+// The newest button first: the middle-click menu is drawn over the toolbar
 function int ButtonAt(vector2D S)
 {
     local int i;
 
-    for (i = 0; i < Buttons.Length; i++)
+    for (i = Buttons.Length - 1; i >= 0; i--)
     {
         if (S.X >= Buttons[i].X && S.X <= Buttons[i].X + Buttons[i].W && S.Y >= Buttons[i].Y && S.Y <= Buttons[i].Y + Buttons[i].H)
             return i;
@@ -818,6 +904,16 @@ function PressButton(ToolButton B)
             Cancel();
             ZoneShape = B.Arg;
             SaveConfig();
+            break;
+        case A_CTX:
+            ContextEntry(B.Arg);
+            break;
+        case A_CTX_ICON:
+            ContextIcon(B.Arg);
+            break;
+        case A_CTX_COLOUR:
+            Info.ServerRestyleItem(CtxItemID, B.Arg, 255);
+            CloseContextMenu();
             break;
         case A_CHANNEL:
             CycleChannel();
@@ -922,6 +1018,9 @@ function Cancel()
     bZoneLining = false;
     ZonePoints.Length = 0;
     DragPoints.Length = 0;
+    CloseContextMenu();
+    bCtxMove = false;
+    bCtxDrop = false;
     TypeText = "";
 }
 
@@ -1513,10 +1612,11 @@ event PostRender(Canvas C)
     }
 
     DrawToolbar(C, PC);
+    DrawContextMenu(C, PC);
     SetMapState("drawn");
 
     // Who drew what under the cursor; the eraser also shows what it would take
-    if (bCursor && !bNameHover && !bToolsHidden && !bDragging && !bMoving && !OverPanel(Mouse) && InMap(Mouse))
+    if (bCursor && !bNameHover && !bToolsHidden && !bDragging && !bMoving && CtxMenu == MENU_NONE && !OverPanel(Mouse) && InMap(Mouse))
     {
         Hover = PickItem(Mouse, Tool == TOOL_ERASER || Tool == TOOL_MOVE);
         if (Hover != INDEX_NONE)
@@ -1549,14 +1649,7 @@ event PostRender(Canvas C)
 // turned Names off in the toolbar's Map icons menu (and, for spectators, when Players is off there). Returns true when a name was shown.
 function bool DrawPlayerHover(Canvas C, PlayerController PC, ROHUD H, bool bSpectatorView)
 {
-    local ROPlayerReplicationInfo ROPRI, MyPRI, Best;
-    local ROTeamInfo Team;
-    local Pawn P;
-    local array<ROPlayerReplicationInfo> SeenPRIs;
-    local array<vector> SeenLocs;
-    local vector2D S;
-    local float X, Y, Z, BestDist, D, Radius;
-    local int i, Seen;
+    local ROPlayerReplicationInfo Best;
     local byte BestTeam;
     local color Col;
 
@@ -1566,9 +1659,34 @@ function bool DrawPlayerHover(Canvas C, PlayerController PC, ROHUD H, bool bSpec
     if (bSpectatorView && !MapIconShown(MAPICON_PLAYERS))
         return false;
 
+    if (CtxMenu != MENU_NONE)
+        return false;
+
+    Best = PlayerAt(PC, Mouse, bSpectatorView, BestTeam);
+    if (Best == None)
+        return false;
+
+    Col = bSpectatorView ? TeamColour(H, BestTeam) : MakeColor(255, 255, 255, 255);
+    // Up and to the right of the cursor, so the cursor (which hangs down and right from its tip) never covers it
+    DrawLabel(C, V2(Mouse.X + 14 * UIScale, Mouse.Y - 16 * UIScale), Best.PlayerName, Col, true);
+    return true;
+}
+
+// The player whose map icon is nearest S and close enough to it: the living teammates the game's map shows, and the
+// players the server sends (everyone to a spectator, teammates past 32), never the player themselves
+function ROPlayerReplicationInfo PlayerAt(PlayerController PC, vector2D S0, bool bSpectatorView, out byte BestTeam)
+{
+    local ROPlayerReplicationInfo ROPRI, MyPRI, Best;
+    local ROTeamInfo Team;
+    local Pawn P;
+    local array<ROPlayerReplicationInfo> SeenPRIs;
+    local array<vector> SeenLocs;
+    local vector2D S;
+    local float X, Y, Z, BestDist, D;
+    local int i, Seen;
+
     MyPRI = ROPlayerReplicationInfo(PC.PlayerReplicationInfo);
-    Radius = (PICK_RADIUS + 4.0) * UIScale;
-    BestDist = Radius;
+    BestDist = (PICK_RADIUS + 4.0) * UIScale;
 
     // The players the game's own map shows: living teammates, not the player
     if (!bSpectatorView && MyPRI != None)
@@ -1600,7 +1718,7 @@ function bool DrawPlayerHover(Canvas C, PlayerController PC, ROHUD H, bool bSpec
                 else
                     Team.GetTeamLocationEntry(i, X, Y, Z);
                 S = WorldToScreen(V2(X, Y));
-                D = Dist(S, Mouse);
+                D = Dist(S, S0);
                 if (D < BestDist)
                 {
                     BestDist = D;
@@ -1618,7 +1736,7 @@ function bool DrawPlayerHover(Canvas C, PlayerController PC, ROHUD H, bool bSpec
         if (ROPRI == None || ROPRI == MyPRI || (Info.SnapInfo[i] & class'CMMapInfo'.const.FLAG_DEAD) != 0)
             continue;
         S = WorldToScreen(V2(Info.SnapLoc[i].X, Info.SnapLoc[i].Y));
-        D = Dist(S, Mouse);
+        D = Dist(S, S0);
         if (D < BestDist)
         {
             BestDist = D;
@@ -1626,14 +1744,7 @@ function bool DrawPlayerHover(Canvas C, PlayerController PC, ROHUD H, bool bSpec
             BestTeam = Info.SnapInfo[i] & class'CMMapInfo'.const.FLAG_SOUTH;
         }
     }
-
-    if (Best == None)
-        return false;
-
-    Col = bSpectatorView ? TeamColour(H, BestTeam) : MakeColor(255, 255, 255, 255);
-    // Up and to the right of the cursor, so the cursor (which hangs down and right from its tip) never covers it
-    DrawLabel(C, V2(Mouse.X + 14 * UIScale, Mouse.Y - 16 * UIScale), Best.PlayerName, Col, true);
-    return true;
+    return Best;
 }
 
 // The canvas draws everything with the same texture together, in the order each texture was first used. So text drawn
@@ -2126,13 +2237,14 @@ function MarkArmedButton(PlayerController PC)
 }
 
 // The buttons' backgrounds in the lower layer, then their labels and icons in the upper one (see PushLayer)
-function DrawButtonLayers(Canvas C)
+// From the button First on (the middle-click menu draws its own after the toolbar's)
+function DrawButtonLayers(Canvas C, optional int First)
 {
     PushLayer(C, false);
-    DrawButtons(C, false);
+    DrawButtons(C, false, First);
     PopLayer(C);
     PushLayer(C, true);
-    DrawButtons(C, true);
+    DrawButtons(C, true, First);
     PopLayer(C);
 }
 
@@ -2169,6 +2281,12 @@ function string ToolHint(PlayerController PC)
 {
     if (!bCursor)
         return "Press "$CursorKeyName()$" for the cursor";
+    if (CtxMenu != MENU_NONE)
+        return "Pick one, or Escape";
+    if (bCtxMove)
+        return "Click where it goes";
+    if (bCtxDrop)
+        return "Click where they go";
     if (Tool != TOOL_POINTER && !CanDraw())
         return "You can't draw yet";
 
@@ -2338,7 +2456,7 @@ function DrawToolbar(Canvas C, PlayerController PC)
 }
 
 // bTop false: the frames and backgrounds; true: the icons and labels on them
-function DrawButtons(Canvas C, bool bTop)
+function DrawButtons(Canvas C, bool bTop, optional int First)
 {
     local int i;
     local float XL, YL, Inset;
@@ -2346,12 +2464,12 @@ function DrawButtons(Canvas C, bool bTop)
     local bool bHover;
     local Texture2D Tex;
 
-    for (i = 0; i < Buttons.Length; i++)
+    for (i = First; i < Buttons.Length; i++)
     {
         bHover = bCursor && !Buttons[i].bDisabled && Mouse.X >= Buttons[i].X && Mouse.X <= Buttons[i].X + Buttons[i].W
             && Mouse.Y >= Buttons[i].Y && Mouse.Y <= Buttons[i].Y + Buttons[i].H;
 
-        if (!bTop && bStyle && Buttons[i].Action != A_COLOUR)
+        if (!bTop && bStyle && Buttons[i].Action != A_COLOUR && Buttons[i].Action != A_CTX_COLOUR)
         {
             DrawStyledButton(C, Buttons[i], bHover);
             continue;
@@ -2367,7 +2485,7 @@ function DrawButtons(Canvas C, bool bTop)
                 C.DrawTile(C.DefaultTexture, Buttons[i].W + 4, Buttons[i].H + 4, 0, 0, C.DefaultTexture.SizeX, C.DefaultTexture.SizeY);
             }
 
-            if (Buttons[i].Action == A_COLOUR)
+            if (Buttons[i].Action == A_COLOUR || Buttons[i].Action == A_CTX_COLOUR)
                 Col = class'CMMapInfo'.static.GetColour(Buttons[i].Arg);
             else if (Buttons[i].bDanger)
                 Col = bHover ? MakeColor(230, 50, 40, 240) : MakeColor(190, 30, 25, 240);
@@ -2383,7 +2501,7 @@ function DrawButtons(Canvas C, bool bTop)
             continue;
         }
 
-        if (Buttons[i].Action == A_ICON)
+        if (Buttons[i].Action == A_ICON || Buttons[i].Action == A_CTX_ICON)
         {
             Inset = Buttons[i].W * 0.12;
             Tex = IconTexture(Buttons[i].Arg);
@@ -2813,6 +2931,388 @@ function DrawFlagIcon(Canvas C, vector2D At, float Size, color Col)
     C.SetDrawColor(Col.R, Col.G, Col.B, 255);
     C.SetPos(At.X + PoleW * 0.5, Top);
     C.DrawTile(C.DefaultTexture, ClothW, ClothH, 0, 0, C.DefaultTexture.SizeX, C.DefaultTexture.SizeY);
+}
+
+// ====================================================
+// Middle-click menus
+// ====================================================
+
+// Opens the menu for what is under the cursor: a player (scrim admins only), else a drawing, else the spot itself if the
+// player may draw. False when there is nothing to open, so the click goes to the game.
+function bool OpenContextMenu()
+{
+    local PlayerController PC;
+    local ROPlayerReplicationInfo PRI;
+    local int Index;
+    local byte Team;
+    local bool bSpectatorView;
+
+    PC = PlayerController(Outer);
+    if (PC == None || !InMap(Mouse) || OverPanel(Mouse))
+        return false;
+
+    Cancel();
+    bSpectatorView = Info.bSpectating && PC.PlayerReplicationInfo != None && PC.PlayerReplicationInfo.bOnlySpectator;
+    PRI = Info.bScrimAdmin ? PlayerAt(PC, Mouse, bSpectatorView, Team) : None;
+    Index = PickItem(Mouse, false);
+    if (PRI != None)
+    {
+        CtxMenu = MENU_PLAYER;
+        CtxPlayer = PRI.PlayerName;
+    }
+    else if (Index != INDEX_NONE)
+    {
+        CtxMenu = MENU_ITEM;
+        CtxItemID = Info.Items[Index].ID;
+    }
+    else if (CanDraw())
+        CtxMenu = MENU_QUICK;
+    else
+        return false;
+
+    CtxAt = Mouse;
+    CtxWorld = ScreenToWorld(Mouse);
+    bCtxIcons = false;
+    bCtxColours = false;
+    CtxArmed = 255;
+    return true;
+}
+
+function CloseContextMenu()
+{
+    CtxMenu = MENU_NONE;
+    CtxArmed = 255;
+    CtxW = 0;
+    CtxH = 0;
+}
+
+function bool InContextMenu(vector2D S)
+{
+    return S.X >= CtxX && S.X <= CtxX + CtxW && S.Y >= CtxY && S.Y <= CtxY + CtxH;
+}
+
+// May the player move, erase or change this drawing? The same rule the server uses.
+function bool CanChangeItem(int Index)
+{
+    local PlayerController PC;
+
+    PC = PlayerController(Outer);
+    return Index != INDEX_NONE && PC != None && (!Info.bDrawingLocked || Info.bScrimAdmin)
+        && class'CMMapInfo'.static.CanErase(PC.PlayerReplicationInfo, Info.bScrimAdmin, Info.Items[Index].Team, Info.Items[Index].Squad, Info.Items[Index].OwnerID);
+}
+
+static function string KindName(CMMapInfo.ClientMapItem Item)
+{
+    switch (Item.Kind)
+    {
+        case class'CMMapInfo'.const.KIND_PEN:    return "Line";
+        case class'CMMapInfo'.const.KIND_LINE:   return "Line";
+        case class'CMMapInfo'.const.KIND_ARROW:  return "Arrow";
+        case class'CMMapInfo'.const.KIND_CIRCLE: return "Circle";
+        case class'CMMapInfo'.const.KIND_BOX:    return "Box";
+        case class'CMMapInfo'.const.KIND_MARKER: return class'CMMapInfo'.static.IconName(Item.Icon)$" marker";
+        case class'CMMapInfo'.const.KIND_TEXT:   return "Label";
+    }
+    return "Restriction";
+}
+
+// Kill and Switch Team take two clicks: the first turns the entry red, the second within CONFIRM_TIME runs it
+function bool ContextConfirmed(byte Entry)
+{
+    local float Now;
+
+    Now = PlayerController(Outer).WorldInfo.RealTimeSeconds;
+    if (CtxArmed == Entry && Now - CtxArmedTime <= CONFIRM_TIME)
+        return true;
+    CtxArmed = Entry;
+    CtxArmedTime = Now;
+    return false;
+}
+
+function bool ContextArmed(byte Entry)
+{
+    return CtxArmed == Entry && PlayerController(Outer).WorldInfo.RealTimeSeconds - CtxArmedTime <= CONFIRM_TIME;
+}
+
+function ContextEntry(byte Entry)
+{
+    local PlayerController PC;
+    local int Index;
+
+    PC = PlayerController(Outer);
+    Index = Info.FindItem(CtxItemID);
+    switch (Entry)
+    {
+        case CTX_LABEL:
+            CloseContextMenu();
+            bTyping = true;
+            TypeText = "";
+            TypeAt = CtxWorld;
+            return;
+
+        case CTX_MOVE:
+            if (!CanChangeItem(Index))
+                return;
+            CloseContextMenu();
+            bMoving = true;
+            bCtxMove = true;
+            MoveID = CtxItemID;
+            MoveFrom = CtxWorld;
+            return;
+
+        case CTX_ERASE:
+            if (!CanChangeItem(Index))
+                return;
+            Info.ServerErase(CtxItemID);
+            Info.Items.Remove(Index, 1);
+            CloseContextMenu();
+            return;
+
+        case CTX_ICONS:
+            bCtxIcons = !bCtxIcons;
+            return;
+
+        case CTX_COLOURS:
+            bCtxColours = !bCtxColours;
+            return;
+
+        case CTX_DROP:
+            CloseContextMenu();
+            bCtxDrop = true;
+            return;
+
+        case CTX_SWITCH:
+            if (ContextConfirmed(Entry))
+                PlayerCommand(PC, "forceswitchteam");
+            return;
+
+        case CTX_KILL:
+            if (ContextConfirmed(Entry))
+                PlayerCommand(PC, "killplayer");
+            return;
+
+        case CTX_TELEPORT:    PlayerCommand(PC, "teleporttome"); return;
+        case CTX_RESPAWN:     PlayerCommand(PC, "forcerespawn"); return;
+        case CTX_SAFETY_ON:   PlayerCommand(PC, "forcesafetyon"); return;
+        case CTX_SAFETY_OFF:  PlayerCommand(PC, "forcesafetyoff"); return;
+        case CTX_WHOIS:       PlayerCommand(PC, "whois"); return;
+        case CTX_MORE:        PlayerCommand(PC, "cmenupcmanager"); return; // the whole Manage Players menu for them
+    }
+}
+
+// A Manage Players command for the player the menu was opened on; the server checks the admin rights again
+function PlayerCommand(PlayerController PC, string Command)
+{
+    CloseContextMenu();
+    if (PC != None && CtxPlayer != "")
+        PC.ConsoleCommand("mutate "$Command$" --player "$CtxPlayer);
+}
+
+// An icon in the menu: on an empty spot it puts that marker there (and becomes the marker tool's icon); on a marker it
+// changes the marker's icon
+function ContextIcon(byte Which)
+{
+    if (CtxMenu == MENU_ITEM)
+        Info.ServerRestyleItem(CtxItemID, 255, Which);
+    else if (CanDraw())
+    {
+        Icon = Which;
+        SavedIcon = Icon;
+        SaveConfig();
+        SendSingle(class'CMMapInfo'.const.KIND_MARKER, CtxWorld, "");
+    }
+    CloseContextMenu();
+}
+
+// Drops the player the menu was opened on at a spot on the map, with the drop at grid command and the keypad there
+function DropPlayerAt(vector2D W)
+{
+    local string Grid;
+
+    Grid = WorldToGrid(PlayerController(Outer), W);
+    if (Grid == "")
+    {
+        PlayerController(Outer).ClientMessage("[CMenu] This map has no grid to drop a player on.");
+        return;
+    }
+    PlayerController(Outer).ConsoleCommand("mutate fdag --player "$CtxPlayer$" --grid "$Grid);
+}
+
+// The grid square and keypad a spot is in ("E 5 kp 3"), as the drop at grid command reads it (MutCMenu.GridToWorldLocation):
+// A is the north row and 1 the west column, keypads laid out like a number pad with 7 to 9 at the north
+static function string WorldToGrid(PlayerController PC, vector2D W)
+{
+    local ROVolumeMapBounds Bounds;
+    local float MinX, MinY, MaxX, MaxY, SizeX, SizeY;
+    local int Letter, Number, Row, Col;
+
+    if (PC == None)
+        return "";
+    foreach PC.AllActors(class'ROVolumeMapBounds', Bounds)
+        break;
+    if (Bounds == None || !Bounds.GetBounds(MinX, MinY, MaxX, MaxY) || MaxX <= MinX || MaxY <= MinY)
+        return "";
+
+    SizeX = (MaxX - MinX) / 10;
+    SizeY = (MaxY - MinY) / 10;
+    Letter = Clamp(int((MaxX - W.X) / SizeX) + 1, 1, 10);
+    Number = Clamp(int((W.Y - MinY) / SizeY) + 1, 1, 10);
+    Row = Clamp(int((W.X - (MaxX - Letter * SizeX)) / (SizeX / 3)), 0, 2);
+    Col = 2 - Clamp(int(((MinY + Number * SizeY) - W.Y) / (SizeY / 3)), 0, 2);
+    return Chr(64 + Letter)$" "$Number$" kp "$(Row * 3 + Col + 1);
+}
+
+// The open menu, next to where it was opened (kept on the screen): a title, then its entries
+function DrawContextMenu(Canvas C, PlayerController PC)
+{
+    local float BtnH, Gap, Pad, W, Inner, X, Y, H, Cell, XL, YL;
+    local int i, Index, First, Rows, Cols;
+    local bool bCan;
+    local string Title;
+
+    if (CtxMenu == MENU_NONE)
+        return;
+    Index = Info.FindItem(CtxItemID);
+    if (CtxMenu == MENU_ITEM && Index == INDEX_NONE)
+    {
+        CloseContextMenu(); // erased by someone else meanwhile
+        return;
+    }
+
+    BtnH = 22 * UIScale;
+    Gap = 3 * UIScale;
+    Pad = 6 * UIScale;
+    W = 190 * UIScale;
+    Inner = W - Pad * 2;
+    Cols = 6;
+    Cell = (Inner - Gap * (Cols - 1)) / Cols;
+
+    // How tall it is, to keep it on the screen
+    switch (CtxMenu)
+    {
+        case MENU_QUICK:
+            Title = "Mark this spot";
+            H = BtnH + Gap + 2 * (Cell + Gap) + Gap + BtnH + Gap * 3 + BtnH;
+            break;
+        case MENU_ITEM:
+            Title = KindName(Info.Items[Index])$" by "$Info.Items[Index].OwnerName;
+            bCan = CanChangeItem(Index);
+            Rows = Info.Items[Index].Kind == class'CMMapInfo'.const.KIND_MARKER ? 4 : 3;
+            H = BtnH + Gap + Rows * (BtnH + Gap);
+            if (bCtxIcons)
+                H += 2 * (Cell + Gap);
+            if (bCtxColours)
+                H += BtnH + Gap;
+            break;
+        case MENU_PLAYER:
+            Title = CtxPlayer;
+            H = BtnH + Gap + 9 * (BtnH + Gap);
+            break;
+    }
+    H += Pad * 2;
+
+    CtxX = FClamp(CtxAt.X + 10 * UIScale, 4, C.ClipX - W - 4);
+    CtxY = FClamp(CtxAt.Y + 10 * UIScale, 4, C.ClipY - H - 4);
+    CtxW = W;
+    CtxH = H;
+
+    if (bStyle)
+    {
+        PushPriority(C, DSP_High);
+        class'CMenu'.static.DrawStyledPanel(C, CtxX, CtxY, CtxW, CtxH, 230, UIScale);
+        PopLayer(C);
+    }
+    else
+    {
+        PushLayer(C, false);
+        C.SetDrawColor(0, 0, 0, 200);
+        C.SetPos(CtxX, CtxY);
+        C.DrawTile(C.DefaultTexture, CtxW, CtxH, 0, 0, C.DefaultTexture.SizeX, C.DefaultTexture.SizeY);
+        PopLayer(C);
+    }
+
+    First = Buttons.Length;
+    X = CtxX + Pad;
+    Y = CtxY + Pad + BtnH + Gap;
+    switch (CtxMenu)
+    {
+        case MENU_QUICK:
+            for (i = 0; i < class'CMMapInfo'.const.NUM_ICONS; i++)
+            {
+                AddButton(X + (i % Cols) * (Cell + Gap), Y, Cell, Cell, A_CTX_ICON, i, "", false);
+                if (i % Cols == Cols - 1)
+                    Y += Cell + Gap;
+            }
+            if (class'CMMapInfo'.const.NUM_ICONS % Cols != 0)
+                Y += Cell + Gap;
+            Y += Gap;
+            Cell = (Inner - Gap * (class'CMMapInfo'.const.NUM_COLOURS - 1)) / class'CMMapInfo'.const.NUM_COLOURS;
+            for (i = 0; i < class'CMMapInfo'.const.NUM_COLOURS; i++)
+                AddButton(X + i * (Cell + Gap), Y, Cell, BtnH, A_COLOUR, i, "", Colour == i);
+            Y += BtnH + Gap * 3;
+            AddButton(X, Y, Inner, BtnH, A_CTX, CTX_LABEL, "Text label here", false);
+            break;
+
+        case MENU_ITEM:
+            AddButton(X, Y, Inner, BtnH, A_CTX, CTX_MOVE, "Move", false, !bCan);
+            Y += BtnH + Gap;
+            AddButton(X, Y, Inner, BtnH, A_CTX, CTX_ERASE, "Erase", false, !bCan);
+            Y += BtnH + Gap;
+            if (Info.Items[Index].Kind == class'CMMapInfo'.const.KIND_MARKER)
+            {
+                AddButton(X, Y, Inner, BtnH, A_CTX, CTX_ICONS, "Change icon", bCtxIcons, !bCan);
+                Y += BtnH + Gap;
+                if (bCtxIcons && bCan)
+                {
+                    for (i = 0; i < class'CMMapInfo'.const.NUM_ICONS; i++)
+                    {
+                        AddButton(X + (i % Cols) * (Cell + Gap), Y, Cell, Cell, A_CTX_ICON, i, "", Info.Items[Index].Icon == i);
+                        if (i % Cols == Cols - 1)
+                            Y += Cell + Gap;
+                    }
+                    if (class'CMMapInfo'.const.NUM_ICONS % Cols != 0)
+                        Y += Cell + Gap;
+                }
+            }
+            AddButton(X, Y, Inner, BtnH, A_CTX, CTX_COLOURS, "Change colour", bCtxColours, !bCan);
+            Y += BtnH + Gap;
+            if (bCtxColours && bCan)
+            {
+                Cell = (Inner - Gap * (class'CMMapInfo'.const.NUM_COLOURS - 1)) / class'CMMapInfo'.const.NUM_COLOURS;
+                for (i = 0; i < class'CMMapInfo'.const.NUM_COLOURS; i++)
+                    AddButton(X + i * (Cell + Gap), Y, Cell, BtnH, A_CTX_COLOUR, i, "", Info.Items[Index].Colour == i);
+            }
+            break;
+
+        case MENU_PLAYER:
+            AddButton(X, Y, Inner, BtnH, A_CTX, CTX_TELEPORT, "Teleport To Me", false);
+            Y += BtnH + Gap;
+            AddButton(X, Y, Inner, BtnH, A_CTX, CTX_DROP, "Drop At A Spot...", false);
+            Y += BtnH + Gap;
+            AddButton(X, Y, Inner, BtnH, A_CTX, CTX_SWITCH, ContextArmed(CTX_SWITCH) ? "Switch Team: sure?" : "Switch Team", false);
+            Buttons[Buttons.Length - 1].bDanger = ContextArmed(CTX_SWITCH);
+            Y += BtnH + Gap;
+            AddButton(X, Y, Inner, BtnH, A_CTX, CTX_RESPAWN, "Respawn", false);
+            Y += BtnH + Gap;
+            AddButton(X, Y, Inner, BtnH, A_CTX, CTX_KILL, ContextArmed(CTX_KILL) ? "Kill: sure?" : "Kill", false);
+            Buttons[Buttons.Length - 1].bDanger = ContextArmed(CTX_KILL);
+            Y += BtnH + Gap;
+            AddButton(X, Y, Inner, BtnH, A_CTX, CTX_SAFETY_ON, "Safety On", false);
+            Y += BtnH + Gap;
+            AddButton(X, Y, Inner, BtnH, A_CTX, CTX_SAFETY_OFF, "Safety Off", false);
+            Y += BtnH + Gap;
+            AddButton(X, Y, Inner, BtnH, A_CTX, CTX_WHOIS, "Find Original Name", false);
+            Y += BtnH + Gap;
+            AddButton(X, Y, Inner, BtnH, A_CTX, CTX_MORE, "More...", false);
+            break;
+    }
+    DrawButtonLayers(C, First);
+
+    PushLayer(C, true);
+    C.Font = class'Engine'.static.GetSmallFont();
+    C.TextSize(Title, XL, YL);
+    DrawBoldText(C, Title, CtxX + Pad, CtxY + Pad + (BtnH - YL * TextScale) * 0.5, TextScale, MakeColor(230, 170, 40, 255));
+    PopLayer(C);
 }
 
 // ====================================================
@@ -4075,6 +4575,7 @@ function DrawTriangle(Canvas C, float X, float Y, float Size, color Col)
 defaultproperties
 {
     SpotTeam=255
+    CtxArmed=255
     Colour=0
     Channel=1
 }

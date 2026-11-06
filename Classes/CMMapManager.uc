@@ -1351,6 +1351,46 @@ function MoveItem(PlayerController PC, int ID, int DX, int DY)
     }
 }
 
+// The middle-click menu on a drawing: a new colour, and for a marker a new icon (255 for either keeps it). Whoever may
+// erase or move it may change it.
+function RestyleItem(PlayerController PC, int ID, byte NewColour, byte NewIcon)
+{
+    local CMMapInfo Info;
+    local int Index, i;
+    local bool bAdmin;
+
+    Index = FindItem(ID);
+    if (PC == None || Index == INDEX_NONE)
+        return;
+    if ((NewColour != 255 && NewColour >= class'CMMapInfo'.const.NUM_COLOURS) || (NewIcon != 255 && NewIcon >= class'CMMapInfo'.const.NUM_ICONS))
+        return;
+
+    bAdmin = IsAdmin(PC);
+    if (!class'CMMapInfo'.static.CanErase(PC.PlayerReplicationInfo, bAdmin, Items[Index].Team, Items[Index].Squad, Items[Index].OwnerID)
+        || (bDrawingLocked && !bAdmin))
+    {
+        if (bDrawingLocked && !bAdmin)
+            PrivateMessage(PC, "An admin has turned map drawing off for players.");
+        else
+            PrivateMessage(PC, "You can only change your own drawings (squad leaders: your squad's, the commander: the team's).");
+        Info = FindInfo(PC);
+        if (Info != None)
+            ResendItem(Info, ID);
+        return;
+    }
+
+    if (NewColour != 255)
+        Items[Index].Colour = NewColour;
+    if (NewIcon != 255 && Items[Index].Kind == class'CMMapInfo'.const.KIND_MARKER)
+        Items[Index].Icon = NewIcon;
+
+    for (i = 0; i < Infos.Length; i++)
+    {
+        if (Infos[i] != None && Infos[i].LastViewerKey != -1 && CanInfoSee(Infos[i], Items[Index].Team, Items[Index].Squad, Items[Index].OwnerID))
+            ResendItem(Infos[i], ID);
+    }
+}
+
 // The player is sent a drawing again as it is now: taken off their map, then added back (removals go first)
 function ResendItem(CMMapInfo Info, int ID)
 {

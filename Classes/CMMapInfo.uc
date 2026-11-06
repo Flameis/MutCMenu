@@ -780,6 +780,13 @@ reliable server function ServerMoveItem(int ID, int DX, int DY)
         Manager.MoveItem(PlayerController(Owner), ID, DX, DY);
 }
 
+// The middle-click menu: a drawing's new colour or marker icon (255 keeps it)
+reliable server function ServerRestyleItem(int ID, byte NewColour, byte NewIcon)
+{
+    if (Manager != None)
+        Manager.RestyleItem(PlayerController(Owner), ID, NewColour, NewIcon);
+}
+
 reliable server function ServerUndo()
 {
     if (Manager != None)
