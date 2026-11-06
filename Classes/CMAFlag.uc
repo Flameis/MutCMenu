@@ -105,6 +105,7 @@ var float                   CarryBehind;                    // How far behind th
 
 var SkeletalMeshComponent   FlagMesh;
 var StaticMeshComponent     PoleMesh, BeamMesh;
+var bool                    bHiddenFromView; // Client-side: hidden because this player looks through the carrier's eyes
 
 replication
 {
@@ -131,7 +132,7 @@ simulated event ReplicatedEvent(name VarName)
     else if (VarName == 'FlagStyle')
         ApplyStyle();
     else if (VarName == 'bShowBeam')
-        BeamMesh.SetHidden(!bShowBeam);
+        UpdateVisibility();
     else
         super.ReplicatedEvent(VarName);
 }
@@ -185,7 +186,33 @@ function string Label()
 function SetBeam(bool bShow)
 {
     bShowBeam = bShow;
-    BeamMesh.SetHidden(!bShowBeam);
+    UpdateVisibility();
+}
+
+// The flag is hidden only from a player looking through the carrier's own eyes: the carrier in first person, or someone
+// spectating them in first person. Watching the carrier from behind (third person while dead, a free camera) shows it.
+// The parts used to be owner-no-see, but the engine counts whoever the camera is on as the viewer, so spectating the
+// carrier in third person hid the flag on their back too.
+simulated function bool SeenThroughCarrier()
+{
+    local PlayerController PC;
+
+    if (Carrier == None || WorldInfo.NetMode == NM_DedicatedServer)
+        return false;
+    foreach LocalPlayerControllers(class'PlayerController', PC)
+    {
+        if (PC.ViewTarget == Carrier && PC.UsingFirstPersonCamera())
+            return true;
+    }
+    return false;
+}
+
+simulated function UpdateVisibility()
+{
+    bHiddenFromView = SeenThroughCarrier();
+    FlagMesh.SetHidden(bHiddenFromView);
+    PoleMesh.SetHidden(bHiddenFromView);
+    BeamMesh.SetHidden(bHiddenFromView || !bShowBeam);
 }
 
 // ====================================================
@@ -401,21 +428,21 @@ function PickUp(Pawn P)
     Announce(P.PlayerReplicationInfo.PlayerName$" picked up the "$Label()$" flag");
 }
 
-// Runs on the server and every client. The carrier owns the flag, so its owner-no-see parts are hidden from the carrier's
-// own view. The render proxy caches the owner, so the parts are reattached to pick it up.
+// Runs on the server and every client
 simulated function CarrierChanged()
 {
     SetOwner(Carrier);
     bCollideWorld = (Carrier == None); // While carried it is placed every frame and must never get stuck on walls
-    ReattachComponent(FlagMesh);
-    ReattachComponent(PoleMesh);
-    ReattachComponent(BeamMesh);
+    UpdateVisibility();
 }
 
 simulated event Tick(float DeltaTime)
 {
     super.Tick(DeltaTime);
 
+    // The camera can change to and from the carrier's eyes at any time
+    if (SeenThroughCarrier() != bHiddenFromView)
+        UpdateVisibility();
     if (Carrier == None)
         return;
 
@@ -640,7 +667,6 @@ defaultproperties
         Translation=(X=1,Y=0,Z=40)
         Scale=0.05
         LightEnvironment=FlagLightEnvironment
-        bOwnerNoSee=true
         CastShadow=false
         CollideActors=false
         BlockActors=false
@@ -661,7 +687,6 @@ defaultproperties
         Translation=(X=0,Y=0,Z=45)
         Scale=0.4
         LightEnvironment=FlagLightEnvironment
-        bOwnerNoSee=true
         CastShadow=false
         CollideActors=false
         BlockActors=false
@@ -677,7 +702,6 @@ defaultproperties
     Begin Object Class=StaticMeshComponent Name=FlagBeam
         StaticMesh=StaticMesh'FX_VN_Materials.Commander.S_ENV_CommanderMark_Beam'
         Translation=(X=0,Y=0,Z=60)
-        bOwnerNoSee=true
         CastShadow=false
         CollideActors=false
         BlockActors=false
