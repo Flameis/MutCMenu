@@ -305,6 +305,10 @@ Admins can build their own capture objectives in the Builder's **Actors** menu: 
 
 *Tested by the test harness with the objective built in the same game; what a joined player sees (the border on their map) has not been tried in a network game.*
 
+### Spotted enemies stay on the map
+
+When someone on your team spots an enemy with the spot key (**Z**), the game shows the mark on the map for only 5 seconds. CMenu keeps it on the map for **30 seconds** from the spot, in the same place and with the game's own icon (soldier, RPG gunner, tank, transport or helicopter), and fades it out over the last 3 seconds. Spotting the same enemy again while the mark is up moves it to where they are now. Only the map is changed: the mark in the world and on the compass still go after the game's time. What the recon plane finds is left as the game shows it. The marks are cleared when a new round starts or you change team. *The tracking is tested by the harness; how it looks on the map can only be checked by playing.*
+
 ### Names on the map
 
 Point the map cursor at a player's icon and their **name** appears next to it. Players see this for their teammates, and spectators for everyone (in the team colour). The **Names** button in the toolbar's **Map icons** menu turns it off for you; the game remembers your choice. The names work whether or not map drawing is on (the toolbar itself only shows when map drawing is on).

@@ -7,6 +7,9 @@
 //  - Teammates the map leaves out (past 32 on a team): drawn like the game's own friendly icons, squad leaders with
 //    their "SL" label, and for a few seconds after dying.
 //  - CMenu's custom objectives: their borders, in the colour of the team holding them.
+//  - Enemies spotted with the spot key (Z): the game takes their mark off the map after 5 seconds; it is drawn on, in the
+//    same place with the game's own icon, until SPOT_MAP_LIFE seconds after the spot. Only on the map: the mark in the
+//    world and on the compass go when the game's does.
 //  - Map drawings and the drawing toolbar (pointer, move, pen, line, arrow, circle, box, markers, text, eraser, ruler,
 //    colours, who it is for, undo and clear), with the number keys picking the tools while the map cursor is up. It works with the game's own map cursor (ActualMouseLocation), and only takes a mouse
 //    click for itself when the click is on the toolbar or a drawing tool is picked; with the pointer tool the map works
@@ -78,6 +81,9 @@ const NEAR_PLANE = 20.0;    // unreal units; a line is cut here where it passes 
 const SPEC_BOTH = 0;
 const SPEC_NORTH = 1;
 const SPEC_SOUTH = 2;
+
+const SPOT_MAP_LIFE = 30.0;  // seconds a spotted enemy's mark stays on the map, from the spot (the game's own goes after 5)
+const SPOT_FADE = 3.0;       // the last seconds of that, which it fades out over
 
 const BORDER_FILL_ALPHA = 0.12; // the fill inside a custom objective's border: this part of the border's strength
 const BORDER_FILL_STEP = 2.0;   // pixels at 1080p: the height of each strip of that fill
@@ -203,6 +209,20 @@ var bool bWasSpectatorView; // the spectator overlay was on last frame
 var array<PlayerReplicationInfo> HurtPRIs;
 var array<byte> HurtCounts;
 var array<float> FlashUntil;
+
+// Enemies the team spotted, kept on the map after the game takes its own mark off. A mark belongs to the team's spot slot
+// it came from (Slot) until the game uses that slot for another spot, then stands alone (Slot 255) until it fades.
+struct SpotMark
+{
+    var vector2D Loc;     // world X and Y
+    var byte Type;        // the game's EnemyType for the slot: what kind of icon
+    var byte Slot;
+    var int GameFade;     // the game's fade time for the slot when this spot was made (game seconds)
+    var float Until;      // RealTimeSeconds the mark goes
+};
+var array<SpotMark> SpotMarks;
+var int SeenSpotFade[`MAX_PLAYERS_PER_TEAM]; // the team's fade time for each slot, as last seen
+var byte SpotTeam;                           // the team those are for; 255 for none
 
 // ====================================================
 // The map
@@ -1224,6 +1244,7 @@ event PostRender(Canvas C)
     UpdateTracerRequest(PC, bSpectatorView);
     UpdateNamesLatch(PC, bSpectatorView);
     CollectTracers(bSpectatorView && (bTracersAsked || Info.bTracersOn), PC.WorldInfo.RealTimeSeconds);
+    TrackSpots(PC);
 
     if (ReadMap() == None)
     {
@@ -1308,6 +1329,7 @@ event PostRender(Canvas C)
     // (just after joining a team from spectating, or the other way round, before the server's next one) is left alone:
     // drawn as teammates, a spectator's snapshot would show the whole server.
     PushPriority(C, DSP_SkyHigh);
+    DrawSpotMarks(C, PC);
     if (Info.bSpectating == bSpectatorView)
         DrawSnapshotOnMap(C, H, bSpectatorView);
     if (bSpectatorView && MapIconShown(MAPICON_FLAGS))
@@ -2558,6 +2580,178 @@ function DrawFlagIcon(Canvas C, vector2D At, float Size, color Col)
     C.DrawTile(C.DefaultTexture, ClothW, ClothH, 0, 0, C.DefaultTexture.SizeX, C.DefaultTexture.SizeY);
 }
 
+// ====================================================
+// Spotted enemies
+// ====================================================
+
+// Notes each spot the player's team makes (a slot's fade time changing to one still to come) and drops marks that have
+// had their time. Runs with the map closed too, so a spot made then still shows when it is opened.
+function TrackSpots(PlayerController PC)
+{
+    local ROTeamInfo Team;
+    local int i, Fade, Elapsed, Index;
+    local float Now;
+    local vector Where;
+    local SpotMark Mark;
+
+    Team = (PC.PlayerReplicationInfo != None) ? ROTeamInfo(PC.PlayerReplicationInfo.Team) : None;
+    if (Team == None || PC.WorldInfo.GRI == None)
+    {
+        SpotMarks.Length = 0;
+        SpotTeam = 255;
+        return;
+    }
+    Now = PC.WorldInfo.RealTimeSeconds;
+    Elapsed = PC.WorldInfo.GRI.ElapsedTime;
+
+    // A new team: what it spotted before this player joined it is taken as already seen
+    if (Team.TeamIndex != SpotTeam)
+    {
+        SpotMarks.Length = 0;
+        SpotTeam = Team.TeamIndex;
+        for (i = 0; i < `MAX_PLAYERS_PER_TEAM; i++)
+            SeenSpotFade[i] = Team.EnemySpottedFadeTime[i];
+    }
+
+    for (i = 0; i < `MAX_PLAYERS_PER_TEAM; i++)
+    {
+        Fade = Team.EnemySpottedFadeTime[i];
+        if (Fade == SeenSpotFade[i])
+            continue;
+        SeenSpotFade[i] = Fade;
+
+        // The game clears every slot for a new round: so are the marks
+        if (Fade < -1000)
+        {
+            SpotMarks.Length = 0;
+            continue;
+        }
+        // Already over (an old value arriving late), or found by the recon plane, which keeps its own marks up
+        if (Fade < Elapsed || Team.EnemyType[i] >= RORIT_SpottedByPlane)
+            continue;
+
+        // The slot's mark was still up: the same enemy spotted again, so its mark moves. Otherwise the slot was free
+        // and this is a new spot; the mark it had before stays where it was.
+        Index = SpotMarkFor(i);
+        if (Index != INDEX_NONE && SpotMarks[Index].GameFade < Elapsed)
+        {
+            SpotMarks[Index].Slot = 255;
+            Index = INDEX_NONE;
+        }
+        if (Index == INDEX_NONE)
+        {
+            Mark.Slot = i;
+            Index = SpotMarks.Length;
+            SpotMarks.AddItem(Mark);
+        }
+        SpotMarks[Index].GameFade = Fade;
+        SpotMarks[Index].Until = Now + SPOT_MAP_LIFE;
+    }
+
+    for (i = SpotMarks.Length - 1; i >= 0; i--)
+    {
+        if (Now > SpotMarks[i].Until)
+        {
+            SpotMarks.Remove(i, 1);
+            continue;
+        }
+        // While the game shows the slot, its place and kind are the game's (the spotter's own game sets them a moment
+        // before the server's arrive)
+        if (GameShowsSpot(SpotMarks[i], Team, Elapsed) && Team.GetEnemyLocationValid(SpotMarks[i].Slot))
+        {
+            Where = Team.GetEnemyLocationVector(SpotMarks[i].Slot);
+            SpotMarks[i].Loc = V2(Where.X, Where.Y);
+            SpotMarks[i].Type = Team.EnemyType[SpotMarks[i].Slot];
+        }
+    }
+}
+
+function int SpotMarkFor(byte Slot)
+{
+    local int i;
+
+    for (i = 0; i < SpotMarks.Length; i++)
+    {
+        if (SpotMarks[i].Slot == Slot)
+            return i;
+    }
+    return INDEX_NONE;
+}
+
+// True while the game still draws the mark itself
+function bool GameShowsSpot(SpotMark Mark, ROTeamInfo Team, int Elapsed)
+{
+    return Mark.Slot != 255 && Team.EnemySpottedFadeTime[Mark.Slot] == Mark.GameFade && Mark.GameFade >= Elapsed;
+}
+
+// The map is open: the marks the game has taken off, with the game's icon for what was spotted, at the size and colour
+// it draws its own, fading at the end
+function DrawSpotMarks(Canvas C, PlayerController PC)
+{
+    local ROTeamInfo Team;
+    local ROHUDWidgetComponent Comp;
+    local Texture2D Tex;
+    local vector2D S;
+    local float Now, Size;
+    local int i, Elapsed;
+    local color Col;
+
+    Team = (PC.PlayerReplicationInfo != None) ? ROTeamInfo(PC.PlayerReplicationInfo.Team) : None;
+    if (Team == None || MapWidget == None || PC.WorldInfo.GRI == None || SpotMarks.Length == 0)
+        return;
+    Comp = MapWidget.EnemySpottedIcons[0];
+    Now = PC.WorldInfo.RealTimeSeconds;
+    Elapsed = PC.WorldInfo.GRI.ElapsedTime;
+
+    for (i = 0; i < SpotMarks.Length; i++)
+    {
+        if (GameShowsSpot(SpotMarks[i], Team, Elapsed))
+            continue;
+        if (SpotMarks[i].Loc.X < MinWX || SpotMarks[i].Loc.X > MaxWX || SpotMarks[i].Loc.Y < MinWY || SpotMarks[i].Loc.Y > MaxWY)
+            continue;
+        Tex = SpotIcon(MapWidget, SpotMarks[i].Type, Size);
+        if (Tex == None)
+            continue;
+        Col = MakeColor(255, 255, 255, 255);
+        if (Comp != None)
+        {
+            Size *= Comp.ScaleX;
+            Col = Comp.DrawColor;
+        }
+        Col.A = byte(float(Col.A) * FClamp((SpotMarks[i].Until - Now) / SPOT_FADE, 0.0, 1.0));
+
+        S = WorldToScreen(SpotMarks[i].Loc);
+        C.SetDrawColor(Col.R, Col.G, Col.B, Col.A);
+        C.SetPos(S.X - Size * 0.5, S.Y - Size * 0.5);
+        C.DrawTile(Tex, Size, Size, 0, 0, Tex.SizeX, Tex.SizeY);
+    }
+}
+
+// The icon the game's map uses for a spotted enemy of this kind, and its size (before the map's scale)
+static function Texture2D SpotIcon(ROHUDWidgetOverheadMap OM, byte Type, out float Size)
+{
+    Size = OM.EnemyVehicleSpottedSize;
+    switch (Type)
+    {
+        case RORIT_Tank:
+            return OM.EnemyVehicleSpottedIcon;
+        case RORIT_Transport:
+            return OM.EnemyTransportSpottedIcon;
+        case RORIT_Huey:
+            return OM.EnemyHelicopterSpottedIconHuey;
+        case RORIT_Cobra:
+            return OM.EnemyHelicopterSpottedIconCobra;
+        case RORIT_Loach:
+            return OM.EnemyHelicopterSpottedIconLoach;
+        case RORIT_Gunship:
+            return OM.EnemyHelicopterSpottedIconGunship;
+    }
+    Size = OM.EnemyInfantrySpottedSize;
+    if (Type == RORIT_AntiTank)
+        return OM.EnemyRPGSpottedIcon;
+    return OM.EnemyInfantrySpottedIcon;
+}
+
 // The icon the game puts where a player died, from the running map (WW2, Winter War and GOM may have their own)
 function Texture2D DeathIcon(ROHUD H)
 {
@@ -3385,6 +3579,7 @@ function DrawTriangle(Canvas C, float X, float Y, float Size, color Col)
 
 defaultproperties
 {
+    SpotTeam=255
     Colour=0
     Channel=1
 }
