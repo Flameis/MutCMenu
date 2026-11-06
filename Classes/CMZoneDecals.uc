@@ -7,6 +7,8 @@
 class CMZoneDecals extends DecalManager;
 
 const NUM_PAINTS = 8; // CMMapInfo's NUM_COLOURS
+const FLAT_UP = 40.0;  // degrees off level a surface can be and get the full paint
+const STEEP = 60.0;    // and from here on, none
 
 var MaterialInstanceConstant Paints[NUM_PAINTS];
 var MaterialInterface PaintParent;
@@ -61,18 +63,24 @@ function LoadPaint(string MaterialPath, string TexturePath)
         LogInternal("[MutCMenu] Movement restrictions: the decal material could not be loaded, so the lines are drawn over the view instead");
 }
 
-// A strip of paint Length long and Width wide along Facing (yaw only), centred on At, reaching Depth up and down from it
+// A strip of paint Length long and Width wide along Yaw, centred on At, reaching Depth up and down from it
 function DecalComponent AddStrip(MaterialInterface M, vector At, int Yaw, float Length, float Width, float Depth)
 {
     local DecalComponent D;
     local rotator Down;
+    local vector2D Blend;
 
-    // Straight down; with the decal's height along its up axis, which this turns to point along the strip
+    // Straight down, turned to Yaw. The decal's width runs along the strip: the first try had them the other way round,
+    // and every piece lay across the line.
     Down.Pitch = -16384;
     Down.Yaw = Yaw;
+    // Faces steeper than this are left bare (it fades out from FLAT_UP to STEEP degrees off level), so the paint doesn't
+    // run down the sides of curbs, crates and walls
+    Blend.X = FLAT_UP;
+    Blend.Y = STEEP;
     D = GetPooledComponent();
-    SetDecalParameters(D, M, At, Down, Width, Length, Depth * 2, false, 0.0, None, true, false, '',
-        INDEX_NONE, INDEX_NONE, INDEX_NONE, DecalDepthBias, DecalBlendRange);
+    SetDecalParameters(D, M, At, Down, Length, Width, Depth * 2, false, 0.0, None, true, false, '',
+        INDEX_NONE, INDEX_NONE, INDEX_NONE, DecalDepthBias, Blend);
     AttachComponent(D);
     return D;
 }
