@@ -1649,7 +1649,8 @@ event PostRender(Canvas C)
                 DrawItem(C, Info.Items[Hover], true);
                 PopLayer(C);
             }
-            DrawLabel(C, V2(Mouse.X + 18 * UIScale, Mouse.Y + 22 * UIScale), Info.Items[Hover].OwnerName $ " ("
+            // Up and to the right of the cursor, where a player's name goes, so the cursor never covers it
+            DrawLabel(C, V2(Mouse.X + 14 * UIScale, Mouse.Y - 16 * UIScale), Info.Items[Hover].OwnerName $ " ("
                 $ class'CMMapInfo'.static.AudienceName(PC.PlayerReplicationInfo, Info.Items[Hover].Team, Info.Items[Hover].Squad) $ ")",
                 MakeColor(255, 255, 255, 255), true);
         }
@@ -2305,8 +2306,6 @@ function string ToolHint(PlayerController PC)
 {
     if (!bCursor)
         return "Press "$CursorKeyName()$" for the cursor";
-    if (CtxMenu == MENU_PLAYER && !Info.bScrimAdmin)
-        return "For scrim admins only";
     if (CtxMenu != MENU_NONE)
         return "Pick one, or Escape";
     if (bCtxMove)
@@ -2964,8 +2963,8 @@ function DrawFlagIcon(Canvas C, vector2D At, float Size, color Col)
 // Middle-click menus
 // ====================================================
 
-// Opens the menu for what is under the cursor: a player, else a drawing, else the spot itself if the player may draw. The
-// player menu's entries are for scrim admins; others see them greyed out, so it is clear why nothing happens. False when there is nothing to open, so the click goes to the game.
+// Opens the menu for what is under the cursor: a player (scrim admins only), else a drawing, else the spot itself if the
+// player may draw. False when there is nothing to open, so the click goes to the game. False when there is nothing to open, so the click goes to the game.
 function bool OpenContextMenu()
 {
     local PlayerController PC;
@@ -2980,7 +2979,7 @@ function bool OpenContextMenu()
 
     Cancel();
     bSpectatorView = Info.bSpectating && PC.PlayerReplicationInfo != None && PC.PlayerReplicationInfo.bOnlySpectator;
-    PRI = PlayerAt(PC, Mouse, bSpectatorView, Team);
+    PRI = Info.bScrimAdmin ? PlayerAt(PC, Mouse, bSpectatorView, Team) : None;
     Index = PickItem(Mouse, false);
     if (PRI != None)
     {
@@ -3244,19 +3243,17 @@ function DrawContextMenu(Canvas C, PlayerController PC)
     CtxW = W;
     CtxH = H;
 
+    // All of it in the top layer, over the player icons (which share the toolbar's text layer). The canvas draws a
+    // layer's textures in the order they are first used, so the frame and boxes go first, then the icons and text; the
+    // cursor is drawn after the menu, so it stays on top. (No label by the cursor is drawn while the menu is open.)
+    PushPriority(C, DSP_Insane);
     if (bStyle)
-    {
-        PushPriority(C, DSP_High);
         class'CMenu'.static.DrawStyledPanel(C, CtxX, CtxY, CtxW, CtxH, 230, UIScale);
-        PopLayer(C);
-    }
     else
     {
-        PushLayer(C, false);
         C.SetDrawColor(0, 0, 0, 200);
         C.SetPos(CtxX, CtxY);
         C.DrawTile(C.DefaultTexture, CtxW, CtxH, 0, 0, C.DefaultTexture.SizeX, C.DefaultTexture.SizeY);
-        PopLayer(C);
     }
 
     First = Buttons.Length;
@@ -3312,32 +3309,31 @@ function DrawContextMenu(Canvas C, PlayerController PC)
             }
             break;
 
-        // Scrim admins only; on a bot only teleport, drop and kill work (the rest are run by the player's own game)
+        // Only opened for scrim admins; on a bot only teleport, drop and kill work (the rest are run by the player's own game)
         case MENU_PLAYER:
-            AddButton(X, Y, Inner, BtnH, A_CTX, CTX_TELEPORT, "Teleport To Me", false, !Info.bScrimAdmin);
+            AddButton(X, Y, Inner, BtnH, A_CTX, CTX_TELEPORT, "Teleport To Me", false);
             Y += BtnH + Gap;
-            AddButton(X, Y, Inner, BtnH, A_CTX, CTX_DROP, "Drop At A Spot...", false, !Info.bScrimAdmin);
+            AddButton(X, Y, Inner, BtnH, A_CTX, CTX_DROP, "Drop At A Spot...", false);
             Y += BtnH + Gap;
-            AddButton(X, Y, Inner, BtnH, A_CTX, CTX_SWITCH, ContextArmed(CTX_SWITCH) ? "Switch Team: sure?" : "Switch Team", false, !Info.bScrimAdmin || bCtxBot);
+            AddButton(X, Y, Inner, BtnH, A_CTX, CTX_SWITCH, ContextArmed(CTX_SWITCH) ? "Switch Team: sure?" : "Switch Team", false, bCtxBot);
             Buttons[Buttons.Length - 1].bDanger = ContextArmed(CTX_SWITCH);
             Y += BtnH + Gap;
-            AddButton(X, Y, Inner, BtnH, A_CTX, CTX_RESPAWN, "Respawn", false, !Info.bScrimAdmin || bCtxBot);
+            AddButton(X, Y, Inner, BtnH, A_CTX, CTX_RESPAWN, "Respawn", false, bCtxBot);
             Y += BtnH + Gap;
-            AddButton(X, Y, Inner, BtnH, A_CTX, CTX_KILL, ContextArmed(CTX_KILL) ? "Kill: sure?" : "Kill", false, !Info.bScrimAdmin);
+            AddButton(X, Y, Inner, BtnH, A_CTX, CTX_KILL, ContextArmed(CTX_KILL) ? "Kill: sure?" : "Kill", false);
             Buttons[Buttons.Length - 1].bDanger = ContextArmed(CTX_KILL);
             Y += BtnH + Gap;
-            AddButton(X, Y, Inner, BtnH, A_CTX, CTX_SAFETY_ON, "Safety On", false, !Info.bScrimAdmin || bCtxBot);
+            AddButton(X, Y, Inner, BtnH, A_CTX, CTX_SAFETY_ON, "Safety On", false, bCtxBot);
             Y += BtnH + Gap;
-            AddButton(X, Y, Inner, BtnH, A_CTX, CTX_SAFETY_OFF, "Safety Off", false, !Info.bScrimAdmin || bCtxBot);
+            AddButton(X, Y, Inner, BtnH, A_CTX, CTX_SAFETY_OFF, "Safety Off", false, bCtxBot);
             Y += BtnH + Gap;
-            AddButton(X, Y, Inner, BtnH, A_CTX, CTX_WHOIS, "Find Original Name", false, !Info.bScrimAdmin || bCtxBot);
+            AddButton(X, Y, Inner, BtnH, A_CTX, CTX_WHOIS, "Find Original Name", false, bCtxBot);
             Y += BtnH + Gap;
-            AddButton(X, Y, Inner, BtnH, A_CTX, CTX_MORE, "More...", false, !Info.bScrimAdmin);
+            AddButton(X, Y, Inner, BtnH, A_CTX, CTX_MORE, "More...", false);
             break;
     }
-    DrawButtonLayers(C, First);
-
-    PushLayer(C, true);
+    DrawButtons(C, false, First);
+    DrawButtons(C, true, First);
     C.Font = class'Engine'.static.GetSmallFont();
     C.TextSize(Title, XL, YL);
     DrawBoldText(C, Title, CtxX + Pad, CtxY + Pad + (BtnH - YL * TextScale) * 0.5, TextScale, MakeColor(230, 170, 40, 255));

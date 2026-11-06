@@ -350,9 +350,9 @@ With the map cursor up, click the **middle mouse button** on the map for a small
 | :--- | :--- |
 | An empty spot | **Mark this spot:** click a marker icon to put that marker there (it also becomes the Marker tool's icon), change the colour, or **Text label here** to type a label there. For whoever "Draw for" is set to |
 | A drawing (marker, line, label, restriction...) | Its name and who drew it, then **Move** (it follows the cursor until your next click puts it down), **Erase**, **Change icon** (markers) and **Change colour**. Greyed out unless you may erase it (see "Who can erase what"); the server checks too |
-| A player's icon | Their name (with "(bot)" for a bot), then **Teleport To Me**, **Drop At A Spot...** (click on the map where they should go: they are dropped in that grid square and keypad), **Switch Team** and **Kill** (each asks "sure?" and needs a second click within 4 seconds), **Respawn**, **Safety On**, **Safety Off**, **Find Original Name**, and **More...** to open the full Manage Players menu for them. For scrim admins only: everyone else sees the entries greyed out, with "For scrim admins only" under the toolbar |
+| A player's icon (scrim admins only) | Their name (with "(bot)" for a bot), then **Teleport To Me**, **Drop At A Spot...** (click on the map where they should go: they are dropped in that grid square and keypad), **Switch Team** and **Kill** (each asks "sure?" and needs a second click within 4 seconds), **Respawn**, **Safety On**, **Safety Off**, **Find Original Name**, and **More...** to open the full Manage Players menu for them. Only scrim admins get this menu; for anyone else a middle click on a player opens the menu for the drawing or spot under it |
 
-**Bots:** Teleport To Me, Drop At A Spot and Kill work on bots; the server does them itself. The other entries are greyed out for a bot, because they are carried out by the player's own game, which a bot does not have. Typed as commands on a bot, they say "only works on players, not on bots" instead of doing nothing. A name nobody has is now reported too. Players can only pick the players their map shows (their teammates); spectators can pick anyone. The menus need map drawing to be on. *Tested by the harness (what each entry does); how the menus look can only be checked by playing.*
+**Bots:** Teleport To Me, Drop At A Spot and Kill work on bots; the server does them itself. The other entries are greyed out for a bot, because they are carried out by the player's own game, which a bot does not have. Typed as commands on a bot, they say "only works on players, not on bots" instead of doing nothing. A name nobody has is now reported too. An admin playing on a team can only pick the players their map shows (their teammates); a spectating admin can pick anyone. The menus are drawn above the player icons on the map. The menus need map drawing to be on. *Tested by the harness (what each entry does); how the menus look can only be checked by playing.*
 
 **Movement restrictions (the Restrict tool)**
 
@@ -405,7 +405,7 @@ Use it to show players where they may or may not go. **Only logged in admins** (
 
 **If the toolbar doesn't appear:** the game's log (`ROGame\Logs\Launch.log`) gets a line starting `[MutCMenu] Map tools:` saying why, for example that map drawing is off on this server or that the map wasn't ready.
 
-Holding the mouse over a drawing shows who drew it and who it is for.
+Holding the mouse over a drawing shows who drew it and who it is for, up and to the right of the cursor, in the same place as a player's name.
 
 **Who sees a drawing, and who can draw it**
 
