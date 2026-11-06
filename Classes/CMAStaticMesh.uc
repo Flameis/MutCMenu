@@ -18,6 +18,8 @@ var 	ParticleSystemComponent 			DestroyedPFX;
 
 var()	array<class<DamageType> >			AcceptedDamageTypes;	// Types of Damage that harm this Destructible
 var 	int									Health;
+var		bool								bBuilderPiece;	// Server: placed as a mesh with the Builder (Clear All Meshes and player deletes take only these)
+var		int									PlacedByID;		// Server: the PlayerID of whoever placed it, -1 when not known
 
 var 	vector								ConfigLoc, Bounds;
 var 	rotator								ConfigRot;
@@ -72,23 +74,23 @@ event TakeDamage(int DamageAmount, Controller EventInstigator, vector HitLocatio
 {
 	local int i;
 	
-	`log(DamageAmount);
-	`log(DamageType);
-
-	if (ClassIsChildOf(DamageType, class'RODamageType_CannonShell') || ClassIsChildOf(DamageType, class'RODmgType_Satchel'))
-	{
-		AcceptedDamageTypes.additem(DamageType);
-	}
 	// If we're already dead, bail.
 	if( Health <= 0 )
 		return;
 
-	for ( i = 0; i < AcceptedDamageTypes.Length; i++ )
+	// Tank shells and satchels always count. (They used to be added to AcceptedDamageTypes on every hit, so the list
+	// grew for as long as the piece was shot.)
+	if (ClassIsChildOf(DamageType, class'RODamageType_CannonShell') || ClassIsChildOf(DamageType, class'RODmgType_Satchel'))
+		Health -= DamageAmount;
+	else
 	{
-		if ( ClassIsChildOf(DamageType, AcceptedDamageTypes[i]) )
+		for ( i = 0; i < AcceptedDamageTypes.Length; i++ )
 		{
-			Health -= DamageAmount;
-			break;
+			if ( ClassIsChildOf(DamageType, AcceptedDamageTypes[i]) )
+			{
+				Health -= DamageAmount;
+				break;
+			}
 		}
 	}
 
@@ -277,6 +279,7 @@ simulated function SetScale3D(vector NewScale3D)
 defaultproperties
 {
     health=100
+	PlacedByID=-1
 	AcceptedDamageTypes.add(Class'ROGame.RODmgType_RPG7Rocket')
     AcceptedDamageTypes.add(Class'ROGame.RODmgType_RPG7RocketGeneral')
     AcceptedDamageTypes.add(Class'ROGame.RODmgType_RPG7RocketImpact')

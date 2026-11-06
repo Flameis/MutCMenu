@@ -9,7 +9,10 @@ var LinearColor		            	GoodPlacementColour;
 var bool                        	bShowPreviewMesh, bPreviewIsSkeletal;
 var Actor							PreviewHost; // What the preview components are attached to: the player's pawn, or the DummyActor for a spectator
 
-var Vector  				    	PlaceLoc, ModifyLoc;
+var Vector  				    	PlaceLoc, ModifyLoc;	// ModifyLoc: the nudges, X to the right, Y forward, Z up (in units)
+var vector							LastHitLocation;		// where the view last hit something, for aiming at the sky
+var bool							bHadHit;
+var bool							bShiftHeld;				// with Shift, Up and Down move the item forward and back
 var	rotator					    	PlaceRot, ModifyRot;
 var Vector							ModifyScale;
 var bool							bCanScale;	// Things can be made bigger or smaller with the mouse wheel; vehicles cannot
@@ -25,6 +28,7 @@ var bool							bPlacingStarted;	// An entry just picked put the menu into ReadyT
 // middle one (index 3, 20 units and 11.25 degrees) is where every menu starts.
 const STEP_COUNT = 6;
 const DEFAULT_STEP = 3;
+const NO_HIT_DISTANCE = 1000.0;	// aiming at nothing (the sky) before anything was hit: the item goes this far out
 var int StepLevel;
 
 function bool CheckExceptions(string Command)
@@ -76,6 +80,11 @@ function ChangeStep(int Direction)
 	MessageSelf("Step: "$StepText());
 }
 
+function string NudgeText()
+{
+	return "Moved: "$int(ModifyLoc.X)$" right, "$int(ModifyLoc.Y)$" forward, "$int(ModifyLoc.Z)$" up";
+}
+
 function string StepText()
 {
 	return "move "$LocStepFor(StepLevel)$" units, turn "$(RotStepFor(StepLevel) * UnrRotToDeg)$" degrees ("$(StepLevel + 1)$" of "$STEP_COUNT$")";
@@ -91,7 +100,7 @@ function InitializePreview()
 
 		PreviewMeshMIC = new class'MaterialInstanceConstant';
 		PreviewMeshMIC.SetParent(MaterialInstanceConstant(PreviewSkeletalMesh[0].GetMaterial(0)));
-		for ( i = 0; i < PreviewStaticMesh[0].Materials.Length; i++ )
+		for ( i = 0; i < PreviewSkeletalMesh[0].Materials.Length; i++ )
 		{
 			PreviewSkeletalMesh[0].SetMaterial(i, PreviewMeshMIC);
 		}
@@ -148,6 +157,16 @@ simulated state ReadyToPlace extends MenuVisible
 				return ClickPointer(EventType);
 		}
 
+		// Shift is left to the game (it is sprint); it only changes what Up and Down do
+		if (Key == 'LeftShift' || Key == 'RightShift')
+		{
+			if (EventType == IE_Pressed)
+				bShiftHeld = true;
+			else if (EventType == IE_Released)
+				bShiftHeld = false;
+			return false;
+		}
+
         if (EventType == IE_Pressed)
         {
 			switch (Key)
@@ -190,24 +209,33 @@ simulated state ReadyToPlace extends MenuVisible
 					MessageSelf("Yaw: " $ string(-ModifyRot.Yaw * UnrRotToDeg));
 					return true;
 
+				// The nudges are kept as distances (X to the right, Y forward, Z up) and turned with the view when placing
+				// (CanPhysicallyPlace). Left and Right used to add a world direction into them, so they went a different
+				// way depending on where the player faced.
 				case 'Up':
-            	    ModifyLoc.z = ModifyLoc.z + LocStepFor(StepLevel);
-					MessageSelf("Z: " $ string(ModifyLoc.z));
+					if (bShiftHeld)
+						ModifyLoc.Y += LocStepFor(StepLevel);
+					else
+						ModifyLoc.Z += LocStepFor(StepLevel);
+					MessageSelf(NudgeText());
 					return true;
 
 				case 'Down':
-            	    ModifyLoc.z = ModifyLoc.z - LocStepFor(StepLevel);
-					MessageSelf("Z: " $ string(ModifyLoc.z));
+					if (bShiftHeld)
+						ModifyLoc.Y -= LocStepFor(StepLevel);
+					else
+						ModifyLoc.Z -= LocStepFor(StepLevel);
+					MessageSelf(NudgeText());
 					return true;
 
 				case 'Left':
-				    ModifyLoc = ModifyLoc - (Vector(GetAimRotation()) >> rot(0, 16384, 0)) * LocStepFor(StepLevel);
-					MessageSelf("Left: " $ string(ModifyLoc));
+					ModifyLoc.X -= LocStepFor(StepLevel);
+					MessageSelf(NudgeText());
 					return true;
 
 				case 'Right':
-				    ModifyLoc = ModifyLoc + (Vector(GetAimRotation()) >> rot(0, 16384, 0)) * LocStepFor(StepLevel);
-					MessageSelf("Right: " $ string(ModifyLoc));
+					ModifyLoc.X += LocStepFor(StepLevel);
+					MessageSelf(NudgeText());
 					return true;
 
 				case 'PageUp':
@@ -329,8 +357,21 @@ simulated function CanPhysicallyPlace()
     RightVector = ViewDirection >> rot(0, 16384, 0); // Calculate the right vector based on the player's view direction
     TraceLength = 40000;
     EndTrace = StartTrace + ViewDirection * TraceLength;
-	TracedActor = PC.trace(HitLocation, HitNormal, EndTrace, StartTrace, true);
-    PlaceLoc = HitLocation + ModifyLoc.X * RightVector + ModifyLoc.Y * ViewDirection + ModifyLoc.Z * vect(0, 0, 1);
+	// The world only (map geometry and Builder pieces): with actors too, the item could land on the player's own
+	// soldier or a teammate's head
+	TracedActor = PC.Trace(HitLocation, HitNormal, EndTrace, StartTrace, false);
+	// Nothing hit (the sky): the last spot that was hit, or a short way out. It used to go to the middle of the map.
+	if (TracedActor == None)
+		HitLocation = bHadHit ? LastHitLocation : StartTrace + ViewDirection * NO_HIT_DISTANCE;
+	else
+	{
+		LastHitLocation = HitLocation;
+		bHadHit = true;
+	}
+    // Level right and forward, whatever the view's pitch: the view turned 90 degrees tilted with it, so looking up or
+    // down a nudge to the right went a little up or down and came out short
+    RightVector = Normal(RightVector * vect(1, 1, 0));
+    PlaceLoc = HitLocation + ModifyLoc.X * RightVector + ModifyLoc.Y * Normal(ViewDirection * vect(1, 1, 0)) + ModifyLoc.Z * vect(0, 0, 1);
     PlaceRot = GetAimRotation();
     PlaceRot.Yaw = PlaceRot.Yaw + ModifyRot.Yaw;
     PlaceRot.Roll = ModifyRot.Roll;

@@ -1448,6 +1448,18 @@ function LogOutAdmin(PlayerController sender)
         LoggedInAdminIDs.RemoveItem(sender.PlayerReplicationInfo.PlayerID);
 }
 
+// Who may place things with the Builder (meshes, structures, turrets, vehicles, pickups) right now. Why says what to
+// tell a player who may not.
+function bool MayBuild(PlayerController PC, out string Why)
+{
+    if (PC == None || PC.PlayerReplicationInfo == None)
+    {
+        Why = "You can't build right now.";
+        return false;
+    }
+    return true;
+}
+
 function bool IsAuthorized(PlayerController Sender)
 {
     if (Sender == None || Sender.PlayerReplicationInfo == None)

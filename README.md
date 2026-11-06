@@ -173,7 +173,7 @@ Open **Builder Menu** from the main menu. You aim at the spot you want, and conf
 | :--- | :--- |
 | Vehicles | Place vehicles: Cobra, Loach, Huey, Bushranger, plus lists for WW2, Winter War and GOM (Gameplay Overhaul Mutator) vehicles and the GreenMen (GM) helicopters when those mods are loaded, plus the 29th's own helicopters. The WW2 list is every vehicle WW2 has that can be placed: Crusader Mk III, Ha-Go, LVT, M13, Panzer III, Panzer IV F, SdKfz 251 halftrack, Semovente, Sherman II and III, Stuart, StuG III G, T-34, T-70, and the Universal Carrier with and without its Bren. (Its Churchill can't be placed, and the Kubelwagen, SdKfz 222, Valentine and Willys entries are gone: WW2 doesn't have them.) **Custom** types `mutate cmenu --menu CMenuBVehicles --item ` for you to add any vehicle path. **Delete Vehicle** removes the one you aim at |
 | Structures | Copy buildings or whole areas you are aiming at and paste them somewhere else. Select several meshes, copy the selection, remove the last one, or clear the selection |
-| Static Meshes | Copy, paste and delete single objects. Presets: straight sandbags and an F4 Phantom. Admins also get **Toggle Collision** and **Delete Any Object** |
+| Static Meshes | Copy, paste and delete single objects. Presets: straight sandbags and an F4 Phantom. Admins also get **Toggle Collision (Builder Pieces)**, which turns a placed piece's collision off and on again for every player, and **Delete Any Placed Object** |
 | Pickups | Turn a weapon into a pickup on the ground: **Custom** (types `--item ` for you to add the weapon path) or **Copy Held Weapon** (the one in your hands) |
 | Actors | In this order: the **CTF Flag** entries for each team's flag (for example "CTF Flag: PAVN (North)") and **CTF Flag: Command Line**, for everyone, with **Reset Flags** and **Remove Flags** for admins (see below); **Mark Corner** and **Spawn Obj**, which let you draw and place a brand new capture objective of your own, with **Clear Corners**, **Delete Obj** and **Clear Objs** to take them away again; an M2 turret, a DShK turret and an ammo resupply point; **Clear All**, which removes everything you placed, flags included; and last the team spawn points (North and South) and their delete entries |
 
@@ -182,11 +182,28 @@ Open **Builder Menu** from the main menu. You aim at the spot you want, and conf
 | Key | What it does |
 | :--- | :--- |
 | Up / Down arrows | Raise or lower the item |
-| Left / Right arrows | Slide it sideways |
+| **Shift** + Up / Down | Move it forward or back |
+| Left / Right arrows | Slide it sideways (always to your right or left, level, whichever way you face) |
 | Z, X, C | Roll, pitch and turn (yaw) it. **Tab** reverses the direction of all three |
 | Mouse wheel | Make it bigger or smaller (not vehicles or actors) |
 | Keypad + and - | Change how long it lasts, and so its health |
 | **Page Up / Page Down** | Make each key press move and turn it by more or less. The steps are 1, 5, 10, 20 (where it starts), 50 and 100 units for moving and raising, and 1, 2.8, 5.6, 11.25 (where it starts), 22.5 and 45 degrees for turning. You are told the step each time you change it, and it is kept for the next item |
+
+**The server checks everything the Builder does.** Before, the admin entries were only hidden in the menu.
+- Only admins can clear all meshes, vehicles, pickups or actors, and change collision.
+- Players can delete pieces placed with the Builder, and vehicles placed with the Builder while nobody is in them. Admins can delete any placed object.
+- Nobody can delete a soldier or a part of the map. Deleting a part of the map only ever made it disappear on the server, which made players rubber-band through it.
+- Only the Builder's own turrets and resupply points are spawned, and a mesh or vehicle that doesn't exist is refused with a message.
+- Placing and clearing can't be lost on a bad connection any more. A pasted structure used to arrive with pieces missing.
+
+**Clear All Meshes takes only Builder mesh pieces.** Resupply points, team spawns and the corner poles of custom objectives stay.
+
+**Placing fixes:**
+- The sideways nudge used to go a different way depending on where you faced.
+- Aiming at the sky used to send the preview to the middle of the map. It now stays at the last spot you aimed at.
+- The preview no longer lands on your own soldier or a teammate.
+- A piece's list of what can damage it no longer grows every time it is hit.
+- In Structures, clearing or removing a selection now gives every mesh back its own colour.
 
 **Actors in the Builder**
 - **The preview looks like what you place:** a flag shows its small pole and cloth where it will land, the resupply point shows all its crates, a turret shows that turret. Spawn points and corners are flagpoles in the game, so they preview as one.

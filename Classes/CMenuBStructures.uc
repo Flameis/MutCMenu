@@ -448,53 +448,42 @@ function CopySelectedMeshesToClipboard()
     MessageSelf("Copied Selected Meshes To Clipboard");
 }
 
+// Each selected mesh gets back the material it had. (Entries used to be removed from the list while it was being read,
+// so the wrong materials went back on the meshes after the first.)
 function ClearSelectedMeshes()
 {
-    local Actor SelectedActor;
     local int i;
 
-    for (i = 0; i < SelectedActors.Length; i++)
-    {
-        SelectedActor = SelectedActors[i];
-
-        if (StaticMeshActor(SelectedActor) != none)
-        {
-            StaticMeshActor(SelectedActor).StaticMeshComponent.SetMaterial(0, OriginalMaterials[i]);
-            OriginalMaterials.RemoveItem(StaticMeshActor(SelectedActor).StaticMeshComponent.GetMaterial(0));
-        }
-
-        else if (CMAStaticMesh(SelectedActor) != none)
-        {
-            CMAStaticMesh(SelectedActor).StaticMeshComponent.SetMaterial(0, OriginalMaterials[i]);
-            OriginalMaterials.RemoveItem(CMAStaticMesh(SelectedActor).StaticMeshComponent.GetMaterial(0));
-        }
-    }
+    for (i = 0; i < SelectedActors.Length && i < OriginalMaterials.Length; i++)
+        RestoreMaterial(SelectedActors[i], OriginalMaterials[i]);
 
     SelectedActors.Remove(0, SelectedActors.Length);
     OriginalMaterials.Remove(0, OriginalMaterials.Length);
 }
 
+function RestoreMaterial(Actor SelectedActor, MaterialInterface Original)
+{
+    if (StaticMeshActor(SelectedActor) != none)
+        StaticMeshActor(SelectedActor).StaticMeshComponent.SetMaterial(0, Original);
+    else if (CMAStaticMesh(SelectedActor) != none)
+        CMAStaticMesh(SelectedActor).StaticMeshComponent.SetMaterial(0, Original);
+}
+
 function RemoveLastSelectedMesh()
 {
-    local Actor SelectedActor;
-    // local int i;
+    local int Last;
 
     if (SelectedActors.Length > 0)
     {
-        if (StaticMeshActor(SelectedActors[SelectedActors.Length - 1]) != none)
+        // The same entry from both lists (the material list used to lose the one before it)
+        Last = SelectedActors.Length - 1;
+        if (Last < OriginalMaterials.Length)
         {
-            SelectedActor = StaticMeshActor(SelectedActors[SelectedActors.Length - 1]);
-            StaticMeshActor(SelectedActor).StaticMeshComponent.SetMaterial(0, OriginalMaterials[SelectedActors.Length - 1]);
+            RestoreMaterial(SelectedActors[Last], OriginalMaterials[Last]);
+            OriginalMaterials.Remove(Last, 1);
         }
-        else if (CMAStaticMesh(SelectedActors[SelectedActors.Length - 1]) != none)
-        {
-            SelectedActor = CMAStaticMesh(SelectedActors[SelectedActors.Length - 1]);
-            CMAStaticMesh(SelectedActor).StaticMeshComponent.SetMaterial(0, OriginalMaterials[SelectedActors.Length - 1]);
-        }
+        SelectedActors.Remove(Last, 1);
 
-        SelectedActors.Remove(SelectedActors.Length - 1, 1);
-        OriginalMaterials.Remove(SelectedActors.Length - 1, 1);
-        
         MessageSelf("Removed Last Selected Mesh");
     }
     else

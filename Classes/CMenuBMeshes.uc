@@ -9,10 +9,10 @@ function Initialize()
         MenuText.additem("Clear All Meshes");
         MenuCommand.additem("CLEARCMAStaticMesh");
 
-        MenuText.additem("WARNING Toggle Collision");
+        MenuText.additem("Toggle Collision (Builder Pieces)");
         MenuCommand.additem("TOGGLECOLLISION");
 
-        MenuText.additem("WARNING Delete Any Object");
+        MenuText.additem("Delete Any Placed Object");
         MenuCommand.additem("ADMINDELETE");
     }
 

@@ -2,6 +2,11 @@ class DummyActor extends actor;
 
 var MutCMenu                     MyMut;
 
+// The Builder (see the server side further down)
+const MIN_PIECE_SCALE = 0.1;
+const MAX_PIECE_SCALE = 10.0;
+const BUILT_VEHICLE_TAG = 'CMBuilderVehicle'; // vehicles placed with the Builder, which players may remove again
+
 var bool bIsAuthorized, bNewTankPhys, bLoadExtras, bLoadGOM3, bLoadGOM4, bLoadWW, bLoadWW2, bFSPlayersCanCall;
 var bool bClickModeActive;
 var bool bTankPromptForAll; // the server lets anyone use the tank entry prompt, not only tank crew
@@ -276,7 +281,44 @@ reliable client function SetCMenuColor(string InColor, string type)
     }
 }
 
-unreliable server function SpawnActor(
+// ====================================================
+// The Builder's server side
+// ====================================================
+// Everything the Builder does arrives here from the player's game, so everything is checked here: the menu only hides
+// the entries a player may not use. Placing follows the server's build rules (MutCMenu.MayBuild); clearing, deleting
+// what isn't a Builder piece and collision are for admins. All of it is reliable: a placement or a clear sent
+// unreliably could be lost on a bad connection (a pasted structure arrived with pieces missing).
+
+function bool CallerIsAdmin()
+{
+    return MyMut != None && MyMut.IsAuthorized(PlayerController(Owner));
+}
+
+// True when the caller may place things now; otherwise they are told why
+function bool CallerMayBuild()
+{
+    local string Why;
+
+    if (MyMut == None)
+        return false;
+    if (MyMut.MayBuild(PlayerController(Owner), Why))
+        return true;
+    MyMut.PrivateMessage(PlayerController(Owner), "[CMenu] "$Why);
+    return false;
+}
+
+// True when the caller is an admin; otherwise they are told that What is for admins
+function bool CallerIsAdminFor(string What)
+{
+    if (CallerIsAdmin())
+        return true;
+    if (MyMut != None)
+        MyMut.PrivateMessage(PlayerController(Owner), "[CMenu] Only admins can "$What$".");
+    return false;
+}
+
+// The client sends what to spawn, so only the Builder's own classes are taken; the owner and template it sends are not
+reliable server function SpawnActor(
     class<actor>        SpawnClass,
 	optional actor	    SpawnOwner,
 	optional name       SpawnTag,
@@ -288,83 +330,166 @@ unreliable server function SpawnActor(
     optional float      Scale,
     optional int        ModifyTime)
 {
-    local CMAStaticMesh CMAStaticMesh;
+    local CMAStaticMesh Piece;
+    local StaticMesh SM;
+
+    if (!CallerMayBuild())
+        return;
 
     if (SpawnTag == 'StaticMesh')
     {
-        if (Scale <= 0.0)
+        SM = StaticMesh(DynamicLoadObject(SMesh, class'StaticMesh', true));
+        if (SM == None)
         {
-            Scale = 1.0;
+            MyMut.PrivateMessage(PlayerController(Owner), "[CMenu] There is no mesh called "$SMesh$".");
+            return;
         }
+        if (Scale <= 0.0)
+            Scale = 1.0;
+        Scale = FClamp(Scale, MIN_PIECE_SCALE, MAX_PIECE_SCALE);
 
-        CMAStaticMesh =  CMAStaticMesh(Spawn(SpawnClass, SpawnOwner, SpawnTag, SpawnLocation, SpawnRotation, ActorTemplate, bNoCollisionFail));
-        CMAStaticMesh.ServerSetStaticMesh(StaticMesh(DynamicLoadObject(SMesh, class'StaticMesh')));
-        CMAStaticMesh.ServerSetScale3D(CMAStaticMesh.StaticMeshComponent.Scale3D*Scale);
-        CMAStaticMesh.Health = ModifyTime;
+        Piece = Spawn(class'CMAStaticMesh',, 'StaticMesh', SpawnLocation, SpawnRotation,, true);
+        if (Piece == None)
+        {
+            MyMut.PrivateMessage(PlayerController(Owner), "[CMenu] That can't be placed there.");
+            return;
+        }
+        Piece.bBuilderPiece = true;
+        Piece.PlacedByID = (PlayerController(Owner).PlayerReplicationInfo != None) ? PlayerController(Owner).PlayerReplicationInfo.PlayerID : -1;
+        Piece.ServerSetStaticMesh(SM);
+        Piece.ServerSetScale3D(Piece.StaticMeshComponent.Scale3D * Scale);
+        Piece.Health = ModifyTime;
     }
-    else if (SpawnTag == 'Turret' || SpawnTag == 'ResupplyPoint')
+    else if ((SpawnTag == 'Turret' && (SpawnClass == class'CMATurret_M2_HMG_Destroyable' || SpawnClass == class'ROTurret_DShK_HMG_Destroyable'))
+        || (SpawnTag == 'ResupplyPoint' && SpawnClass == class'CMAResupplyPoint'))
     {
-        Spawn(SpawnClass, SpawnOwner, SpawnTag, SpawnLocation, SpawnRotation, ActorTemplate, bNoCollisionFail);
+        Spawn(SpawnClass,, SpawnTag, SpawnLocation, SpawnRotation,, true);
     }
 }
 
-unreliable server function DeleteActor(actor ActorToDelete)
+// What may be removed with the Builder's delete entries: a Builder piece or a vehicle the Builder placed, by anyone who
+// may build (a vehicle only while nobody is in it); anything else that isn't part of the map, by an admin. Never a
+// soldier, a controller, the game's own actors or a part of the map: a map part can't be removed for the players at all
+// (it isn't replicated), so the server would only have turned it into an invisible hole for itself.
+function bool MayDelete(Actor A, bool bAdmin, out string Why)
 {
-    `log("Deleting:"@ActorToDelete);
-    //TraceGeometryWorldActors
+    local Vehicle V;
 
-    if(ActorToDelete == none)
+    V = Vehicle(A);
+    if (A == None || A.bDeleteMe)
+    {
+        Why = "There is nothing there to remove.";
+        return false;
+    }
+    if ((Pawn(A) != None && V == None) || Controller(A) != None || Info(A) != None || A.IsA('Terrain'))
+    {
+        Why = "That can't be removed.";
+        return false;
+    }
+    if (A.bStatic || A.bNoDelete)
+    {
+        Why = "That is part of the map, so it can't be removed.";
+        return false;
+    }
+    if (bAdmin)
+        return true;
+    if (CMAStaticMesh(A) != None && CMAStaticMesh(A).bBuilderPiece)
+        return true;
+    if (V != None && V.Tag == BUILT_VEHICLE_TAG)
+    {
+        if (V.Driver == None && (ROVehicle(V) == None || ROVehicle(V).NumPassengers() == 0))
+            return true;
+        Why = "Someone is in that vehicle.";
+        return false;
+    }
+    Why = "Only admins can remove that.";
+    return false;
+}
+
+reliable server function DeleteActor(actor ActorToDelete)
+{
+    local string Why;
+    local bool bAdmin;
+
+    bAdmin = CallerIsAdmin();
+    if (!bAdmin && !CallerMayBuild())
         return;
-
-    if(ActorToDelete.IsA('Terrain'))
+    if (!MayDelete(ActorToDelete, bAdmin, Why))
+    {
+        MyMut.PrivateMessage(PlayerController(Owner), "[CMenu] "$Why);
         return;
-
+    }
     ActorToDelete.ShutDown();
     ActorToDelete.Destroy();
 }
 
-unreliable server function SetActorCollision(actor ActorToDo)
+// Admins: a Builder piece stops (or starts again) blocking players and bullets, for every player (the actor's collision
+// replicates). Parts of the map are refused: changed on the server only, players' games kept colliding and rubber-banded.
+reliable server function SetActorCollision(actor ActorToDo)
 {
-    `log("Ghosting:"@ActorToDo);
-    
-    if(ActorToDo == none)
-        return;
+    local CMAStaticMesh Piece;
 
-    if(ActorToDo.IsA('Terrain'))
+    if (!CallerIsAdminFor("change collision"))
         return;
-
-    ActorToDo.SetCollision(false, false);
+    Piece = CMAStaticMesh(ActorToDo);
+    if (Piece == None || !Piece.bBuilderPiece)
+    {
+        MyMut.PrivateMessage(PlayerController(Owner), "[CMenu] Collision can only be changed on pieces placed with the Builder.");
+        return;
+    }
+    Piece.SetCollision(!Piece.bCollideActors, !Piece.bBlockActors);
+    MyMut.PrivateMessage(PlayerController(Owner), "[CMenu] Collision "$(Piece.bCollideActors ? "on" : "off")$" for that piece.");
 }
 
-unreliable server function ClearAllMeshes()
+// Admins: every mesh piece placed with the Builder; resupply points, spawns and objective corner poles stay
+reliable server function ClearAllMeshes()
 {
     local CMAStaticMesh MeshToClear;
+    local int Count;
 
+    if (!CallerIsAdminFor("clear all meshes"))
+        return;
     foreach AllActors(class'CMAStaticMesh', MeshToClear)
     {
-        MeshToClear.Destroy();
+        if (MeshToClear.bBuilderPiece && MeshToClear.Class == class'CMAStaticMesh')
+        {
+            MeshToClear.Destroy();
+            Count++;
+        }
     }
-    `log("All static meshes have been cleared.");
+    MyMut.PrivateMessage(PlayerController(Owner), "[CMenu] Cleared "$Count$" mesh piece"$(Count == 1 ? "" : "s")$".");
 }
 
-unreliable server function SpawnVehicle(string VehicleName, vector PlaceLoc, rotator PlaceRot)
+reliable server function SpawnVehicle(string VehicleName, vector PlaceLoc, rotator PlaceRot)
 {
     local class<ROVehicle>          VehicleClass;
 	local ROVehicle                 ROV;
     local ROPawn                    ROP;
     local bool                      bLandVic;
 
+    if (!CallerMayBuild())
+        return;
     ROP = ROPawn(PlayerController(Owner).Pawn);
 
-    VehicleClass = class<ROVehicle>(DynamicLoadObject(VehicleName, class'Class'));
-    
+    VehicleClass = class<ROVehicle>(DynamicLoadObject(VehicleName, class'Class', true));
+    if (VehicleClass == None)
+    {
+        MyMut.PrivateMessage(PlayerController(Owner), "[CMenu] There is no vehicle called "$VehicleName$".");
+        return;
+    }
+
     if (ClassIsChildOf(VehicleClass, class'ROVehicleTreaded') || ClassIsChildOf(VehicleClass, class'ROVehicleWheeled'))
     {
         bLandVic = true;
     }
     if (VehicleClass != none)
     {
-        ROV = Spawn(VehicleClass, , , PlaceLoc, PlaceRot);
+        ROV = Spawn(VehicleClass, , BUILT_VEHICLE_TAG, PlaceLoc, PlaceRot);
+        if (ROV == None)
+        {
+            MyMut.PrivateMessage(PlayerController(Owner), "[CMenu] That vehicle can't be placed there.");
+            return;
+        }
         ROV.Mesh.AddImpulse(vect(0,0,1), ROV.Location);
         ROV.bTeamLocked = false;
 
@@ -457,6 +582,9 @@ reliable server function ClearAllVehicles()
 {
     local ROVehicle VehicleToClear;
 
+    if (!CallerIsAdminFor("clear all vehicles"))
+        return;
+
     foreach AllActors(class'ROVehicle', VehicleToClear)
     {
         VehicleToClear.Destroy();
@@ -468,7 +596,11 @@ reliable server function SpawnPickup(class<ROWeapon> WeaponClass, float ModifyTi
 {
     local CMAPickupFactory CMAPF;
 
+    if (WeaponClass == None || !CallerMayBuild())
+        return;
     CMAPF = Spawn(class'CMAPickupFactory',,, PlaceLoc, PlaceRot);
+    if (CMAPF == None)
+        return;
     CMAPF.Time = ModifyTime;
     CMAPF.WPClass = WeaponClass;
     if (WorldInfo.NetMode == NM_Standalone)
@@ -478,6 +610,9 @@ reliable server function SpawnPickup(class<ROWeapon> WeaponClass, float ModifyTi
 reliable server function ClearAllPickups()
 {
     local CMAPickupFactory WeaponToClear;
+
+    if (!CallerIsAdminFor("clear all pickups"))
+        return;
 
     foreach AllActors(class'CMAPickupFactory', WeaponToClear)
     {
@@ -585,7 +720,9 @@ reliable server function PlaceSpawn(
 {
     local CMASpawn SMS;
 
-    SMS = Spawn(class'CMASpawn', SpawnOwner, SpawnTag, SpawnLocation, SpawnRotation, ActorTemplate, bNoCollisionFail);
+    if (!CallerMayBuild())
+        return;
+    SMS = Spawn(class'CMASpawn',, SpawnTag, SpawnLocation, SpawnRotation,, bNoCollisionFail);
 	if (SMS != None)
 		SMS.SetSpawnTeam(TeamIdx);
 }
@@ -593,6 +730,9 @@ reliable server function PlaceSpawn(
 reliable server function ClearAllActors()
 {
     local Actor ActorToClear;
+
+    if (!CallerIsAdminFor("clear all actors"))
+        return;
 
     foreach AllActors(class'Actor', ActorToClear)
     {
