@@ -23,6 +23,16 @@ function Initialize()
     {
         MenuText.additem("Clear All Meshes");
         MenuCommand.additem("CLEARMESH");
+
+        // Layouts: the map's Builder pieces saved by name, and built again (mutate savelayout / loadlayout)
+        MenuText.additem("Save Layout");
+        MenuCommand.additem("SAVELAYOUTFORM");
+        MenuText.additem("Load Layout");
+        MenuCommand.additem("LOADLAYOUTFORM");
+        MenuText.additem("List Layouts");
+        MenuCommand.additem("LAYOUTS");
+        MenuText.additem("Delete Layout");
+        MenuCommand.additem("DELETELAYOUTFORM");
     }
 
 	super.Initialize();
@@ -57,6 +67,21 @@ function bool CheckExceptions(string Command)
             GarbageCollection();
             ClearSelectedMeshes();
             MyDA.ClearAllMeshes();
+            return true;
+
+        case "SAVELAYOUTFORM":
+            PromptForText("Save Layout|Saves every Builder piece on this map under a name, replacing a layout with that name.|--name / -n : the layout's name|Example: --name Alpha   (or just Alpha)",
+                "Mutate savelayout ", , "name");
+            return true;
+
+        case "LOADLAYOUTFORM":
+            PromptForText("Load Layout|Replaces the Builder pieces on the map with a saved layout. List Layouts shows this map's layouts.|--name / -n : the layout's name|Example: --name Alpha   (or just Alpha)",
+                "Mutate loadlayout ", , "name");
+            return true;
+
+        case "DELETELAYOUTFORM":
+            PromptForText("Delete Layout|Deletes a saved layout of this map (the pieces on the map stay).|--name / -n : the layout's name",
+                "Mutate deletelayout ", , "name");
             return true;
 
         case "SELECTMESH":

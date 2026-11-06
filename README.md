@@ -205,10 +205,21 @@ Open **Builder Menu** from the main menu. You aim at the spot you want, and conf
 | :--- | :--- |
 | Who can build (`BuilderMode`) | **Everyone** (the default). **Players only in the match briefing**: players build while a Realism Match is in its briefing, and building closes when the match goes LIVE (admins can build any time; with no match on, players can't build). **Admins only**. **Nobody**: the Builder places nothing, not even for admins (they can still remove and clear) |
 | Pieces only (`bBuilderPiecesOnly`) | Players place only pieces from the Static Meshes lists (and structures made of them). No vehicles, pickups, turrets, resupply points, spawns or other meshes. Each piece gets the health its list gives it, and the keypad can't change that |
-| Team budgets (`bBuilderBudgets`, `BuilderTeamPoints`) | Each piece costs build points (shown next to it on the lists), and a team's standing pieces can cost up to `BuilderTeamPoints` together (100 when 0). Removing a piece with the Builder gives its points back. A destroyed piece still counts until it is removed. Admins build for free. A mesh that isn't on the lists costs 5 |
+| Team budgets (`bBuilderBudgets`, `BuilderTeamPoints`) | Each piece costs build points (shown next to it on the lists), and a team's standing pieces can cost up to `BuilderTeamPoints` together (100 when 0). Removing a piece with the Builder gives its points back, and so does a destroyed piece once its wreck is gone (20 seconds). Admins build for free. A mesh that isn't on the lists costs 5 |
 | Build zones (`bBuilderZones`) | Players build only inside a build zone drawn for their team, or for everyone. Admins draw them with the map's **Restrict** tool switched to **Draws: build zones** (see section 6) |
 
 With team budgets or build zones on, a player who isn't on a team can't build. With any of these on, players can only remove their own team's pieces. Admins can remove anything.
+
+**Layouts.** An admin can save every Builder piece on the map as a named layout, and build it again later: for the next match on that map, or after a round. In the **Structures** menu (admins) use **Save Layout**, **Load Layout**, **List Layouts** and **Delete Layout**, or type the commands below. A layout belongs to the map it was saved on. Loading one replaces the Builder pieces on the map with the layout's pieces: where they were, turned and sized the same, with the health they were placed with and the team that built them. A piece that would land on a soldier is left out, and you are told how many. Everyone is told when a layout is loaded. Layouts are kept on the server in `ROMutCMenu_Layouts.ini`.
+
+With **Build the loaded layout again at every round start** (`bRebuildLayoutEachRound`, off by default) on, every new round starts with the loaded layout, every piece whole, and anything else built during the last round is gone. With it off, pieces stay as they are between rounds, as before (a destroyed piece stays gone). *Saving and loading are checked by the harness in one game; that a layout is still there after a server restart has not been checked yet.*
+
+| Command | What it does |
+| :--- | :--- |
+| `mutate savelayout --name Alpha` | Saves the Builder pieces on this map as "Alpha" (replacing a layout of that name). `-n` or just the name works too |
+| `mutate loadlayout --name Alpha` | Replaces the Builder pieces on the map with "Alpha" |
+| `mutate layouts` | Lists this map's layouts, with how many pieces each has, and the one loaded |
+| `mutate deletelayout --name Alpha` | Deletes the layout (the pieces on the map stay) |
 
 **The server checks everything the Builder does.** Before, the admin entries were only hidden in the menu.
 - Only admins can clear all meshes, vehicles, pickups or actors, and change collision.
@@ -591,6 +602,7 @@ Set in WebAdmin under **Mutators > MutCMenu Settings**, or in `MutCMenu_Server.i
 | `bBuilderBudgets` | Team budgets: pieces cost build points |
 | `BuilderTeamPoints` | Build points per team with team budgets on. 0 means the default, 100 |
 | `bBuilderZones` | Players build only inside their team's build zones (drawn with the Restrict tool) |
+| `bRebuildLayoutEachRound` | The Builder layout loaded on the map is built again at every round start (off by default). See **Layouts** in section 5 |
 | `BuilderCatalogue` (ini only) | The Builder's own list of pieces, replacing the built-in one. See **The piece catalogue** in section 5 |
 | `FSProfiles` (ini only) | The default size of each barrage type: salvos, shells per salvo, spread, time between salvos and delay before the first. The defaults are written the first time the server runs. A type added later (like `MIXED`) is added automatically without touching your values |
 

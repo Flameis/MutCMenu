@@ -441,6 +441,7 @@ reliable server function SpawnActor(
         }
         Piece.BuiltByTeam = Team;
         Piece.PaidCost = Cost;
+        Piece.StartHealth = Piece.Health;
         if (Cost > 0)
             MyMut.UpdateBuilderInfo();
     }

@@ -24,6 +24,7 @@ var()	array<class<DamageType> >			AcceptedDamageTypes;	// Types of Damage that h
 var 	int									Health;
 var		byte								BuiltByTeam;	// Server side: the team of the player who placed it (255: none)
 var		int									PaidCost;		// Server side: the team points it took (team budgets)
+var		int									StartHealth;	// Server side: the health it was placed with (saved in a layout)
 var		bool								bBuilderPiece;	// Server: placed as a mesh with the Builder (Clear All Meshes and player deletes take only these)
 var		int									PlacedByID;		// Server: the PlayerID of whoever placed it, -1 when not known
 

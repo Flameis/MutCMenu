@@ -88,6 +88,10 @@ const BUILDER_OFF = 3;          // nobody, admins included
 const DEFAULT_TEAM_POINTS = 100;
 const UNLISTED_PIECE_COST = 5;  // with team budgets on, a mesh that isn't in the catalogue costs this
 
+// Builder layouts (savelayout, loadlayout): the pieces on a map, saved by name (CMBuilderLayout)
+var config bool                 bRebuildLayoutEachRound; // the layout loaded last on this map is built again at every round start (off: pieces stay as they are)
+var string                      ActiveLayout;       // the layout loaded on this map, "" for none
+
 // An aircraft strike waiting out its first strike delay
 struct FSPendingStrike
 {
@@ -590,6 +594,14 @@ simulated function Mutate(string mutateString, PlayerController sender)
 
         case "SPAWNOBJ":
             SpawnObjectiveCommand(sender, params);
+            break;
+
+        // Builder layouts: admins only (checked inside, so a player is told why)
+        case "SAVELAYOUT":
+        case "LOADLAYOUT":
+        case "DELETELAYOUT":
+        case "LAYOUTS":
+            LayoutCommand(sender, command, SplitString(CurrentMutateString, " ", true));
             break;
 
         case "DELETEOBJ":
@@ -1207,6 +1219,13 @@ function bool CommandOptions(string Command, out string Known)
         case "SPAWNOBJ":
             Known = "name/n time/t owner/o";
             return true;
+        case "SAVELAYOUT":
+        case "LOADLAYOUT":
+        case "DELETELAYOUT":
+            Known = "name/n";
+            return true;
+        case "LAYOUTS":
+            return true;
         case "DELETEOBJ":
             Known = "obj/o";
             return true;
@@ -1636,6 +1655,210 @@ function UpdateBuilderInfo()
         Team = (PC != None) ? class'CMMapInfo'.static.PlayingTeam(PC.PlayerReplicationInfo) : 255;
         DA.BuildPointsLeft = (Team < 2) ? Max(TeamBuildPoints() - Used[Team], 0) : 0;
     }
+}
+
+// =================================================================
+// Builder layouts
+// =================================================================
+
+function string LayoutMapName()
+{
+    return WorldInfo.GetMapName(true);
+}
+
+// savelayout, loadlayout, deletelayout (--name / -n, or just the name) and layouts, for admins
+function LayoutCommand(PlayerController PC, string Command, array<string> Tokens)
+{
+    local array<string> Names;
+    local array<int> Counts;
+    local string LayoutName, List;
+    local int N, Skipped, i;
+
+    if (!IsAuthorized(PC))
+    {
+        PrivateMessage(PC, "[CMenu] Only admins can save and load Builder layouts.");
+        return;
+    }
+    LayoutName = class'CmdOptions'.static.GetOrPositional(Tokens, "name", "n");
+    if (Command != "LAYOUTS" && LayoutName == "")
+    {
+        PrivateMessage(PC, "[CMenu] Give the layout a name: mutate "$Locs(Command)$" --name Alpha   (or just: mutate "$Locs(Command)$" Alpha)");
+        return;
+    }
+    switch (Command)
+    {
+        case "SAVELAYOUT":
+            N = SaveLayout(LayoutName, PC);
+            if (N == 0)
+                PrivateMessage(PC, "[CMenu] There are no Builder pieces on the map to save.");
+            else
+                PrivateMessage(PC, "[CMenu] Saved the layout \""$LayoutName$"\" for this map: "$N$" piece"$(N == 1 ? "" : "s")$".");
+            break;
+        case "LOADLAYOUT":
+            N = LoadLayout(LayoutName, Skipped);
+            if (N < 0)
+                PrivateMessage(PC, "[CMenu] This map has no layout called \""$LayoutName$"\". mutate layouts lists them.");
+            else
+            {
+                WorldInfo.Game.Broadcast(self, "[CMenu] "$PC.PlayerReplicationInfo.PlayerName$" loaded the Builder layout \""$LayoutName$"\": "$N$" piece"$(N == 1 ? "" : "s")$".");
+                if (Skipped > 0)
+                    PrivateMessage(PC, "[CMenu] "$Skipped$" piece"$(Skipped == 1 ? " wasn't" : "s weren't")$" placed: a soldier was in the way, or the mesh is missing.");
+                if (bRebuildLayoutEachRound)
+                    PrivateMessage(PC, "[CMenu] It is built again at every round start.");
+            }
+            break;
+        case "DELETELAYOUT":
+            if (DeleteLayout(LayoutName))
+                PrivateMessage(PC, "[CMenu] Deleted the layout \""$LayoutName$"\".");
+            else
+                PrivateMessage(PC, "[CMenu] This map has no layout called \""$LayoutName$"\".");
+            break;
+        case "LAYOUTS":
+            class'CMBuilderLayout'.static.GetLayouts(LayoutMapName(), Names, Counts);
+            for (i = 0; i < Names.Length; i++)
+                List $= (i > 0 ? ", " : "") $ Names[i] $ " (" $ Counts[i] $ ")";
+            PrivateMessage(PC, "[CMenu] Builder layouts for this map: "$(Names.Length > 0 ? List : "none yet")$(ActiveLayout != "" ? ". Loaded: "$ActiveLayout : ""));
+            break;
+    }
+}
+
+// Every standing Builder piece on the map, saved as the layout LayoutName (replacing one with that name). The pieces placed.
+function int SaveLayout(string LayoutName, optional PlayerController PC)
+{
+    local CMBuilderLayout L;
+    local CMAStaticMesh P;
+
+    L = class'CMBuilderLayout'.static.Open(LayoutMapName(), LayoutName);
+    L.MapName = LayoutMapName();
+    L.LayoutName = LayoutName;
+    L.SavedBy = (PC != None && PC.PlayerReplicationInfo != None) ? PC.PlayerReplicationInfo.PlayerName : "";
+    L.Pieces.Length = 0;
+    foreach DynamicActors(class'CMAStaticMesh', P)
+    {
+        if (P.Class == class'CMAStaticMesh' && P.bBuilderPiece && !P.bDeleteMe && P.CrateDisplayStatus != CMDS_Destroyed
+            && P.ReplicatedMeshPath != "" && L.Pieces.Length < class'CMBuilderLayout'.const.MAX_LAYOUT_PIECES)
+            L.Pieces.AddItem(class'CMBuilderLayout'.static.PieceText(P));
+    }
+    if (L.Pieces.Length > 0)
+        L.SaveConfig();
+    return L.Pieces.Length;
+}
+
+function bool DeleteLayout(string LayoutName)
+{
+    local CMBuilderLayout L;
+
+    L = class'CMBuilderLayout'.static.Open(LayoutMapName(), LayoutName);
+    if (L.Pieces.Length == 0)
+        return false;
+    L.Pieces.Length = 0;
+    L.LayoutName = "";
+    L.SaveConfig();
+    if (ActiveLayout ~= LayoutName)
+        ActiveLayout = "";
+    return true;
+}
+
+// Every Builder mesh piece removed (not resupply points, spawns or corner poles). How many.
+function int ClearBuilderPieces()
+{
+    local CMAStaticMesh P;
+    local int N;
+
+    foreach DynamicActors(class'CMAStaticMesh', P)
+    {
+        if (P.Class == class'CMAStaticMesh' && P.bBuilderPiece && !P.bDeleteMe)
+        {
+            P.ShutDown();
+            P.Destroy();
+            N++;
+        }
+    }
+    return N;
+}
+
+// The layout LayoutName built: the Builder's pieces on the map are replaced by it. The pieces placed, or -1 when there is no
+// such layout; Skipped counts those that couldn't be (a soldier in the way, a mesh the game doesn't have).
+function int LoadLayout(string LayoutName, out int Skipped)
+{
+    local CMBuilderLayout L;
+    local CMAStaticMesh Piece;
+    local StaticMesh SM;
+    local string Mesh;
+    local vector Loc, Scale;
+    local rotator Rot;
+    local int Health, i, N;
+    local byte Team;
+
+    Skipped = 0;
+    L = class'CMBuilderLayout'.static.Open(LayoutMapName(), LayoutName);
+    if (L.Pieces.Length == 0)
+        return -1;
+    ClearBuilderPieces();
+    for (i = 0; i < L.Pieces.Length; i++)
+    {
+        if (!class'CMBuilderLayout'.static.ParsePiece(L.Pieces[i], Mesh, Loc, Rot, Scale, Health, Team))
+        {
+            Skipped++;
+            continue;
+        }
+        SM = StaticMesh(DynamicLoadObject(Mesh, class'StaticMesh', true));
+        Piece = (SM != None) ? Spawn(class'CMAStaticMesh',, 'StaticMesh', Loc, Rot,, true) : None;
+        if (Piece == None)
+        {
+            Skipped++;
+            continue;
+        }
+        Piece.bBuilderPiece = true;
+        Piece.ServerSetStaticMesh(SM);
+        Piece.ServerSetScale3D(Scale);
+        Piece.Health = Max(Health, 0);
+        Piece.StartHealth = Piece.Health;
+        Piece.BuiltByTeam = Team;
+        Piece.ForceUpdateComponents(true, false);
+        if (FindDummyActorAny() != None && FindDummyActorAny().SoldierInside(Piece))
+        {
+            Piece.Destroy();
+            Skipped++;
+            continue;
+        }
+        N++;
+    }
+    ActiveLayout = L.LayoutName;
+    UpdateBuilderInfo();
+    return N;
+}
+
+// Any player's DummyActor, for its soldier check (it doesn't depend on whose it is)
+function DummyActor FindDummyActorAny()
+{
+    local DummyActor DA;
+
+    foreach DummyActors(DA)
+    {
+        if (DA != None && !DA.bDeleteMe)
+            return DA;
+    }
+    return None;
+}
+
+// A new round: with bRebuildLayoutEachRound on, the layout loaded on this map is built again, every piece whole, once
+// the round's reset is done
+function Reset()
+{
+    super.Reset();
+    if (bRebuildLayoutEachRound && ActiveLayout != "")
+        SetTimer(0.5, false, 'RebuildLayout');
+}
+
+function RebuildLayout()
+{
+    local int N, Skipped;
+
+    if (ActiveLayout == "")
+        return;
+    N = LoadLayout(ActiveLayout, Skipped);
+    `log("[MutCMenu] New round: Builder layout "$ActiveLayout$" built again ("$N$" pieces, "$Skipped$" left out)");
 }
 
 function bool IsAuthorized(PlayerController Sender)

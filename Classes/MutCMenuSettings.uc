@@ -86,6 +86,8 @@ function InitMutSettings()
 	else { self.SetIntPropertyByName(name(Repl("BuilderTeamPoints", ".", "_")), MutCMenu(myMut).BuilderTeamPoints); }
 	if (self.myMut == None) { self.SetIntPropertyByName(name(Repl("bBuilderZones", ".", "_")), int(class'MutCMenu'.default.bBuilderZones)); }
 	else { self.SetIntPropertyByName(name(Repl("bBuilderZones", ".", "_")), int(MutCMenu(myMut).bBuilderZones)); }
+	if (self.myMut == None) { self.SetIntPropertyByName(name(Repl("bRebuildLayoutEachRound", ".", "_")), int(class'MutCMenu'.default.bRebuildLayoutEachRound)); }
+	else { self.SetIntPropertyByName(name(Repl("bRebuildLayoutEachRound", ".", "_")), int(MutCMenu(myMut).bRebuildLayoutEachRound)); }
 
 }
 
@@ -175,6 +177,8 @@ function SaveMutSettings()
 	else { self.GetIntPropertyByName(name(Repl("BuilderTeamPoints", ".", "_")), tempValue); MutCMenu(myMut).BuilderTeamPoints = Max(self.tempValue, 0); }
 	if (self.myMut == None) { self.GetIntPropertyByName(name(Repl("bBuilderZones", ".", "_")), tempValue); class'MutCMenu'.default.bBuilderZones = (self.tempValue != 0); }
 	else { self.GetIntPropertyByName(name(Repl("bBuilderZones", ".", "_")), tempValue); MutCMenu(myMut).bBuilderZones = (self.tempValue != 0); }
+	if (self.myMut == None) { self.GetIntPropertyByName(name(Repl("bRebuildLayoutEachRound", ".", "_")), tempValue); class'MutCMenu'.default.bRebuildLayoutEachRound = (self.tempValue != 0); }
+	else { self.GetIntPropertyByName(name(Repl("bRebuildLayoutEachRound", ".", "_")), tempValue); MutCMenu(myMut).bRebuildLayoutEachRound = (self.tempValue != 0); }
 
     if (self.myMut != None)
 	{
@@ -264,4 +268,6 @@ defaultproperties
     PropertyMappings.Add((Id=643,Name="BuilderTeamPoints"))
     Properties.Add((PropertyId=644,Data=(Type=SDT_Int32,Value1=0)))
     PropertyMappings.Add((Id=644,Name="bBuilderZones",MappingType=PVMT_IdMapped,ValueMappings=((Id=0),(Id=1))))
+    Properties.Add((PropertyId=645,Data=(Type=SDT_Int32,Value1=0)))
+    PropertyMappings.Add((Id=645,Name="bRebuildLayoutEachRound",MappingType=PVMT_IdMapped,ValueMappings=((Id=0),(Id=1))))
 }
