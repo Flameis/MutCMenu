@@ -408,6 +408,7 @@ simulated function Mutate(string mutateString, PlayerController sender)
 {
     local DummyActor DA, DASender, DAFound;
     local CMASpawn SMS;
+    local Controller Target;
 
     local array<string> params;
     local string        command;
@@ -623,16 +624,30 @@ simulated function Mutate(string mutateString, PlayerController sender)
                 ToggleCMenuVisiblity(sender, "CMENUPCMANAGER", secondaryparam);
                 break;
 
+            // Kill, teleport and drop at grid work on bots too (the map's middle-click menu offers them on any player)
             case "KILLPLAYER":
-                FindPlayer(secondaryparam).Pawn.Suicide();
+                Target = FindAnyPlayer(secondaryparam);
+                if (Target != None && Target.Pawn != None)
+                    Target.Pawn.Suicide();
+                else
+                    PrivateMessage(sender, "[CMenu] No living player called "$secondaryparam$".");
                 break;
 
             case "TELEPORTTOME":
-                FindPlayer(secondaryparam).Pawn.SetLocation(Sender.Pawn.Location);
+                Target = FindAnyPlayer(secondaryparam);
+                if (sender.Pawn == None)
+                    PrivateMessage(sender, "[CMenu] You need to be in the game to bring someone to you.");
+                else if (Target != None && Target.Pawn != None)
+                    Target.Pawn.SetLocation(sender.Pawn.Location);
+                else
+                    PrivateMessage(sender, "[CMenu] No living player called "$secondaryparam$".");
                 break;
 
             case "FORCESWITCHTEAM":
-                FindPlayer(secondaryparam).SwapTeam(1);
+                if (FindPlayer(secondaryparam) != None)
+                    FindPlayer(secondaryparam).SwapTeam(1);
+                else
+                    NotForBots(sender, secondaryparam, "Switch Team");
                 break;
 
             case "TEMPADMINLOGIN":
@@ -645,32 +660,42 @@ simulated function Mutate(string mutateString, PlayerController sender)
                 WorldInfo.Game.Broadcast(self, "[CMenu] "$sender.PlayerReplicationInfo.PlayerName$" revoked temporary admin powers from "$secondaryparam);
                 break;
 
+            // These are run by the player's own game; a bot has none, so only drop at grid is done for it here
             case "FORCERESPAWN":
-                DAFound.ClientCMConsoleCommand("mutate respawn");
+                if (DAFound != None)
+                    DAFound.ClientCMConsoleCommand("mutate respawn");
+                else
+                    NotForBots(sender, secondaryparam, "Respawn");
                 break;
 
             case "FDAO": //ForceDropAtObj
-                DAFound.ClientCMConsoleCommand("mutate dropatobj "$tertiaryparam);
+                if (DAFound != None)
+                    DAFound.ClientCMConsoleCommand("mutate dropatobj "$tertiaryparam);
+                else
+                    NotForBots(sender, secondaryparam, "Drop At Objective");
                 break;
 
             case "FDAG": //ForceDropAtGrid
-                DAFound.ClientCMConsoleCommand("mutate dropatgrid "$tertiaryparam);
+                if (DAFound != None)
+                    DAFound.ClientCMConsoleCommand("mutate dropatgrid "$tertiaryparam);
+                else
+                    PlaceAtGrid(sender, FindAnyPlayer(secondaryparam), secondaryparam, tertiaryparam);
                 break;
-            
+
             case "FORCESAFETYON":
-                DAFound.ClientCMConsoleCommand("mutate safetyon");
-                break;
-
             case "FORCESAFETYOFF":
-                DAFound.ClientCMConsoleCommand("mutate safetyoff");
-                break;
-
             case "FORCEUNITPATCH":
-                DAFound.ClientCMConsoleCommand("mutate changeunit "$tertiaryparam);
-                break;
-
             case "FORCERANKPATCH":
-                DAFound.ClientCMConsoleCommand("mutate changerank "$tertiaryparam);
+                if (DAFound == None)
+                    NotForBots(sender, secondaryparam, "That");
+                else if (command == "FORCESAFETYON")
+                    DAFound.ClientCMConsoleCommand("mutate safetyon");
+                else if (command == "FORCESAFETYOFF")
+                    DAFound.ClientCMConsoleCommand("mutate safetyoff");
+                else if (command == "FORCEUNITPATCH")
+                    DAFound.ClientCMConsoleCommand("mutate changeunit "$tertiaryparam);
+                else
+                    DAFound.ClientCMConsoleCommand("mutate changerank "$tertiaryparam);
                 break;
 
         }
@@ -1430,9 +1455,53 @@ function bool IsAuthorized(PlayerController Sender)
     return WorldInfo.Game.AccessControl.IsAdmin(Sender) || LoggedInAdminIDs.Find(Sender.PlayerReplicationInfo.PlayerID) != INDEX_NONE;
 }
 
+// A player command that only a real player's game can carry out
+function NotForBots(PlayerController Sender, string PlayerName, string What)
+{
+    if (FindAnyPlayer(PlayerName) == None)
+        PrivateMessage(Sender, "[CMenu] No player called "$PlayerName$".");
+    else
+        PrivateMessage(Sender, "[CMenu] "$What$" only works on players, not on bots.");
+}
+
+// Drop at grid for a bot: put down on the ground in that square and keypad, as a player would land
+function PlaceAtGrid(PlayerController Sender, Controller Target, string PlayerName, string Grid)
+{
+    local vector Loc;
+
+    if (Target == None || Target.Pawn == None)
+    {
+        PrivateMessage(Sender, "[CMenu] No living player called "$PlayerName$".");
+        return;
+    }
+    if (!GridToWorldLocation(Grid, Loc))
+    {
+        PrivateMessage(Sender, "[CMenu] "$Grid$" isn't a grid square on this map.");
+        return;
+    }
+    Loc.Z += Target.Pawn.GetCollisionHeight() + 10;
+    if (!Target.Pawn.SetLocation(Loc))
+        PrivateMessage(Sender, "[CMenu] There is no room for "$PlayerName$" there.");
+}
+
 // =================================================================
 // Utility Functions
 // =================================================================
+// A human player or a bot, by name
+function Controller FindAnyPlayer(string PlayerName)
+{
+    local Controller C;
+
+    if (PlayerName == "")
+        return None;
+    foreach WorldInfo.AllControllers(class'Controller', C)
+    {
+        if (C.PlayerReplicationInfo != None && C.PlayerReplicationInfo.PlayerName ~= PlayerName)
+            return C;
+    }
+    return None;
+}
+
 function ROPlayerController FindPlayer(string PlayerName)
 {
     local ROPlayerController PC;

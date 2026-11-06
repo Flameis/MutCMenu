@@ -10,7 +10,7 @@
 //  - Middle-click menus on the open map: on an empty spot, a quick menu to put a marker or label there; on a drawing,
 //    move, erase, recolour or change its icon; on a player (scrim admins), the common Manage Players commands.
 //  - Movement restrictions (the Restrict tool): lines, boxes and circles drawn on the map show dashed there, and in the
-//    world as lines on the ground, for whoever the drawing is for (DrawZonesInWorld).
+//    world as lines painted on the ground (decals, CMZoneDecals), for whoever the drawing is for.
 //  - Enemies spotted with the spot key (Z): the game takes their mark off the map after 5 seconds; it is drawn on, in the
 //    same place with the game's own icon, until SPOT_MAP_LIFE seconds after the spot. Only on the map: the mark in the
 //    world and on the compass go when the game's does.
@@ -127,7 +127,12 @@ const GROUND_TRACES_PER_FRAME = 300;
 const GROUND_SIGHT_PER_FRAME = 250;
 const GROUND_TRACE_HEIGHT = 40000.0; // the traces start this far above the shape and end this far below
 const GROUND_LIFT = 20.0;           // the sight check aims this far above the ground point, so the ground itself doesn't block it
-const ZONE_VIEW_DIST = 15000.0;     // (300 meters) the lines are drawn this far out
+const ZONE_STRIP_WIDTH = 20.0;      // (40 cm) how wide the painted lines are
+const ZONE_STRIP_MAX = 500.0;       // (10 meters) the longest piece of paint; the ground is followed point by point within it
+const ZONE_STRIP_BUMP = 25.0;       // a piece goes on past a point only while the ground there is this close to its straight line
+const ZONE_STRIP_DEPTH = 60.0;      // how far above and below its ends the paint reaches, so it lands on the ground and small things
+const ZONE_STRIPS_PER_FRAME = 120;
+const ZONE_VIEW_DIST = 15000.0;     // (300 meters) without decals, the lines are drawn this far out
 const ZONE_FADE_DIST = 5000.0;      // and fade out over the last 100 meters of that
 const ZONE_DASH = 10.0;             // pixels at 1080p: the dashes of a restriction on the map
 const ZONE_GAP = 6.0;
@@ -180,6 +185,7 @@ struct SentItem
 };
 
 var config bool bToolsHidden; // the player folded the toolbar away
+var config string ZoneDecalMaterial, ZoneDecalTexture; // the paint for movement restrictions (CMZoneDecals has the defaults)
 var config bool bNoPlayerNames; // the player turned off the name shown when the cursor is over a player on the map (on when not set)
 var config bool bIconsMenuOpen; // the Map icons menu in the toolbar is folded open
 // Map icons turned off in the Map icons menu (all shown when not set)
@@ -222,6 +228,7 @@ var byte CtxMenu;              // the middle-click menu that is open (MENU_NONE 
 var vector2D CtxAt, CtxWorld;  // where it was opened: on the screen and in the world
 var int CtxItemID;             // MENU_ITEM: the drawing
 var string CtxPlayer;          // MENU_PLAYER: the player's name, as the commands take it
+var bool bCtxBot;              // MENU_PLAYER: and they are a bot, which only some commands work on
 var bool bCtxIcons, bCtxColours; // MENU_ITEM: the icon or colour choice is folded open
 var byte CtxArmed;             // an entry clicked once that needs a second click (Kill, Switch Team); 255 for none
 var float CtxArmedTime;
@@ -299,8 +306,11 @@ struct GroundZone
     var array<vector2D> Flat;
     var array<vector> Pts;   // the ground under each point of Flat, as far as traced
     var array<byte> Seen;    // for each: 0 hidden from the camera, 1 in sight, 2 no ground found
+    var array<DecalComponent> Strips; // the paint on the ground
+    var int StripFrom;       // the point the paint goes on from (all painted when it reaches the last)
 };
 var array<GroundZone> GroundZones;
+var CMZoneDecals ZoneDecals;   // the decals' owner on this player's game; made when first needed
 var int SightZone, SightPoint; // where the sight checks go on from next frame
 var int SeenSpotFade[`MAX_PLAYERS_PER_TEAM]; // the team's fade time for each slot, as last seen
 var byte SpotTeam;                           // the team those are for; 255 for none
@@ -1501,7 +1511,8 @@ event PostRender(Canvas C)
     {
         Cancel();
         // The movement restrictions on the ground, with the map closed (open, it covers the view)
-        if (H != None && H.bShowHud && Info.bDrawingEnabled && !bHideDrawings)
+        // The movement restrictions over the view, only when they can't be painted on the ground
+        if (H != None && H.bShowHud && Info.bDrawingEnabled && !bHideDrawings && !UsePaint(PC))
             DrawZonesInWorld(C, PC);
         // With the map closed, the spectator's names and triangles (with it open they would only clutter it)
         if (bSpectatorView && H.bShowHud)
@@ -1793,7 +1804,9 @@ function DrawCursor(Canvas C, ROHUDWidgetComponent CursorComp)
     W = CursorComp.CurWidth > 0 ? CursorComp.CurWidth : 24 * UIScale;
     H = CursorComp.CurHeight > 0 ? CursorComp.CurHeight : 24 * UIScale;
     C.SetDrawColor(CursorComp.DrawColor.R, CursorComp.DrawColor.G, CursorComp.DrawColor.B, 255);
-    C.SetPos(Mouse.X, Mouse.Y);
+    // Where the game put its own: its tip at the mouse normally, but centred on it while the map is dragged (with the
+    // right mouse button), so drawing it at the mouse showed a second dragging cursor half a cursor off
+    C.SetPos(MapWidget.CurrentX + CursorComp.CurX, MapWidget.CurrentY + CursorComp.CurY);
     C.DrawTile(Tex, W, H, CursorComp.UOffset, CursorComp.VOffset,
         CursorComp.TexWidth > 0 ? CursorComp.TexWidth : float(Tex.SizeX), CursorComp.TexHeight > 0 ? CursorComp.TexHeight : float(Tex.SizeY));
 }
@@ -2281,6 +2294,8 @@ function string ToolHint(PlayerController PC)
 {
     if (!bCursor)
         return "Press "$CursorKeyName()$" for the cursor";
+    if (CtxMenu == MENU_PLAYER && !Info.bScrimAdmin)
+        return "For scrim admins only";
     if (CtxMenu != MENU_NONE)
         return "Pick one, or Escape";
     if (bCtxMove)
@@ -2937,8 +2952,8 @@ function DrawFlagIcon(Canvas C, vector2D At, float Size, color Col)
 // Middle-click menus
 // ====================================================
 
-// Opens the menu for what is under the cursor: a player (scrim admins only), else a drawing, else the spot itself if the
-// player may draw. False when there is nothing to open, so the click goes to the game.
+// Opens the menu for what is under the cursor: a player, else a drawing, else the spot itself if the player may draw. The
+// player menu's entries are for scrim admins; others see them greyed out, so it is clear why nothing happens. False when there is nothing to open, so the click goes to the game.
 function bool OpenContextMenu()
 {
     local PlayerController PC;
@@ -2953,12 +2968,13 @@ function bool OpenContextMenu()
 
     Cancel();
     bSpectatorView = Info.bSpectating && PC.PlayerReplicationInfo != None && PC.PlayerReplicationInfo.bOnlySpectator;
-    PRI = Info.bScrimAdmin ? PlayerAt(PC, Mouse, bSpectatorView, Team) : None;
+    PRI = PlayerAt(PC, Mouse, bSpectatorView, Team);
     Index = PickItem(Mouse, false);
     if (PRI != None)
     {
         CtxMenu = MENU_PLAYER;
         CtxPlayer = PRI.PlayerName;
+        bCtxBot = PRI.bBot;
     }
     else if (Index != INDEX_NONE)
     {
@@ -3205,7 +3221,7 @@ function DrawContextMenu(Canvas C, PlayerController PC)
                 H += BtnH + Gap;
             break;
         case MENU_PLAYER:
-            Title = CtxPlayer;
+            Title = bCtxBot ? CtxPlayer$" (bot)" : CtxPlayer;
             H = BtnH + Gap + 9 * (BtnH + Gap);
             break;
     }
@@ -3284,26 +3300,27 @@ function DrawContextMenu(Canvas C, PlayerController PC)
             }
             break;
 
+        // Scrim admins only; on a bot only teleport, drop and kill work (the rest are run by the player's own game)
         case MENU_PLAYER:
-            AddButton(X, Y, Inner, BtnH, A_CTX, CTX_TELEPORT, "Teleport To Me", false);
+            AddButton(X, Y, Inner, BtnH, A_CTX, CTX_TELEPORT, "Teleport To Me", false, !Info.bScrimAdmin);
             Y += BtnH + Gap;
-            AddButton(X, Y, Inner, BtnH, A_CTX, CTX_DROP, "Drop At A Spot...", false);
+            AddButton(X, Y, Inner, BtnH, A_CTX, CTX_DROP, "Drop At A Spot...", false, !Info.bScrimAdmin);
             Y += BtnH + Gap;
-            AddButton(X, Y, Inner, BtnH, A_CTX, CTX_SWITCH, ContextArmed(CTX_SWITCH) ? "Switch Team: sure?" : "Switch Team", false);
+            AddButton(X, Y, Inner, BtnH, A_CTX, CTX_SWITCH, ContextArmed(CTX_SWITCH) ? "Switch Team: sure?" : "Switch Team", false, !Info.bScrimAdmin || bCtxBot);
             Buttons[Buttons.Length - 1].bDanger = ContextArmed(CTX_SWITCH);
             Y += BtnH + Gap;
-            AddButton(X, Y, Inner, BtnH, A_CTX, CTX_RESPAWN, "Respawn", false);
+            AddButton(X, Y, Inner, BtnH, A_CTX, CTX_RESPAWN, "Respawn", false, !Info.bScrimAdmin || bCtxBot);
             Y += BtnH + Gap;
-            AddButton(X, Y, Inner, BtnH, A_CTX, CTX_KILL, ContextArmed(CTX_KILL) ? "Kill: sure?" : "Kill", false);
+            AddButton(X, Y, Inner, BtnH, A_CTX, CTX_KILL, ContextArmed(CTX_KILL) ? "Kill: sure?" : "Kill", false, !Info.bScrimAdmin);
             Buttons[Buttons.Length - 1].bDanger = ContextArmed(CTX_KILL);
             Y += BtnH + Gap;
-            AddButton(X, Y, Inner, BtnH, A_CTX, CTX_SAFETY_ON, "Safety On", false);
+            AddButton(X, Y, Inner, BtnH, A_CTX, CTX_SAFETY_ON, "Safety On", false, !Info.bScrimAdmin || bCtxBot);
             Y += BtnH + Gap;
-            AddButton(X, Y, Inner, BtnH, A_CTX, CTX_SAFETY_OFF, "Safety Off", false);
+            AddButton(X, Y, Inner, BtnH, A_CTX, CTX_SAFETY_OFF, "Safety Off", false, !Info.bScrimAdmin || bCtxBot);
             Y += BtnH + Gap;
-            AddButton(X, Y, Inner, BtnH, A_CTX, CTX_WHOIS, "Find Original Name", false);
+            AddButton(X, Y, Inner, BtnH, A_CTX, CTX_WHOIS, "Find Original Name", false, !Info.bScrimAdmin || bCtxBot);
             Y += BtnH + Gap;
-            AddButton(X, Y, Inner, BtnH, A_CTX, CTX_MORE, "More...", false);
+            AddButton(X, Y, Inner, BtnH, A_CTX, CTX_MORE, "More...", false, !Info.bScrimAdmin);
             break;
     }
     DrawButtonLayers(C, First);
@@ -3354,6 +3371,7 @@ function UpdateGroundZones(PlayerController PC)
             GroundZones.AddItem(Z);
             Keep.AddItem(0);
         }
+        RemovePaint(Index);
         GroundZones[Index].ID = Info.Items[i].ID;
         GroundZones[Index].Sig = Sig;
         GroundZones[Index].Colour = Info.Items[i].Colour;
@@ -3365,12 +3383,117 @@ function UpdateGroundZones(PlayerController PC)
     for (i = GroundZones.Length - 1; i >= 0; i--)
     {
         if (Keep[i] == 0)
+        {
+            RemovePaint(i);
             GroundZones.Remove(i, 1);
+        }
     }
 
     Budget = GROUND_TRACES_PER_FRAME;
     for (i = 0; i < GroundZones.Length && Budget > 0; i++)
         Budget -= TraceGround(PC, i, Budget);
+
+    // The paint: off while the drawings are hidden, otherwise made for what has been traced, a few pieces a frame
+    if (!UsePaint(PC))
+        return;
+    Budget = ZONE_STRIPS_PER_FRAME;
+    for (i = 0; i < GroundZones.Length; i++)
+    {
+        if (bHideDrawings || !Info.bDrawingEnabled)
+            RemovePaint(i);
+        else if (Budget > 0)
+            Budget -= PaintZone(i, Budget);
+    }
+}
+
+// Whether the lines are painted as decals: the game has decals on, and the paint could be loaded. Otherwise they are
+// drawn over the view (DrawZonesInWorld). The decals' owner of an earlier level is gone with it, and its paint too.
+function bool UsePaint(PlayerController PC)
+{
+    local int i;
+
+    if (ZoneDecals != None && ZoneDecals.bDeleteMe)
+    {
+        ZoneDecals = None;
+        for (i = 0; i < GroundZones.Length; i++)
+        {
+            GroundZones[i].Strips.Length = 0;
+            GroundZones[i].StripFrom = 0;
+        }
+    }
+    if (!class'DecalManager'.static.AreDynamicDecalsEnabled())
+        return false;
+    if (ZoneDecals == None)
+        ZoneDecals = PC.Spawn(class'CMZoneDecals', PC,, vect(0, 0, 0), rot(0, 0, 0));
+    return ZoneDecals != None && ZoneDecals.Paint(0, ZoneDecalMaterial, ZoneDecalTexture) != None;
+}
+
+function RemovePaint(int Index)
+{
+    local int k;
+
+    if (ZoneDecals != None && !ZoneDecals.bDeleteMe)
+    {
+        for (k = 0; k < GroundZones[Index].Strips.Length; k++)
+            ZoneDecals.RemoveStrip(GroundZones[Index].Strips[k]);
+    }
+    GroundZones[Index].Strips.Length = 0;
+    GroundZones[Index].StripFrom = 0;
+}
+
+// Paints up to Budget more pieces of a restriction, going on along its traced points. A piece runs from one point as far
+// as the ground stays near its straight line (up to ZONE_STRIP_MAX), so flat ground takes few pieces and rough ground
+// more. Points with no ground under them are left out. Returns the pieces made.
+function int PaintZone(int Index, int Budget)
+{
+    local MaterialInterface M;
+    local vector A, B;
+    local int k, e, j, Made;
+    local float Bump, T;
+    local bool bFits;
+
+    M = ZoneDecals.Paint(GroundZones[Index].Colour, ZoneDecalMaterial, ZoneDecalTexture);
+    k = GroundZones[Index].StripFrom;
+    while (Made < Budget && k < GroundZones[Index].Pts.Length - 1)
+    {
+        if (GroundZones[Index].Seen[k] == 2)
+        {
+            k++;
+            continue;
+        }
+        e = k + 1;
+        if (GroundZones[Index].Seen[e] == 2)
+        {
+            k = e;
+            continue;
+        }
+        // As far as it can go
+        while (e + 1 < GroundZones[Index].Pts.Length && GroundZones[Index].Seen[e + 1] != 2
+            && VSize2D(GroundZones[Index].Pts[e + 1] - GroundZones[Index].Pts[k]) <= ZONE_STRIP_MAX)
+        {
+            bFits = true;
+            for (j = k + 1; j <= e && bFits; j++)
+            {
+                T = VSize2D(GroundZones[Index].Pts[j] - GroundZones[Index].Pts[k]) / FMax(1.0, VSize2D(GroundZones[Index].Pts[e + 1] - GroundZones[Index].Pts[k]));
+                Bump = Abs(GroundZones[Index].Pts[j].Z - Lerp(GroundZones[Index].Pts[k].Z, GroundZones[Index].Pts[e + 1].Z, T));
+                bFits = Bump <= ZONE_STRIP_BUMP;
+            }
+            if (!bFits)
+                break;
+            e++;
+        }
+
+        A = GroundZones[Index].Pts[k];
+        B = GroundZones[Index].Pts[e];
+        // A little longer than the piece, so the pieces meet without a gap at a bend
+        GroundZones[Index].Strips.AddItem(ZoneDecals.AddStrip(M, (A + B) * 0.5, rotator(B - A).Yaw,
+            VSize2D(B - A) + ZONE_STRIP_WIDTH, ZONE_STRIP_WIDTH, Abs(A.Z - B.Z) * 0.5 + ZONE_STRIP_DEPTH));
+        Made++;
+        k = e;
+    }
+    // Only once every point has been traced is the restriction finished; until then the paint waits for more points
+    GroundZones[Index].StripFrom = k;
+    return Made;
 }
 
 // What a drawing is, as far as its ground path goes: its kind, how many points and where it starts and ends (a moved

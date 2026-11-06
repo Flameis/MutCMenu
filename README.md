@@ -350,9 +350,9 @@ With the map cursor up, click the **middle mouse button** on the map for a small
 | :--- | :--- |
 | An empty spot | **Mark this spot:** click a marker icon to put that marker there (it also becomes the Marker tool's icon), change the colour, or **Text label here** to type a label there. For whoever "Draw for" is set to |
 | A drawing (marker, line, label, restriction...) | Its name and who drew it, then **Move** (it follows the cursor until your next click puts it down), **Erase**, **Change icon** (markers) and **Change colour**. Greyed out unless you may erase it (see "Who can erase what"); the server checks too |
-| A player's icon (scrim admins) | Their name, then **Teleport To Me**, **Drop At A Spot...** (click on the map where they should go: they are dropped in that grid square and keypad), **Switch Team** and **Kill** (each asks "sure?" and needs a second click within 4 seconds), **Respawn**, **Safety On**, **Safety Off**, **Find Original Name**, and **More...** to open the full Manage Players menu for them |
+| A player's icon | Their name (with "(bot)" for a bot), then **Teleport To Me**, **Drop At A Spot...** (click on the map where they should go: they are dropped in that grid square and keypad), **Switch Team** and **Kill** (each asks "sure?" and needs a second click within 4 seconds), **Respawn**, **Safety On**, **Safety Off**, **Find Original Name**, and **More...** to open the full Manage Players menu for them. For scrim admins only: everyone else sees the entries greyed out, with "For scrim admins only" under the toolbar |
 
-For anyone who is not a scrim admin, a middle click on a player opens the menu for the drawing or spot under it instead. The menus need map drawing to be on. *Tested by the harness (what each entry does); how the menus look can only be checked by playing.*
+**Bots:** Teleport To Me, Drop At A Spot and Kill work on bots; the server does them itself. The other entries are greyed out for a bot, because they are carried out by the player's own game, which a bot does not have. Typed as commands on a bot, they say "only works on players, not on bots" instead of doing nothing. A name nobody has is now reported too. Players can only pick the players their map shows (their teammates); spectators can pick anyone. The menus need map drawing to be on. *Tested by the harness (what each entry does); how the menus look can only be checked by playing.*
 
 **Movement restrictions (the Restrict tool)**
 
@@ -364,7 +364,7 @@ Use it to show players where they may or may not go. What you mark with it shows
 | Box | Hold on one corner and drag to the other |
 | Circle | Hold on the centre and drag out to the edge |
 
-- **On the ground:** the line follows the ground (a point every 2 meters), over hills and onto whatever is there, a roof included. Hills and walls hide it the way they would hide something lying on the ground. It is drawn up to 300 meters away, fading over the last 100, thinner further away, with a dark edge so it shows on any ground. It only shows with the map closed, and **Hide drawings** hides it too.
+- **Painted on the ground:** the line is painted onto the ground like a decal, 40 cm wide, following the ground (checked every 2 meters) over hills and onto small things in the way (crates, sandbags, rocks), and onto roofs if it crosses a building. Because it is on the ground, anything in front of it hides it: walls, hills, soldiers, your own weapon. It is not painted on soldiers. **Hide drawings** takes the paint off. It uses the game's poster decal material with a plain texture, tinted the drawing's colour. *How the colours come out has not been checked in a game yet; if they look wrong, the paint can be changed in `MutCMenu_Client.ini` under `[MutCMenu.CMMapInteraction]` with `ZoneDecalTexture=` (for example `EngineResources.Gray`) and `ZoneDecalMaterial=`, no rebuild needed.* If the game has decals turned off in its settings, or the paint cannot be loaded, the lines are drawn over the view instead, as before.
 - **Stays until erased:** like markers, restrictions stay through new rounds and are never pushed out by newer drawings. Erase, move, undo and the clear buttons work on them as on any drawing; a moved one moves on the ground too.
 - *Tested by the harness (the shapes, the ground path, the clicking); how the lines look on the ground, and how quickly they appear when you come over a hill, can only be checked by playing.*
 
@@ -398,6 +398,8 @@ Use it to show players where they may or may not go. What you mark with it shows
 **Clearing asks first:** every clear button (Clear mine, Clear all for, Clear every drawing) turns red and asks "Are you sure?" on the first click. Click it again within 4 seconds to clear. Clicking anything else, or waiting, cancels it.
 
 **Spectators can tell the teams apart:** a spectator sees both teams' drawings, each with a soft edge in the colour of the team it was drawn for (a wider line under lines and shapes, a square under markers, a box under text).
+
+**One cursor while dragging the map:** dragging the map with the right mouse button showed two dragging cursors half a cursor apart. CMenu draws the game's cursor again on top of its toolbar, and it now draws it exactly where the game puts it (the game centres its dragging cursor on the mouse). *Not yet checked in a game.*
 
 **Toolbar text and markers no longer vanish:** typing a label on the map, or placing a marker, used to make the toolbar's text or its marker icons disappear, because the game drew them under the buttons. The toolbar is now drawn in its own layers above the map, and the map cursor above the toolbar, its text and its marker icons. The drawings, markers and player icons on the map go in a layer below the toolbar and the cursor, so the cursor is always drawn on top of them. *This can only be checked by playing.*
 
