@@ -65,6 +65,12 @@ function PostRender(Canvas HUDCanvas)
     Faction = Clamp(Carried.Faction, 0, class'CMAFlag'.default.Factions.Length - 1);
     Title = "YOU ARE CARRYING THE " $ Caps(class'CMAFlag'.default.Factions[Faction].Label) $ " FLAG";
     Prompt = "Press [" $ DropKey() $ "] to drop it";
+    // The bomb mode's bomb
+    if (CMABomb(Carried) != None)
+    {
+        Title = "YOU ARE CARRYING THE BOMB";
+        Prompt = "Hold [" $ class'CMModeInteraction'.static.DefaultPlantKey() $ "] inside a bomb site to plant it,  [" $ DropKey() $ "] drops it";
+    }
 
     // A slow pulse, so it is noticed without being a strobe
     Pulse = 0.5 + 0.5 * Sin(PC.WorldInfo.TimeSeconds * 3.0);

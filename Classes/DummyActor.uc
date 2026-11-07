@@ -16,6 +16,10 @@ var byte BuilderMode;
 var bool bBuildPhaseOpen, bBuilderPiecesOnly, bBuilderBudgets, bBuilderZones;
 var int BuildPointsLeft, BuildPointsTotal;
 
+// Game modes (CMGameMode): this player's own line under the mode's status (lives, weapon, hits, what to do)
+var string ModeLine;
+var bool bBombKeyDown; // Server side: the player holds the bomb key (plant, defuse)
+
 var bool bIsAuthorized, bNewTankPhys, bLoadExtras, bLoadGOM3, bLoadGOM4, bLoadWW, bLoadWW2, bFSPlayersCanCall;
 var bool bClickModeActive;
 var bool bTankPromptForAll; // the server lets anyone use the tank entry prompt, not only tank crew
@@ -41,6 +45,8 @@ replication
     if (bNetDirty)
         bIsAuthorized, bNewTankPhys, bLoadExtras, bLoadGOM3, bLoadGOM4, bLoadWW, bLoadWW2, bFSPlayersCanCall, bTankPromptForAll,
         BuilderMode, bBuildPhaseOpen, bBuilderPiecesOnly, bBuilderBudgets, bBuilderZones, BuildPointsLeft, BuildPointsTotal;
+    if (bNetDirty && bNetOwner)
+        ModeLine;
 }
 
 // Guidance up to this size goes to the chat and the mini console; anything longer goes to the large console
@@ -182,11 +188,20 @@ simulated function GetBuilderPieces(out array<BuilderPiece> List)
         List = class'CMBuilderCatalogue'.default.Pieces;
 }
 
+// The bomb mode's key (CMModeInteraction): held to plant or defuse
+reliable server function ServerBombKey(bool bDown)
+{
+    bBombKeyDown = bDown;
+    if (MyMut != None && MyMut.ActiveMode != None)
+        MyMut.ActiveMode.BombKey(PlayerController(Owner), bDown);
+}
+
 reliable client function CMenuSetup()
 {
     local PlayerController PC;
     local TankEntryInteraction TankEntry;
     local FlagCarrierInteraction FlagCarrier;
+    local CMModeInteraction ModeView;
     local int i;
 
     PC = PlayerController(Owner);
@@ -195,7 +210,7 @@ reliable client function CMenuSetup()
     for (i = PC.Interactions.Length - 1; i >= 0; i--)
     {
         if (CMenu(PC.Interactions[i]) != None || TankEntryInteraction(PC.Interactions[i]) != None
-            || FlagCarrierInteraction(PC.Interactions[i]) != None)
+            || FlagCarrierInteraction(PC.Interactions[i]) != None || CMModeInteraction(PC.Interactions[i]) != None)
             PC.Interactions.Remove(i, 1);
     }
 
@@ -212,6 +227,7 @@ reliable client function CMenuSetup()
     pc.Interactions.additem(new(pc) class'CMenuPlayer');
     pc.Interactions.additem(new(pc) class'CMenuPCManager');
     pc.Interactions.additem(new(pc) class'CMenuFireSupport');
+    pc.Interactions.additem(new(pc) class'CMenuGameModes');
 
     pc.Interactions.additem(new(pc) class'CMenuBMain');
     pc.Interactions.additem(new(pc) class'CMenuBActors');
@@ -231,6 +247,11 @@ reliable client function CMenuSetup()
     FlagCarrier.PC = PC;
     FlagCarrier.MyDA = self;
     pc.Interactions.additem(FlagCarrier);
+
+    ModeView = new(pc) class'CMModeInteraction';
+    ModeView.PC = PC;
+    ModeView.MyDA = self;
+    pc.Interactions.additem(ModeView);
 
     // The game's own input goes last, so the menus see their keys first. It is found by name: something else (the
     // MutExtras map drawing tool) may already sit in front of it, and moving that instead would leave the menus behind.
@@ -878,7 +899,7 @@ reliable server function ServerPlaceFlag(vector PlaceLoc, int TeamIdx)
     if (MyMut == None || PC == None)
         return;
 
-    MyMut.PlaceFlag(PC, PlaceLoc, class'CMAFlag'.static.FactionForTeam(WorldInfo, TeamIdx));
+    MyMut.PlaceFlag(PC, PlaceLoc, class'CMAFlag'.static.FactionForTeam(WorldInfo, TeamIdx),, TeamIdx);
 }
 
 // Builds a capture objective from the corners the builder marked. Checked here too: anyone can open the Builder and call this.

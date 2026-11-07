@@ -89,6 +89,31 @@ function InitMutSettings()
 	if (self.myMut == None) { self.SetIntPropertyByName(name(Repl("bRebuildLayoutEachRound", ".", "_")), int(class'MutCMenu'.default.bRebuildLayoutEachRound)); }
 	else { self.SetIntPropertyByName(name(Repl("bRebuildLayoutEachRound", ".", "_")), int(MutCMenu(myMut).bRebuildLayoutEachRound)); }
 
+	// Game modes
+	if (self.myMut == None) { self.SetIntPropertyByName(name(Repl("GameModeOnStart", ".", "_")), class'MutCMenu'.default.GameModeOnStart); }
+	else { self.SetIntPropertyByName(name(Repl("GameModeOnStart", ".", "_")), MutCMenu(myMut).GameModeOnStart); }
+	if (self.myMut == None) { self.SetIntPropertyByName(name(Repl("CTFCapturesToWin", ".", "_")), class'MutCMenu'.default.CTFCapturesToWin); }
+	else { self.SetIntPropertyByName(name(Repl("CTFCapturesToWin", ".", "_")), MutCMenu(myMut).CTFCapturesToWin); }
+	if (self.myMut == None) { self.SetIntPropertyByName(name(Repl("BombAttackers", ".", "_")), class'MutCMenu'.default.BombAttackers); }
+	else { self.SetIntPropertyByName(name(Repl("BombAttackers", ".", "_")), MutCMenu(myMut).BombAttackers); }
+	if (self.myMut == None) { self.SetIntPropertyByName(name(Repl("BombPlantSeconds", ".", "_")), class'MutCMenu'.default.BombPlantSeconds); }
+	else { self.SetIntPropertyByName(name(Repl("BombPlantSeconds", ".", "_")), MutCMenu(myMut).BombPlantSeconds); }
+	if (self.myMut == None) { self.SetIntPropertyByName(name(Repl("BombDefuseSeconds", ".", "_")), class'MutCMenu'.default.BombDefuseSeconds); }
+	else { self.SetIntPropertyByName(name(Repl("BombDefuseSeconds", ".", "_")), MutCMenu(myMut).BombDefuseSeconds); }
+	if (self.myMut == None) { self.SetIntPropertyByName(name(Repl("BombFuseSeconds", ".", "_")), class'MutCMenu'.default.BombFuseSeconds); }
+	else { self.SetIntPropertyByName(name(Repl("BombFuseSeconds", ".", "_")), MutCMenu(myMut).BombFuseSeconds); }
+	if (self.myMut == None) { self.SetIntPropertyByName(name(Repl("BombRoundMinutes", ".", "_")), class'MutCMenu'.default.BombRoundMinutes); }
+	else { self.SetIntPropertyByName(name(Repl("BombRoundMinutes", ".", "_")), MutCMenu(myMut).BombRoundMinutes); }
+	if (self.myMut == None) { self.SetIntPropertyByName(name(Repl("ConvoyTeam", ".", "_")), class'MutCMenu'.default.ConvoyTeam); }
+	else { self.SetIntPropertyByName(name(Repl("ConvoyTeam", ".", "_")), MutCMenu(myMut).ConvoyTeam); }
+	if (self.myMut == None) { self.SetIntPropertyByName(name(Repl("ConvoyMinutes", ".", "_")), class'MutCMenu'.default.ConvoyMinutes); }
+	else { self.SetIntPropertyByName(name(Repl("ConvoyMinutes", ".", "_")), MutCMenu(myMut).ConvoyMinutes); }
+	if (self.myMut == None) { self.SetIntPropertyByName(name(Repl("GunGameLives", ".", "_")), class'MutCMenu'.default.GunGameLives); }
+	else { self.SetIntPropertyByName(name(Repl("GunGameLives", ".", "_")), MutCMenu(myMut).GunGameLives); }
+	if (self.myMut == None) { self.SetIntPropertyByName(name(Repl("PaintballDamagePercent", ".", "_")), class'MutCMenu'.default.PaintballDamagePercent); }
+	else { self.SetIntPropertyByName(name(Repl("PaintballDamagePercent", ".", "_")), MutCMenu(myMut).PaintballDamagePercent); }
+
+
 }
 
 /**
@@ -180,6 +205,31 @@ function SaveMutSettings()
 	if (self.myMut == None) { self.GetIntPropertyByName(name(Repl("bRebuildLayoutEachRound", ".", "_")), tempValue); class'MutCMenu'.default.bRebuildLayoutEachRound = (self.tempValue != 0); }
 	else { self.GetIntPropertyByName(name(Repl("bRebuildLayoutEachRound", ".", "_")), tempValue); MutCMenu(myMut).bRebuildLayoutEachRound = (self.tempValue != 0); }
 
+	// Game modes
+	if (self.myMut == None) { self.GetIntPropertyByName(name(Repl("GameModeOnStart", ".", "_")), tempValue); class'MutCMenu'.default.GameModeOnStart = Clamp(self.tempValue, 0, 5); }
+	else { self.GetIntPropertyByName(name(Repl("GameModeOnStart", ".", "_")), tempValue); MutCMenu(myMut).GameModeOnStart = Clamp(self.tempValue, 0, 5); }
+	if (self.myMut == None) { self.GetIntPropertyByName(name(Repl("CTFCapturesToWin", ".", "_")), tempValue); class'MutCMenu'.default.CTFCapturesToWin = Max(self.tempValue, 0); }
+	else { self.GetIntPropertyByName(name(Repl("CTFCapturesToWin", ".", "_")), tempValue); MutCMenu(myMut).CTFCapturesToWin = Max(self.tempValue, 0); }
+	if (self.myMut == None) { self.GetIntPropertyByName(name(Repl("BombAttackers", ".", "_")), tempValue); class'MutCMenu'.default.BombAttackers = Clamp(self.tempValue, 0, 1); }
+	else { self.GetIntPropertyByName(name(Repl("BombAttackers", ".", "_")), tempValue); MutCMenu(myMut).BombAttackers = Clamp(self.tempValue, 0, 1); }
+	if (self.myMut == None) { self.GetIntPropertyByName(name(Repl("BombPlantSeconds", ".", "_")), tempValue); class'MutCMenu'.default.BombPlantSeconds = Max(self.tempValue, 0); }
+	else { self.GetIntPropertyByName(name(Repl("BombPlantSeconds", ".", "_")), tempValue); MutCMenu(myMut).BombPlantSeconds = Max(self.tempValue, 0); }
+	if (self.myMut == None) { self.GetIntPropertyByName(name(Repl("BombDefuseSeconds", ".", "_")), tempValue); class'MutCMenu'.default.BombDefuseSeconds = Max(self.tempValue, 0); }
+	else { self.GetIntPropertyByName(name(Repl("BombDefuseSeconds", ".", "_")), tempValue); MutCMenu(myMut).BombDefuseSeconds = Max(self.tempValue, 0); }
+	if (self.myMut == None) { self.GetIntPropertyByName(name(Repl("BombFuseSeconds", ".", "_")), tempValue); class'MutCMenu'.default.BombFuseSeconds = Max(self.tempValue, 0); }
+	else { self.GetIntPropertyByName(name(Repl("BombFuseSeconds", ".", "_")), tempValue); MutCMenu(myMut).BombFuseSeconds = Max(self.tempValue, 0); }
+	if (self.myMut == None) { self.GetIntPropertyByName(name(Repl("BombRoundMinutes", ".", "_")), tempValue); class'MutCMenu'.default.BombRoundMinutes = Max(self.tempValue, 0); }
+	else { self.GetIntPropertyByName(name(Repl("BombRoundMinutes", ".", "_")), tempValue); MutCMenu(myMut).BombRoundMinutes = Max(self.tempValue, 0); }
+	if (self.myMut == None) { self.GetIntPropertyByName(name(Repl("ConvoyTeam", ".", "_")), tempValue); class'MutCMenu'.default.ConvoyTeam = Clamp(self.tempValue, 0, 1); }
+	else { self.GetIntPropertyByName(name(Repl("ConvoyTeam", ".", "_")), tempValue); MutCMenu(myMut).ConvoyTeam = Clamp(self.tempValue, 0, 1); }
+	if (self.myMut == None) { self.GetIntPropertyByName(name(Repl("ConvoyMinutes", ".", "_")), tempValue); class'MutCMenu'.default.ConvoyMinutes = Max(self.tempValue, 0); }
+	else { self.GetIntPropertyByName(name(Repl("ConvoyMinutes", ".", "_")), tempValue); MutCMenu(myMut).ConvoyMinutes = Max(self.tempValue, 0); }
+	if (self.myMut == None) { self.GetIntPropertyByName(name(Repl("GunGameLives", ".", "_")), tempValue); class'MutCMenu'.default.GunGameLives = Max(self.tempValue, 0); }
+	else { self.GetIntPropertyByName(name(Repl("GunGameLives", ".", "_")), tempValue); MutCMenu(myMut).GunGameLives = Max(self.tempValue, 0); }
+	if (self.myMut == None) { self.GetIntPropertyByName(name(Repl("PaintballDamagePercent", ".", "_")), tempValue); class'MutCMenu'.default.PaintballDamagePercent = Clamp(self.tempValue, 0, 100); }
+	else { self.GetIntPropertyByName(name(Repl("PaintballDamagePercent", ".", "_")), tempValue); MutCMenu(myMut).PaintballDamagePercent = Clamp(self.tempValue, 0, 100); }
+
+
     if (self.myMut != None)
 	{
 		MutCMenu(self.myMut).SendClientSettings();
@@ -204,6 +254,7 @@ defaultproperties
     SettingsGroups.Add((GroupID="2",pMin=620,pMax=630,lMin=0,lMax=0))
     SettingsGroups.Add((GroupID="3",pMin=630,pMax=640,lMin=0,lMax=0))
     SettingsGroups.Add((GroupID="4",pMin=640,pMax=650,lMin=0,lMax=0))
+    SettingsGroups.Add((GroupID="5",pMin=650,pMax=670,lMin=0,lMax=0))
 
     // Mod content
     Properties.Add((PropertyId=600,Data=(Type=SDT_Int32,Value1=0)))
@@ -270,4 +321,28 @@ defaultproperties
     PropertyMappings.Add((Id=644,Name="bBuilderZones",MappingType=PVMT_IdMapped,ValueMappings=((Id=0),(Id=1))))
     Properties.Add((PropertyId=645,Data=(Type=SDT_Int32,Value1=0)))
     PropertyMappings.Add((Id=645,Name="bRebuildLayoutEachRound",MappingType=PVMT_IdMapped,ValueMappings=((Id=0),(Id=1))))
+
+    // Game modes
+    Properties.Add((PropertyId=650,Data=(Type=SDT_Int32,Value1=0)))
+    PropertyMappings.Add((Id=650,Name="GameModeOnStart",MappingType=PVMT_IdMapped,ValueMappings=((Id=0),(Id=1),(Id=2),(Id=3),(Id=4),(Id=5))))
+    Properties.Add((PropertyId=651,Data=(Type=SDT_Int32,Value1=0)))
+    PropertyMappings.Add((Id=651,Name="CTFCapturesToWin"))
+    Properties.Add((PropertyId=652,Data=(Type=SDT_Int32,Value1=0)))
+    PropertyMappings.Add((Id=652,Name="BombAttackers",MappingType=PVMT_IdMapped,ValueMappings=((Id=0),(Id=1))))
+    Properties.Add((PropertyId=653,Data=(Type=SDT_Int32,Value1=0)))
+    PropertyMappings.Add((Id=653,Name="BombPlantSeconds"))
+    Properties.Add((PropertyId=654,Data=(Type=SDT_Int32,Value1=0)))
+    PropertyMappings.Add((Id=654,Name="BombDefuseSeconds"))
+    Properties.Add((PropertyId=655,Data=(Type=SDT_Int32,Value1=0)))
+    PropertyMappings.Add((Id=655,Name="BombFuseSeconds"))
+    Properties.Add((PropertyId=656,Data=(Type=SDT_Int32,Value1=0)))
+    PropertyMappings.Add((Id=656,Name="BombRoundMinutes"))
+    Properties.Add((PropertyId=657,Data=(Type=SDT_Int32,Value1=0)))
+    PropertyMappings.Add((Id=657,Name="ConvoyTeam",MappingType=PVMT_IdMapped,ValueMappings=((Id=0),(Id=1))))
+    Properties.Add((PropertyId=658,Data=(Type=SDT_Int32,Value1=0)))
+    PropertyMappings.Add((Id=658,Name="ConvoyMinutes"))
+    Properties.Add((PropertyId=659,Data=(Type=SDT_Int32,Value1=0)))
+    PropertyMappings.Add((Id=659,Name="GunGameLives"))
+    Properties.Add((PropertyId=660,Data=(Type=SDT_Int32,Value1=0)))
+    PropertyMappings.Add((Id=660,Name="PaintballDamagePercent"))
 }

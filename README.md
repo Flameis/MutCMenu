@@ -14,6 +14,7 @@ CMenu is an on-screen menu for drill leaders and admins. It lets you run a drill
 8. Typing commands instead of using the menu
 9. Settings
 10. Works with other mods
+11. Game modes
 
 ---
 
@@ -575,7 +576,7 @@ Commands shared with the Realism Match and Paradrops mutators (`scrimadminlogin`
 
 ## 9. Settings
 
-Set in WebAdmin under **Mutators > MutCMenu Settings**, or in `MutCMenu_Server.ini`. The page has a tab for each group of settings. Each setting has a plain label, on/off settings are **On** and **Off** buttons, and settings with a few fixed values (such as the number of Canberra planes) offer just those. The labels and button names come from the mod's text file in `Localization\INT` (`MutCMenu.int`), which a server needs next to the mod; without it the page shows the setting names below and the buttons have no text. The tabs are **Mod content** (the `bLoad` settings, `bDebugStandalone`, `bNewTankPhys`, `bTankPromptForAll`), **Fire support**, **Overhead map** (spectator view and map drawing, shown as On / Off rather than as the `bDisable` settings), **Capture the Flag** and **Builder** (the rules for matches).
+Set in WebAdmin under **Mutators > MutCMenu Settings**, or in `MutCMenu_Server.ini`. The page has a tab for each group of settings. Each setting has a plain label, on/off settings are **On** and **Off** buttons, and settings with a few fixed values (such as the number of Canberra planes) offer just those. The labels and button names come from the mod's text file in `Localization\INT` (`MutCMenu.int`), which a server needs next to the mod; without it the page shows the setting names below and the buttons have no text. The tabs are **Mod content** (the `bLoad` settings, `bDebugStandalone`, `bNewTankPhys`, `bTankPromptForAll`), **Fire support**, **Overhead map** (spectator view and map drawing, shown as On / Off rather than as the `bDisable` settings), **Capture the Flag**, **Builder** (the rules for matches) and **Game modes**.
 
 | Setting | What it does |
 | :--- | :--- |
@@ -602,6 +603,14 @@ Set in WebAdmin under **Mutators > MutCMenu Settings**, or in `MutCMenu_Server.i
 | `bBuilderBudgets` | Team budgets: pieces cost build points |
 | `BuilderTeamPoints` | Build points per team with team budgets on. 0 means the default, 100 |
 | `bBuilderZones` | Players build only inside their team's build zones (drawn with the Restrict tool) |
+| `GameModeOnStart` | The game mode started with every map: off (the default), Capture the Flag match, bomb, convoy, gun game or paintball. See section 11 |
+| `CTFCapturesToWin` | Capture the Flag match: captures that win the round. 0 means the default, 3 |
+| `BombAttackers` | Bomb: the attacking team, North / Axis (the default) or South / Allies |
+| `BombPlantSeconds`, `BombDefuseSeconds`, `BombFuseSeconds`, `BombRoundMinutes` | Bomb: seconds to plant (5), seconds to defuse (7), seconds before it goes off (40), minutes the attackers have to plant (10). 0 means the default |
+| `ConvoyTeam`, `ConvoyMinutes` | Convoy: the escorting team (North / Axis by default) and its minutes to arrive (0 means 15) |
+| `GunGameLives` | Gun game: lives each per round. 0 means the default, 3 |
+| `GunGameLadder` (ini only) | Gun game: the weapons in order, one class per line, replacing the built-in ladder |
+| `PaintballDamagePercent` | Paintball: how much of its damage a weapon does. 0 means the default, 10 |
 | `bRebuildLayoutEachRound` | The Builder layout loaded on the map is built again at every round start (off by default). See **Layouts** in section 5 |
 | `BuilderCatalogue` (ini only) | The Builder's own list of pieces, replacing the built-in one. See **The piece catalogue** in section 5 |
 | `FSProfiles` (ini only) | The default size of each barrage type: salvos, shells per salvo, spread, time between salvos and delay before the first. The defaults are written the first time the server runs. A type added later (like `MIXED`) is added automatically without touching your values |
@@ -614,6 +623,37 @@ Set in WebAdmin under **Mutators > MutCMenu Settings**, or in `MutCMenu_Server.i
 - **GreenMen (GM):** its Blue Huey, Green Huey and Green Bushranger helicopters can be placed from the Builder.
 - Vehicles from all of these mods can be placed from the Builder.
 - The spectator view, players past 32, objective borders and map drawing work with all of them: CMenu draws them on top of whatever map the mod uses and replaces no HUD.
+
+---
+
+## 11. Game modes
+
+Five modes an admin can run on top of any map, for training nights and fun matches. They play inside the map's own game: objectives, tickets and the map's own timer stay as they are, and a mode can also win the round for a team. Only one runs at a time, and **none runs unless an admin starts one** (or the server sets one to start with every map, `GameModeOnStart`).
+
+Start them from **Game Modes** in the main menu (admins), or with `mutate gamemode --mode ctf` (`bomb`, `convoy`, `gungame`, `paintball`, `off`). Everyone is told when one starts or stops. While one runs, the top of the screen shows its name, its state and the scores, with a line for each player about what to do (their lives, their weapon, their hits). *How the top of the screen looks hasn't been checked by playing.*
+
+| Mode | How it plays |
+| :--- | :--- |
+| **Capture the Flag match** | Place a flag for each team (Builder: Actors, the CTF Flag entries, or `mutate spawnflag --team north`). Carry the enemy flag to your own flag while yours is at home to score; the enemy flag then goes home. Your own flag is never picked up by your team: touching it after it was moved sends it home. The first team to 3 captures (`CTFCapturesToWin`) wins the round |
+| **Bomb plant and defuse** | The attackers (`BombAttackers`) carry the bomb, a satchel worn on the back, to a bomb site and **hold F** inside it for 5 seconds to plant it. The defenders then have 40 seconds to hold F beside it for 7 seconds and defuse it. It goes off: the attackers win. Defused, or 10 minutes pass without a plant: the defenders win. A dropped bomb goes back to the start after 30 seconds. Only attackers can pick it up. The carrier sees a banner saying so |
+| **Convoy** | One team (`ConvoyTeam`) escorts a vehicle to its destination; the other team stops it. Reaching the destination (within 10 m): the escort wins. Destroyed, or 15 minutes pass: the other team wins. Each new round a fresh vehicle of the same kind stands where it was when picked. Draw the route on the map with the drawing tools |
+| **Gun game** | Every life starts with the weapon of your step on the ladder, and each kill of an enemy gives you the next weapon straight away. A kill with the last weapon wins the round for your team. Everyone has 3 lives a round (`GunGameLives`): with none left you are out until the next round, and a team with nobody left loses. Killing yourself or a teammate gives no step |
+| **Paintball** | Weapons do a tenth of their damage (`PaintballDamagePercent`), so it takes many hits to put someone down. Every hit on an enemy is counted: you see your hits and how often you were hit, the best shots show at the top, and the three with the most hits are named at the end of each round |
+
+**Placing the bomb sites and the convoy's destination:** stand on the spot and pick **Bomb Site A Here**, **Bomb Site B Here**, **Bomb Start Here** or **Convoy Destination Here** in the Game Modes menu (or `mutate modepoint --kind sitea`, `siteb`, `bombstart`, `convoy`). Each is a flagpole everyone sees, with its name and distance shown above it. A bomb site counts 6 m around its pole. Placing one again moves it, and **Clear Sites and Destination** (`mutate clearmodepoints`) removes them. Without a bomb start the bomb starts on an attacker's back. For the convoy, place a vehicle (Builder: Vehicles), stand next to it and pick **Convoy Vehicle: Nearest Me** (`mutate convoyvehicle`, after starting the convoy).
+
+**The gun game's ladder:** M60, RPD, M16A1, XM177E1, M14, SKS, PPSh-41, M3A1, M1 Carbine, Mosin-Nagant, IZH-43 shotgun, M1911, TT-33. A server can set its own with `GunGameLadder` lines in `MutCMenu_Server.ini` (one weapon class per line, in order, for example `GunGameLadder=ROGameContent.ROWeap_M16A1_AssaultRifle_Content`).
+
+| Command | What it does |
+| :--- | :--- |
+| `mutate gamemode --mode <name>` | Starts a mode (`ctf`, `bomb`, `convoy`, `gungame`, `paintball`), or `off` to stop it. Admins |
+| `mutate modepoint --kind <kind>` | Places a bomb site (`sitea`, `siteb`), the bomb start (`bombstart`) or the convoy's destination (`convoy`) where you stand |
+| `mutate clearmodepoints` | Removes the sites, the bomb start and the destination |
+| `mutate convoyvehicle` | The vehicle nearest to you (within 30 m) becomes the convoy |
+
+The bomb key is the game's use key (F). A player who uses another key for it can set `BombKey` in `MutCMenu_Client.ini`. The key is only taken while you carry the bomb, or stand by a planted bomb as a defender.
+
+*All five are checked by the test harness on one game (captures, the return rule, damage and hit counts, steps and lives, planting, defusing, the blast, the convoy arriving or being destroyed). They haven't been played with real players yet.*
 
 ---
 

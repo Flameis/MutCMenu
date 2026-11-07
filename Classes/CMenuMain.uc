@@ -9,9 +9,11 @@ function Initialize()
         MenuText.additem("Realism Match Menu");
         MenuText.additem("Paradrop Menu");
         MenuText.additem("Manage Players");
+        MenuText.additem("Game Modes");
         MenuCommand.additem("CMENU CMENUREALISMMATCH");
         MenuCommand.additem("CMENU CMENUPARADROPS");
         MenuCommand.additem("CMENU CMENUPLAYER");
+        MenuCommand.additem("CMENU CMENUGAMEMODES");
     }
 
     if (bIsAuthorized || (MyDA != None && MyDA.bFSPlayersCanCall))

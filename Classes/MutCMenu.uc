@@ -92,6 +92,26 @@ const UNLISTED_PIECE_COST = 5;  // with team budgets on, a mesh that isn't in th
 var config bool                 bRebuildLayoutEachRound; // the layout loaded last on this map is built again at every round start (off: pieces stay as they are)
 var string                      ActiveLayout;       // the layout loaded on this map, "" for none
 
+// Game modes (CMGameMode): played inside the map's own mode, one at a time, started by an admin (mutate gamemode) or
+// at map start. Nothing runs unless one of the two starts it.
+var CMGameMode                  ActiveMode;
+var config int                  GameModeOnStart;    // the mode started when a map starts: MODE_NONE (0, the default), MODE_CTF, ...
+var config int                  CTFCapturesToWin;   // Capture the Flag match: captures that win the round; 0 or missing: 3
+var config int                  BombAttackers;      // bomb: the attacking team, 0 North / Axis (the default), 1 South / Allies
+var config int                  BombPlantSeconds, BombDefuseSeconds, BombFuseSeconds, BombRoundMinutes; // 0 or missing: 5, 7, 40, 10
+var config int                  ConvoyTeam;         // convoy: the escorting team, 0 North (the default), 1 South
+var config int                  ConvoyMinutes;      // 0 or missing: 15
+var config int                  GunGameLives;       // gun game: lives each per round; 0 or missing: 3
+var config array<string>        GunGameLadder;      // gun game: the weapons in order (class names); empty: the built-in ladder
+var config int                  PaintballDamagePercent; // paintball: how much of its damage a weapon does; 0 or missing: 10
+const MODE_NONE = 0;
+const MODE_CTF = 1;
+const MODE_BOMB = 2;
+const MODE_CONVOY = 3;
+const MODE_GUNGAME = 4;
+const MODE_PAINTBALL = 5;
+const NUM_MODES = 6;
+
 // An aircraft strike waiting out its first strike delay
 struct FSPendingStrike
 {
@@ -269,6 +289,8 @@ simulated function NotifyLogout(Controller Exiting)
 
     if (MapManager != None)
         MapManager.RemovePlayer(Exiting);
+    if (ActiveMode != None)
+        ActiveMode.PlayerLeft(Exiting);
 
     // A scrim admin who leaves is logged out
     if (Exiting != None && Exiting.PlayerReplicationInfo != None)
@@ -594,6 +616,14 @@ simulated function Mutate(string mutateString, PlayerController sender)
 
         case "SPAWNOBJ":
             SpawnObjectiveCommand(sender, params);
+            break;
+
+        // Game modes: admins only (checked inside, so a player is told why)
+        case "GAMEMODE":
+        case "MODEPOINT":
+        case "CLEARMODEPOINTS":
+        case "CONVOYVEHICLE":
+            GameModeCommand(sender, command, SplitString(CurrentMutateString, " ", true));
             break;
 
         // Builder layouts: admins only (checked inside, so a player is told why)
@@ -1017,7 +1047,7 @@ function SpawnFlagCommand(PlayerController Sender, array<string> Tokens)
             Loc = ViewLoc + vector(ViewRot) * 100;
     }
 
-    PlaceFlag(Sender, Loc, Faction, !class'CmdOptions'.static.Has(Tokens, "nobeam", "n"));
+    PlaceFlag(Sender, Loc, Faction, !class'CmdOptions'.static.Has(Tokens, "nobeam", "n"), (FlagText == "") ? Team : -1);
 }
 
 // north/south, axis/allies, 0/1, and on Winter War maps finnish/soviet. -1 when it is none of them
@@ -1043,7 +1073,7 @@ function string FlagTeamChoices()
 
 // Places a flag of that faction just above Loc, and it falls to the ground. Used by spawnflag and the Builder's Actors
 // menu.
-function CMAFlag PlaceFlag(PlayerController Sender, vector Loc, int Faction, optional bool bBeam = true)
+function CMAFlag PlaceFlag(PlayerController Sender, vector Loc, int Faction, optional bool bBeam = true, optional int FlagTeam = -1)
 {
     local CMAFlag F;
     local DummyActor DA;
@@ -1059,6 +1089,7 @@ function CMAFlag PlaceFlag(PlayerController Sender, vector Loc, int Faction, opt
     }
 
     F.MyMut = self;
+    F.FlagTeam = FlagTeam;
     F.PlacerID = (Sender.PlayerReplicationInfo != None) ? Sender.PlayerReplicationInfo.PlayerID : -1;
     DA = FindDummyActor(Sender);
     if (DA != None)
@@ -1223,6 +1254,15 @@ function bool CommandOptions(string Command, out string Known)
         case "LOADLAYOUT":
         case "DELETELAYOUT":
             Known = "name/n";
+            return true;
+        case "GAMEMODE":
+            Known = "mode/m";
+            return true;
+        case "MODEPOINT":
+            Known = "kind/k";
+            return true;
+        case "CLEARMODEPOINTS":
+        case "CONVOYVEHICLE":
             return true;
         case "LAYOUTS":
             return true;
@@ -1847,8 +1887,16 @@ function DummyActor FindDummyActorAny()
 function Reset()
 {
     super.Reset();
+    if (ActiveMode != None)
+        SetTimer(0.6, false, 'ResetGameMode');
     if (bRebuildLayoutEachRound && ActiveLayout != "")
         SetTimer(0.5, false, 'RebuildLayout');
+}
+
+function ResetGameMode()
+{
+    if (ActiveMode != None)
+        ActiveMode.RoundReset();
 }
 
 function RebuildLayout()
@@ -3501,7 +3549,183 @@ function NetDamage(int OriginalDamage, out int Damage, Pawn Injured, Controller 
         }
     }
 
+    if (ActiveMode != None)
+        ActiveMode.NetDamage(OriginalDamage, Damage, Injured, InstigatedBy, HitLocation, Momentum, DamageType, DamageCauser);
+
     super.NetDamage(OriginalDamage, Damage, Injured, InstigatedBy, HitLocation, Momentum, DamageType, DamageCauser);
+}
+
+// A death the game is about to let happen goes to the game mode (gun game: lives and steps)
+function bool PreventDeath(Pawn Killed, Controller Killer, class<DamageType> DamageType, vector HitLocation)
+{
+    if (super.PreventDeath(Killed, Killer, DamageType, HitLocation))
+        return true;
+    if (ActiveMode != None)
+        ActiveMode.PlayerDied(Killed, Killer, DamageType);
+    return false;
+}
+
+function ModifyPlayer(Pawn Other)
+{
+    super.ModifyPlayer(Other);
+    if (ActiveMode != None)
+        ActiveMode.ModifyPlayer(Other);
+}
+
+// =================================================================
+// Game modes
+// =================================================================
+
+static function class<CMGameMode> ModeClass(int Mode)
+{
+    switch (Mode)
+    {
+        case MODE_CTF:       return class'CMModeCTF';
+        case MODE_BOMB:      return class'CMModeBomb';
+        case MODE_CONVOY:    return class'CMModeConvoy';
+        case MODE_GUNGAME:   return class'CMModeGunGame';
+        case MODE_PAINTBALL: return class'CMModePaintball';
+    }
+    return None;
+}
+
+// ctf, bomb, convoy, gungame, paintball, off (or the number); -1 when it is none of them
+static function int ParseMode(string S)
+{
+    switch (Caps(S))
+    {
+        case "OFF": case "NONE": case "STOP": case "0":  return MODE_NONE;
+        case "CTF": case "FLAG": case "FLAGS": case "1": return MODE_CTF;
+        case "BOMB": case "2":                           return MODE_BOMB;
+        case "CONVOY": case "3":                         return MODE_CONVOY;
+        case "GUNGAME": case "GUN": case "4":            return MODE_GUNGAME;
+        case "PAINTBALL": case "5":                      return MODE_PAINTBALL;
+    }
+    return -1;
+}
+
+// The mode Mode started (any running one stopped first); MODE_NONE only stops
+function StartGameMode(int Mode)
+{
+    StopGameMode();
+    if (ModeClass(Mode) == None)
+        return;
+    ActiveMode = Spawn(ModeClass(Mode), self);
+    if (ActiveMode == None)
+        return;
+    ActiveMode.Mut = self;
+    ActiveMode.StartMode();
+}
+
+function StopGameMode()
+{
+    if (ActiveMode == None)
+        return;
+    ActiveMode.StopMode();
+    ActiveMode = None;
+}
+
+function int ActiveModeNumber()
+{
+    local int i;
+
+    for (i = 1; i < NUM_MODES; i++)
+    {
+        if (ActiveMode != None && ActiveMode.Class == ModeClass(i))
+            return i;
+    }
+    return MODE_NONE;
+}
+
+// gamemode --mode <ctf|bomb|convoy|gungame|paintball|off>, modepoint --kind <sitea|siteb|bombstart|convoy>, clearmodepoints,
+// convoyvehicle: for admins
+function GameModeCommand(PlayerController PC, string Command, array<string> Tokens)
+{
+    local string Arg;
+    local int Mode, Kind;
+    local CMAModePoint P;
+    local vector Where;
+
+    if (!IsAuthorized(PC))
+    {
+        PrivateMessage(PC, "[CMenu] Only admins can run game modes.");
+        return;
+    }
+    switch (Command)
+    {
+        case "GAMEMODE":
+            Arg = class'CmdOptions'.static.GetOrPositional(Tokens, "mode", "m");
+            Mode = ParseMode(Arg);
+            if (Mode < 0)
+            {
+                PrivateMessage(PC, "[CMenu] Usage: mutate gamemode --mode ctf | bomb | convoy | gungame | paintball | off"
+                    $ (ActiveMode != None ? ". Running: " $ ActiveMode.ModeTitle : ""));
+                return;
+            }
+            if (Mode == MODE_NONE)
+            {
+                if (ActiveMode != None)
+                    WorldInfo.Game.Broadcast(self, "[CMenu] " $ PC.PlayerReplicationInfo.PlayerName $ " stopped " $ ActiveMode.ModeTitle);
+                StopGameMode();
+                return;
+            }
+            StartGameMode(Mode);
+            if (ActiveMode != None)
+                WorldInfo.Game.Broadcast(self, "[CMenu] " $ PC.PlayerReplicationInfo.PlayerName $ " started " $ ActiveMode.ModeTitle);
+            break;
+
+        case "MODEPOINT":
+            Kind = class'CMAModePoint'.static.ParseKind(class'CmdOptions'.static.GetOrPositional(Tokens, "kind", "k"));
+            if (Kind < 0)
+            {
+                PrivateMessage(PC, "[CMenu] Usage: mutate modepoint --kind sitea | siteb | bombstart | convoy   (placed where you stand)");
+                return;
+            }
+            Where = (PC.Pawn != None) ? PC.Pawn.Location - vect(0, 0, 1) * PC.Pawn.GetCollisionHeight() : PC.Location;
+            P = PlaceModePoint(Kind, Where);
+            if (P != None)
+                PrivateMessage(PC, "[CMenu] " $ P.PointLabel $ " placed where you stand.");
+            break;
+
+        case "CLEARMODEPOINTS":
+            foreach DynamicActors(class'CMAModePoint', P)
+                P.Destroy();
+            PrivateMessage(PC, "[CMenu] Bomb sites, the bomb start and the convoy destination removed.");
+            break;
+
+        case "CONVOYVEHICLE":
+            if (CMModeConvoy(ActiveMode) == None)
+            {
+                PrivateMessage(PC, "[CMenu] Start the convoy first: mutate gamemode --mode convoy");
+                return;
+            }
+            Where = (PC.Pawn != None) ? PC.Pawn.Location : PC.Location;
+            if (CMModeConvoy(ActiveMode).PickVehicle(Where, PC))
+                WorldInfo.Game.Broadcast(self, "[CONVOY] The convoy vehicle is set. Each round it starts where it stands now.");
+            else
+                PrivateMessage(PC, "[CMenu] There is no vehicle within 30 m of you. Stand next to the convoy vehicle.");
+            break;
+    }
+}
+
+// A mode's place, on the ground at Where (one of each kind: placing it again moves it)
+function CMAModePoint PlaceModePoint(int Kind, vector Where)
+{
+    local CMAModePoint P;
+
+    foreach DynamicActors(class'CMAModePoint', P)
+    {
+        if (P.PointKind == Kind)
+            P.Destroy();
+    }
+    P = Spawn(class'CMAModePoint',, 'StaticMesh', Where,,, true);
+    if (P == None)
+        return None;
+    P.ServerSetStaticMesh(StaticMesh'ENV_VN_Flags.Meshes.S_VN_Flagpole');
+    P.SetCollision(false, false);
+    P.PointKind = Kind;
+    P.PointLabel = class'CMAModePoint'.static.KindLabel(Kind);
+    return P;
 }
 
 function bool IsInNoArtyVolume(vector Loc)
@@ -3654,6 +3878,8 @@ function LoadObjects()
 
     LoadBuilderMeshes();
     UpdateBuilderInfo();
+    if (GameModeOnStart > MODE_NONE && GameModeOnStart < NUM_MODES)
+        StartGameMode(GameModeOnStart);
     SetTimer(1.0, true, 'UpdateBuilderInfo');
 }
 

@@ -92,6 +92,7 @@ var bool                    bAtHome;        // Where it was placed (and not move
 
 // Server-side
 var int                     PlacerID;       // The PlayerID of whoever placed it (-1 when not known), for the per-player flag limit
+var int                     FlagTeam;       // The team it was placed for (a CTF Flag entry, or --team), -1 for one placed with --flag; the Capture the Flag match uses it
 var MutCMenu                MyMut;          // Its bCTFSilent decides whether pickups and drops are announced
 var vector                  HomeLocation;
 var vector                  LastCarrierLocation;
@@ -389,6 +390,9 @@ function bool CanPickUp(Pawn P)
 
     if (ROPawn(P) == None || !CanKeepCarrying(P))
         return false;
+    // A game mode decides who may take it (Capture the Flag match: not your own team's flag, which you return instead)
+    if (MyMut != None && MyMut.ActiveMode != None && !MyMut.ActiveMode.FlagTouched(self, P))
+        return false;
     if (P == LastDropper && WorldInfo.TimeSeconds < DropperNoPickupUntil)
         return false;
 
@@ -639,6 +643,7 @@ defaultproperties
     CarryBehind=14
 
     bShowBeam=true
+    FlagTeam=-1
 
     // Only world geometry stops it: players walk through it and it doesn't stop bullets
     Begin Object Class=CylinderComponent Name=CollisionCylinder
