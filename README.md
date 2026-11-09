@@ -175,7 +175,8 @@ Open **Builder Menu** from the main menu. You aim at the spot you want, and conf
 | Structures | Copy buildings or whole areas you are aiming at and paste them somewhere else. Select several meshes, copy the selection, remove the last one, or clear the selection. See **Copying and pasting structures** below |
 | Static Meshes | The pieces to build with, in lists: **Sandbags**, **Barbed Wire**, **Bunkers**, **Wood Walls**, **Log Walls** and **Other** (see **The piece catalogue** below). Pick a list, then a piece; **0** goes back to the lists. Also copy, paste and delete single objects. Admins also get **Toggle Collision (Builder Pieces)**, which turns a placed piece's collision off and on again for every player, and **Delete Any Placed Object** |
 | Pickups | Turn a weapon into a pickup on the ground: **Custom** (types `--item ` for you to add the weapon path) or **Copy Held Weapon** (the one in your hands) |
-| Actors | In this order: the **CTF Flag** entries for each team's flag (for example "CTF Flag: PAVN (North)") and **CTF Flag: Command Line**, for everyone, with **Reset Flags** and **Remove Flags** for admins (see below); **Mark Corner** and **Spawn Obj**, which let you draw and place a brand new capture objective of your own, with **Clear Corners**, **Delete Obj** and **Clear Objs** to take them away again; an M2 turret, a DShK turret and an ammo resupply point; **Clear All**, which removes everything you placed, flags included; and last the team spawn points (North and South) and their delete entries |
+| Actors | In this order: **Mark Corner** and **Spawn Obj**, which let you draw and place a brand new capture objective of your own, with **Clear Corners**, **Delete Obj** and **Clear Objs** to take them away again; an M2 turret, a DShK turret and an ammo resupply point; **Clear All**, which removes everything you placed, flags included; and last the team spawn points (North and South) and their delete entries |
+| CTF Flags | Capture the Flag flags, for everyone: a flag for each team (for example "CTF Flag: PAVN (North)"), a **Neutral** flag, the switches for the next flags' options, and **CTF Flag: Command Line**, with **Reset Flags** and **Remove Flags** for admins (see **Capture the Flag flags** below) |
 
 **Placing keys** (while a preview is showing; click to place it, or Alt-click in mouse click mode)
 
@@ -287,23 +288,36 @@ Admins also get "Clear All Vehicles / Meshes / Pickups / Actors" entries to wipe
 
 ### Capture the Flag flags
 
-Anyone can place real flags on a pole for capture the flag drills, from the Builder's Actors menu or with `mutate spawnflag`. Only admins can reset or remove them. Players who are not admins can have up to 4 flags out at once and wait 5 seconds between flags (the settings `CTFMaxFlagsPerPlayer` and `CTFPlaceCooldown` change this). Admins have no limit.
+Anyone can place real flags on a pole for capture the flag drills, from the Builder's **CTF Flags** menu or with `mutate spawnflag`. Only admins can reset or remove them. Players who are not admins can have up to 4 flags out at once and wait 5 seconds between flags (the settings `CTFMaxFlagsPerPlayer` and `CTFPlaceCooldown` change this). Admins have no limit.
 
 - **Picking it up:** any player of either team picks a flag up by walking onto it. They carry it on their back, and everyone else sees it there, including a dead player or spectator watching them in third person. It is only hidden when you look through the carrier's own eyes (the carrier, or someone spectating them in first person), so it does not block the view. Before, a player watching the carrier in third person while dead could not see the flag. *Not yet checked in a game.* One flag per player.
 - **Carrier banner and drop key:** while you carry a flag, a gold banner at the top of your screen says "You are carrying the DAK flag" and which key drops it. The banner is a modest size and scales with your screen resolution. Press **X** to drop it at once. The key does nothing else while you carry no flag. *Fixed:* the banner showed but pressing X did nothing, because the game never passed the key on to it. To use another key, set `DropFlagKey` under `[MutCMenu.FlagCarrierInteraction]` in `MutCMenu_Client.ini` (for example `DropFlagKey=G`).
 - **Dropping it:** the carrier drops it on purpose with the drop key above or with `mutate dropflag` (you can also bind that to a key, for example `setbind G mutate dropflag`). It is thrown a short way forward. Whoever dropped it has to wait 3 seconds before they can pick it up again.
-- **It drops by itself** where the carrier dies (teamkills too), gets into a vehicle or leaves the server.
+- **In a vehicle:** the carrier keeps the flag when they get into a vehicle. Where they can be seen in their seat (a helicopter's doors, for example) it stays on their back; where they can't (inside a tank or an APC) it stands on the vehicle's roof above them, so everyone can see who has it. The drop key and `mutate dropflag` work from the vehicle too; the flag falls from where it rode. A flag is only picked up on foot: driving over one does not take it. *Not yet checked in a game: how the flag looks on top of each vehicle.*
+- **It drops by itself** where the carrier dies (teamkills too, and in a vehicle) or leaves the server.
 - **It never disappears.** A flag that falls out of the map goes back to where it was placed. Every flag also goes back there when the round restarts, or when an admin uses **Reset Flags** (`mutate resetflags`).
 - **Whose flag it is:** every flag belongs to one faction, chosen when it is placed, and keeps it whoever carries it. Anyone can place either team's flag, whichever team they are on.
   - `mutate spawnflag` places your own team's flag.
-  - `--team` places a team's flag: `north`/`south`, `axis`/`allies`, `finnish`/`soviet` or `0`/`1`. A spectator has no team, so they must use `--team` or `--flag`.
+  - `--team` places a team's flag: `north`/`south`, `axis`/`allies`, `finnish`/`soviet` or `0`/`1`. `--team neutral` places the neutral flag. A spectator has no team, so they must use `--team` or `--flag`.
   - `--flag` places exactly the flag you name, even if no team on the map has it (for example `mutate spawnflag --flag dak`). The names are in the table below.
 - **A team's flag** comes from the map. On Vietnam maps it is the map's forces: US Army, USMC, Australian Army, ARVN, PAVN or NLF. On WW2 maps it is the faction most of the team's roles belong to, so a DAK map gives the DAK flag even though it uses Wehrmacht riflemen. On Winter War maps it is the Finnish Army and the Red Army.
+- **The neutral flag** is a plain white flag that belongs to no team, for a flag in the middle that either team can take. It is drawn white on the map.
 - **Team names follow the game:** North and South on Vietnam maps, Axis and Allies on WW2 maps, Finnish and Soviet on Winter War maps. The Builder's entries show the faction and the team, for example "CTF Flag: DAK (Axis)".
-- **Command line entry:** the Builder's **CTF Flag: Command Line** entry skips the preview. It types `mutate spawnflag ` in the console and lists the options (`--team`, `--flag` with every flag name, `--nobeam`) with examples, so you can add them and press Enter. The flag lands where you are looking when you press Enter. Use it for any flag the two team entries can't make, or for a flag without a beam.
+- **Command line entry:** the CTF Flags menu's **CTF Flag: Command Line** entry skips the preview. It types `mutate spawnflag ` in the console (or opens a form in mouse click mode) and lists every option below, with every flag name and examples, so you can add them and press Enter. The flag lands where you are looking when you press Enter. Use it for any flag the menu's entries can't make.
 - **WW2 and Winter War flags on other maps:** placing a WW2 flag needs `bLoadWW2`, and a Winter War flag needs `bLoadWW`, unless the map is from that mod (then its content is already loaded). Vietnam flags never need a setting.
-- **A beam** stands above each flag so it can be found from a distance, whether it is carried or lying on the ground. Place a flag with `--nobeam` to leave it off.
-- **Chat:** placing, pickups, drops, resets and removals are announced with the faction's name, for example "Smith picked up the DAK flag". Turn `bCTFSilent` on (settings page) to stop these announcements.
+- **Chat:** placing, resets and removals are announced with the faction's name, for example "Smith placed the DAK flag". Pickups and drops are only announced for a flag placed with **Announce Pickups** on ("Smith picked up the DAK flag"). Turn `bCTFSilent` on (settings page) to stop every flag announcement.
+
+**Each flag's options.** Every flag is placed with its own options. All of them are **off** unless you turn them on. In the CTF Flags menu they are switches: pick one to change it, and the menu stays open and shows the new setting. They are kept for next time, and apply to the next flags you place from the menu (not to flags already out). On the command line they are options of `mutate spawnflag`.
+
+| Menu switch | Command option | What it does |
+| :--- | :--- | :--- |
+| Beam | `--beam` / `-b` | A beam stands above the flag so it can be found from a distance, carried or on the ground |
+| Announce Pickups | `--announce` / `-a` | Tells the whole server when the flag is picked up or dropped |
+| On Map For | `--map` / `-m` | Which team's players see the flag on their overhead map: nobody (`none`), the North (`north`), the South (`south`) or both teams (`both`). The map's own team names (`axis`, `allies`, `finnish`, `soviet`) and `0` / `1` work too. Spectators always see every flag on their map |
+| Map Timer | `--timer` / `-d` | How long after the match goes **LIVE** before players first see the flag on their map. The menu steps through none, 30 seconds, 1, 2, 5 and 10 minutes; the command takes any number of seconds. With Realism Match's match mode on, LIVE is Realism Match's LIVE; otherwise it is the start of the round. It starts again each round. With no timer the flag shows straight away |
+| On Map While Carried | `--carried` / `-c` | Players also see the flag on their map while someone carries it. Off: they only see it while it is on the ground |
+
+For example: `mutate spawnflag --team neutral --beam --map both --timer 120` places a neutral flag with a beam that both teams see on their map two minutes after LIVE, only while it is on the ground. (`--nobeam` from before still works, but beams are now off unless asked for.) *Not yet checked in a game: how the flags look on players' maps.*
 
 | `--flag` name (other names that work) | Chat name | Flag |
 | :--- | :--- | :--- |
@@ -328,6 +342,7 @@ Anyone can place real flags on a pole for capture the flag drills, from the Buil
 | `snlf` | SNLF | Japanese, WW2 |
 | `finland` (`finnish`, `fin`) | Finnish Army | Finnish, Winter War |
 | `wwredarmy` (`wwsoviet`, `wwussr`) | Red Army | Soviet, Winter War |
+| `neutral` (`white`, `none`) | Neutral | Plain white, no team's |
 
 *Still to be checked in a real game:* how the flag looks on a player's back and on the ground (its size and position), whether the cloth waves, and how the carrier banner looks and reads on screen (the automatic tests only check what it knows and that the key drops the flag). These cannot be checked by the automatic tests.
 
@@ -473,7 +488,7 @@ Use it to show players where they may or may not go. The button under the shapes
 | :--- | :--- |
 | Players | Spectators: every player's icon on the map (and their name under the cursor) |
 | Vehicles | Spectators: vehicles nobody is in |
-| Flags | Spectators: the Capture the Flag flags and who carries them |
+| Flags | The Capture the Flag flags and who carries them. Spectators see every flag; players see the flags placed to show on their team's map (see **Each flag's options** in section 5) |
 | Deaths | Spectators: the death icons where players fell |
 | Teams shown | Spectators: show both teams' drawings, or only North's or only South's (the button uses the map's own team names). Drawings for everyone, for spectators and your own always show |
 | Names | The name shown when the cursor is over a player |
@@ -562,7 +577,7 @@ Commands can be typed in the console as `mutate <command> --option value` (short
 | `deleteobj` | (Admin) Removes one custom objective: the one you look at, or the one named | `--obj/-o <letter or name>` |
 | `clearobjs` | (Admin) Removes every custom objective | none |
 | `clearcorners`, `delnorthspawns`, `delsouthspawns` | Remove your marked corners or custom spawn points | none |
-| `spawnflag` | Places a Capture the Flag flag where you are looking: your team's flag, a team's flag with `--team`, or exactly one flag with `--flag` (see the flag table in section 5). Spectators must use `--team` or `--flag` | `--team/-t` (north, south, axis, allies, finnish, soviet, 0, 1), `--flag/-f <name>`, `--nobeam/-n` |
+| `spawnflag` | Places a Capture the Flag flag where you are looking: your team's flag, a team's flag (or the neutral one) with `--team`, or exactly one flag with `--flag` (see the flag table in section 5), with the flag's own options, all off unless given (see **Each flag's options** in section 5). Spectators must use `--team` or `--flag` | `--team/-t` (north, south, axis, allies, finnish, soviet, 0, 1, neutral), `--flag/-f <name>`, `--beam/-b`, `--announce/-a`, `--map/-m` (north, south, both, none), `--timer/-d <seconds>`, `--carried/-c` |
 | `dropflag` | Drops the flag you are carrying | none |
 | `resetflags` | (Admin) Sends every flag back to where it was placed | none |
 | `removeflags` | (Admin) Removes every flag | none |
@@ -586,7 +601,7 @@ Set in WebAdmin under **Mutators > MutCMenu Settings**, or in `MutCMenu_Server.i
 | `bFSPlayersCanCall` | Let players (not only admins) call fire support |
 | `bFSNoFriendlyFire` | Strikes never hurt the caller's own team. Off by default: the server's friendly fire setting decides |
 | `bFSSilent` | Never announce fire support calls to everyone |
-| `bCTFSilent` | Never announce Capture the Flag flags being placed, picked up, dropped, reset or removed (they are announced when this is off) |
+| `bCTFSilent` | Never announce Capture the Flag flags being placed, picked up, dropped, reset or removed (when this is off, placing, resets and removals are announced, and pickups and drops for flags placed with Announce Pickups) |
 | `CTFMaxFlagsPerPlayer` | How many flags a player who is not an admin can have placed at once. 0 means the default, 4 |
 | `CTFPlaceCooldown` | Seconds a player who is not an admin waits between placing flags. 0 means the default, 5 |
 | `FSPlayerCooldown` | Seconds between player-called strikes for a team (0 = no cooldown). Admins ignore it |

@@ -22,42 +22,8 @@ var bool							bFixedRotation;	// The item is placed facing north whatever way t
 const M2_RAISE = 20;
 const DSHK_RAISE = 60;
 
-// The menu goes: the CTF flags, the custom objectives, the turrets and resupply point, Clear All, then the spawns
-function Initialize()
-{
-	local int At;
-
-	// Capture the Flag flags for either team, labelled with the team's faction ("CTF Flag: DAK (Axis)"), first in the
-	// list. Anyone can place a flag; resetting and removing them is for admins (the server checks again).
-	if (PC != None)
-	{
-		AddEntryAt(At, "CTF Flag: "$FlagEntry(`AXIS_TEAM_INDEX), "CTFFLAGNORTH");
-		AddEntryAt(At, "CTF Flag: "$FlagEntry(`ALLIES_TEAM_INDEX), "CTFFLAGSOUTH");
-		// No preview: types the command in the console with the options explained, for flags the entries above can't make
-		AddEntryAt(At, "CTF Flag: Command Line", "CTFFLAGCMD");
-	}
-	if (bIsAuthorized && PC != None)
-	{
-		AddEntryAt(At, "Reset Flags", "RESETFLAGS");
-		AddEntryAt(At, "Remove Flags", "REMOVEFLAGS");
-	}
-
-	super.Initialize();
-}
-
-// Puts an entry in at At, and moves At on past it
-function AddEntryAt(out int At, string Text, string Command)
-{
-	MenuText.InsertItem(At, Text);
-	MenuCommand.InsertItem(At, Command);
-	At++;
-}
-
-function string FlagEntry(int Team)
-{
-	return class'CMAFlag'.default.Factions[class'CMAFlag'.static.FactionForTeam(PC.WorldInfo, Team)].Label
-		$" ("$class'CMAFlag'.static.TeamWord(PC.WorldInfo, Team)$")";
-}
+// The menu goes: the custom objectives, the turrets and resupply point, Clear All, then the spawns. The Capture the Flag
+// flags have their own menu (CMenuBFlags, which shares this menu's previews).
 
 // ====================================================
 // What each entry previews
@@ -157,26 +123,6 @@ function bool CheckExceptions(string Command)
 			GoToState('ReadyToPlace',, true);
 			return true;
 
-		case "CTFFLAGCMD":
-			PromptForText("CTF Flag|Places a flag where you are looking. Add options after the command, or just press Enter for your own team's flag.|"
-				$"--team / -t : whose flag it is: north, south, axis, allies, finnish, soviet, 0 or 1 (spectators must give --team or --flag)|"
-				$"--flag / -f : exactly one flag by name, even if no team on the map has it. Names: "$class'CMAFlag'.static.FactionNames()$"|"
-				$"--nobeam / -n : leave out the beam above the flag|"
-				$"Example: --team south|Example: --flag dak|Example: --flag ss --nobeam|Example: -t 1 -n|"
-				$"WW2 and Winter War flags on a map from another game need bLoadWW2 / bLoadWW.", "mutate spawnflag ", , "team,flag,nobeam!");
-			return true;
-
-		case "CTFFLAGNORTH":
-		case "CTFFLAGSOUTH":
-			// The flag drops onto the ground, so it stands on the bottom of its collision, and is placed facing north
-			StartParts();
-			bFixedRotation = true;
-			AddComponentPart(class'CMAFlag'.default.PoleMesh, CylinderComponent(class'CMAFlag'.default.CollisionComponent).CollisionHeight);
-			AddComponentPart(class'CMAFlag'.default.FlagMesh, CylinderComponent(class'CMAFlag'.default.CollisionComponent).CollisionHeight);
-			SpawnTeamIndex = (Command ~= "CTFFLAGNORTH") ? `AXIS_TEAM_INDEX : `ALLIES_TEAM_INDEX;
-			GoToState('ReadyToPlace',, true);
-			return true;
-
 		case "RESUPPLYPOINT":
 			StartParts();
 			for (i = 0; i < class'CMAResupplyPoint'.default.StaticMeshComponents.Length; i++)
@@ -214,11 +160,6 @@ function DoPlace()
 		case "RESUPPLYPOINT":
 			// Through the server: spawned here, it only ever existed on this player's screen
 			MyDA.SpawnActor(class'CMAResupplyPoint',, 'ResupplyPoint', PlaceLoc, PlaceRot,, true);
-			return;
-
-		case "CTFFLAGNORTH":
-		case "CTFFLAGSOUTH":
-			MyDA.ServerPlaceFlag(PlaceLoc, SpawnTeamIndex);
 			return;
 	}
 }
@@ -326,7 +267,6 @@ defaultproperties
 
 	bCanScale=false // Actors are always placed at their own size
 
-	// The CTF flag entries go in front of these (Initialize)
 	MenuText.Add("Mark Corner")
 	MenuText.Add("Spawn Obj")
 	MenuText.Add("Clear Corners")

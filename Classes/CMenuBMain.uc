@@ -9,10 +9,12 @@ defaultproperties
     MenuText.add("VEHICLES")
     MenuText.add("PICKUPS")
     MenuText.add("ACTORS")
+    MenuText.add("CTF FLAGS")
     
     MenuCommand.add("CMENU CMENUBMESHES")
     MenuCommand.add("CMENU CMenuBStructures")
     MenuCommand.add("CMENU CMENUBVEHICLES")
     MenuCommand.add("CMENU CMenuBPickups")
     MenuCommand.add("CMENU CMENUBACTORS")
+    MenuCommand.add("CMENU CMENUBFLAGS")
 }

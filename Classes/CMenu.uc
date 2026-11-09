@@ -29,6 +29,7 @@ const STYLE_GLOW = 1;
 const STYLE_SOLID = 2;
 var string MenuName, TargetName, MenuBorderLengthString, LastCmd;
 var bool bIsAuthorized;
+var bool bStayOpen; // set by an entry the menu handles itself (an on/off switch) to keep the menu open after it, once
 var int MenuPage, MenuHeight;
 var float MenuScale; // From the last frame drawn; 1 until then
 // Mouse click mode: the menu keeps its own pointer, moved by the mouse and drawn by this interaction (no UI scene)
@@ -352,10 +353,13 @@ function bool SelectLine(int NumKey)
 		Command = MenuCommand[IniLine];
 		LastCmd	= Command;
 
+		bStayOpen = false;
 		if (CheckExceptions(Command)) //Check for any exceptions in child classes
 		{
-			// Close Menu, unless the command is waiting for something: a form to be filled in, or a Builder item to be placed
-			if (!bKeepOpen && !IsInState('FormVisible') && !IsInState('ReadyToPlace')) GotoState('');
+			// Close Menu, unless the command is waiting for something: a form to be filled in, or a Builder item to be
+			// placed; or it was a switch, which shows its new setting in the menu
+			if (!bKeepOpen && !bStayOpen && !IsInState('FormVisible') && !IsInState('ReadyToPlace')) GotoState('');
+			bStayOpen = false;
 			return true;
 		}
 		PC.ConsoleCommand("mutate "$Command); //Execute Command
@@ -389,6 +393,7 @@ function OpenParentMenu()
 		case "OBJECTIVES": ParentMenu = "CMENUREALISMMATCH"; break;
 		case "TEAMS AND WEAPONS": ParentMenu = "CMENUREALISMMATCH"; break;
 		case "ACTORS": ParentMenu = "CMENUBMAIN"; break;
+		case "CTF FLAGS": ParentMenu = "CMENUBMAIN"; break;
 		case "STATIC MESHES": ParentMenu = "CMENUBMAIN"; break;
 		case "STRUCTURES": ParentMenu = "CMENUBMAIN"; break;
 		case "VEHICLES": ParentMenu = "CMENUBMAIN"; break;

@@ -88,7 +88,7 @@ const CTX_MORE = 13;
 // The kinds of map icon the Map icons menu shows and hides
 const MAPICON_PLAYERS = 0;  // spectators: every player
 const MAPICON_VEHICLES = 1; // spectators: vehicles nobody is in
-const MAPICON_FLAGS = 2;    // spectators: Capture the Flag flags
+const MAPICON_FLAGS = 2;    // Capture the Flag flags (spectators all; players those placed to show on their map)
 const MAPICON_DEATHS = 3;   // spectators: death icons
 const MAPICON_BORDERS = 4;  // everyone: custom objective borders
 
@@ -1633,8 +1633,8 @@ event PostRender(Canvas C)
     DrawSpotMarks(C, PC);
     if (Info.bSpectating == bSpectatorView)
         DrawSnapshotOnMap(C, H, bSpectatorView);
-    if (bSpectatorView && MapIconShown(MAPICON_FLAGS))
-        DrawFlagsOnMap(C, H);
+    if (MapIconShown(MAPICON_FLAGS))
+        DrawFlagsOnMap(C, H, bSpectatorView);
     PopLayer(C);
 
     // The name of the player under the cursor, whether or not drawing is on
@@ -2464,6 +2464,12 @@ function DrawToolbar(Canvas C, PlayerController PC)
         AddButton(X, Y, BtnW, BtnH, A_PLAYER_NAMES, 0, "Names", !bNoPlayerNames);
         AddButton(X + BtnW + Gap, Y, BtnW, BtnH, A_MAP_ICON, MAPICON_BORDERS, MapIconName(MAPICON_BORDERS), MapIconShown(MAPICON_BORDERS));
         Y += BtnH + Gap;
+        // Players see only the flags placed to show on their team's map (spectators have the button above)
+        if (PRI == None || !PRI.bOnlySpectator)
+        {
+            AddButton(X, Y, Inner, BtnH, A_MAP_ICON, MAPICON_FLAGS, MapIconName(MAPICON_FLAGS), MapIconShown(MAPICON_FLAGS));
+            Y += BtnH + Gap;
+        }
     }
     Y += Gap;
     MarkArmedButton(PC);
@@ -2922,8 +2928,9 @@ static function string FlagStatus(CMAFlag F)
     return "dropped";
 }
 
-// Spectators: every Capture the Flag flag, wherever it is and whoever's team could see it, with what is happening to it
-function DrawFlagsOnMap(Canvas C, ROHUD H)
+// Capture the Flag flags, with what is happening to them. Spectators see every flag; a player sees the flags placed to
+// show on their team's map, once their timer is up, and while carried only if the flag is shown then too.
+function DrawFlagsOnMap(Canvas C, ROHUD H, bool bSpectatorView)
 {
     local PlayerController PC;
     local CMAFlag F;
@@ -2938,6 +2945,8 @@ function DrawFlagsOnMap(Canvas C, ROHUD H)
     foreach PC.DynamicActors(class'CMAFlag', F)
     {
         if (F.bDeleteMe || F.Location.X < MinWX || F.Location.X > MaxWX || F.Location.Y < MinWY || F.Location.Y > MaxWY)
+            continue;
+        if (!bSpectatorView && !F.OnTeamMap(PC.GetTeamNum()))
             continue;
 
         Team = FlagTeam(PC.WorldInfo, F.Faction);

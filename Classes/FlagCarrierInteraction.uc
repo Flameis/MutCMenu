@@ -31,7 +31,7 @@ function UpdateCarried()
     if (PC.WorldInfo.TimeSeconds < NextCheckTime)
     {
         // Between looks the flag is only kept while it is still carried by this player
-        if (Carried != None && (Carried.bDeleteMe || Carried.Carrier != PC.Pawn))
+        if (Carried != None && (Carried.bDeleteMe || !Carried.IsCarriedBy(PC.Pawn)))
             Carried = None;
         return;
     }
@@ -42,7 +42,7 @@ function UpdateCarried()
 
     foreach PC.DynamicActors(class'CMAFlag', F)
     {
-        if (F.Carrier == PC.Pawn)
+        if (F.IsCarriedBy(PC.Pawn)) // on foot, or the vehicle or seat they are in
         {
             Carried = F;
             return;

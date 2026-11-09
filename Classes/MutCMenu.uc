@@ -70,6 +70,7 @@ var config bool                 bKeepMapDrawingsBetweenRounds; // Keep drawings 
 var config int                  MaxMapDrawingsPerPlayer;       // Drawings one player can have at once before their oldest goes; 0 or missing means 60
 var config int                  CTFMaxFlagsPerPlayer;          // Flags one player (not an admin) can have placed at once; 0 or missing means 4
 var config int                  CTFPlaceCooldown;              // Seconds a player (not an admin) waits between placing flags; 0 or missing means 5
+var float                       LiveSince;                     // When the match went live (LiveFor), -1 while it isn't
 var CMMapManager                MapManager;
 var config array<BuilderPiece>  BuilderCatalogue;   // The Builder's pieces (Static Meshes menu); empty or missing: the built-in list (CMBuilderCatalogue)
 var array<StaticMesh>           BuilderMeshes;      // the catalogue's meshes, loaded when the map starts so placing one doesn't stall the server
@@ -956,17 +957,37 @@ function string ObjectiveOwnerWord(ROObjective O)
 // =================================================================
 // Capture the Flag flags (CMAFlag)
 // =================================================================
-// mutate spawnflag [--team <team>] [--flag <faction>] [--nobeam] (-t, -f, -n): a flag where the sender is looking. Anyone can place one. It shows
-// the flag of the sender's team, the team named with --team (north/south, axis/allies, finnish/soviet or 0/1, so either
-// team's flag can be placed), or exactly the faction named with --flag. A spectator has no team, so they name one.
+// mutate spawnflag [--team <team>] [--flag <faction>] [--beam] [--announce] [--map <teams>] [--timer <seconds>] [--carried]
+// (-t, -f, -b, -a, -m, -d, -c): a flag where the sender is looking. Anyone can place one. It shows the flag of the sender's
+// team, the team named with --team (north/south, axis/allies, finnish/soviet, 0/1 or neutral, so any team's flag can be
+// placed), or exactly the faction named with --flag. A spectator has no team, so they name one. The rest are the flag's own
+// options, all off unless given: --beam a beam above it, --announce pickups and drops told to the server, --map which
+// team's players see it on their map (north, south, both or none), --timer how long after the match goes live they first
+// see it there, --carried that they see it there while it is carried too. (--nobeam is still taken, from before beams were
+// off by default.)
 function SpawnFlagCommand(PlayerController Sender, array<string> Tokens)
 {
     local vector ViewLoc, HitLoc, HitNorm, Loc;
     local rotator ViewRot;
-    local string TeamText, FlagText;
-    local int Team, Faction;
+    local string TeamText, FlagText, MapText;
+    local int Team, Faction, MapTeams;
 
+    MapTeams = 0;
+    MapText = class'CmdOptions'.static.Get(Tokens, "map", "m");
+    if (MapText != "")
+    {
+        MapTeams = ParseFlagMapTeams(MapText);
+        if (MapTeams < 0)
+        {
+            PrivateMessage(Sender, "[CMenu] --map takes "$FlagMapChoices()$" (whose players see the flag on their map)");
+            return;
+        }
+    }
+
+    TeamText = class'CmdOptions'.static.GetOrPositional(Tokens, "team", "t");
     FlagText = class'CmdOptions'.static.Get(Tokens, "flag", "f");
+    if (FlagText == "" && TeamText ~= "neutral")
+        FlagText = "neutral";
     if (FlagText != "")
     {
         Faction = class'CMAFlag'.static.FindFaction(FlagText);
@@ -979,7 +1000,6 @@ function SpawnFlagCommand(PlayerController Sender, array<string> Tokens)
     else
     {
         Team = Sender.GetTeamNum();
-        TeamText = class'CmdOptions'.static.GetOrPositional(Tokens, "team", "t");
         if (TeamText != "")
             Team = ParseFlagTeam(TeamText);
 
@@ -988,7 +1008,7 @@ function SpawnFlagCommand(PlayerController Sender, array<string> Tokens)
             if (TeamText == "")
                 PrivateMessage(Sender, "[CMenu] You are not on a team: say whose flag it is with --team "$FlagTeamChoices()$", or pick one with --flag");
             else
-                PrivateMessage(Sender, "[CMenu] Usage: mutate spawnflag [--team "$FlagTeamChoices()$"] [--flag <name>] [--nobeam]");
+                PrivateMessage(Sender, "[CMenu] Usage: mutate spawnflag [--team "$FlagTeamChoices()$"|neutral] [--flag <name>] [--beam] [--announce] [--map "$FlagMapChoices()$"] [--timer <seconds>] [--carried]");
             return;
         }
         Faction = class'CMAFlag'.static.FactionForTeam(WorldInfo, Team);
@@ -1017,7 +1037,65 @@ function SpawnFlagCommand(PlayerController Sender, array<string> Tokens)
             Loc = ViewLoc + vector(ViewRot) * 100;
     }
 
-    PlaceFlag(Sender, Loc, Faction, !class'CmdOptions'.static.Has(Tokens, "nobeam", "n"));
+    PlaceFlag(Sender, Loc, Faction, class'CmdOptions'.static.Has(Tokens, "beam", "b") && !class'CmdOptions'.static.Has(Tokens, "nobeam", "n"),
+        class'CmdOptions'.static.Has(Tokens, "announce", "a"), MapTeams, int(class'CmdOptions'.static.Get(Tokens, "timer", "d")),
+        class'CmdOptions'.static.Has(Tokens, "carried", "c"));
+}
+
+// --map: north, south, both or none (the map's own team words and 0 / 1 too). -1 when it is none of them
+function int ParseFlagMapTeams(string Text)
+{
+    switch (Caps(Text))
+    {
+        case "BOTH":
+        case "ALL":
+            return class'CMAFlag'.const.MAP_BOTH;
+        case "NONE":
+        case "OFF":
+            return class'CMAFlag'.const.MAP_NONE;
+    }
+    switch (ParseFlagTeam(Text))
+    {
+        case `AXIS_TEAM_INDEX:
+            return class'CMAFlag'.const.MAP_NORTH;
+        case `ALLIES_TEAM_INDEX:
+            return class'CMAFlag'.const.MAP_SOUTH;
+    }
+    return -1;
+}
+
+function string FlagMapChoices()
+{
+    return Locs(class'CMAFlag'.static.TeamWord(WorldInfo, `AXIS_TEAM_INDEX))$"|"$Locs(class'CMAFlag'.static.TeamWord(WorldInfo, `ALLIES_TEAM_INDEX))$"|both|none";
+}
+
+// Whether the match is live: Realism Match's LIVE when its match mode is on, otherwise the round having started
+function bool MatchIsLive()
+{
+    local MutRealismMatch RM;
+
+    RM = FindRealismMatch();
+    if (RM != None && RM.bMatchEnabled)
+        return RM.bMatchLive;
+    return ROGameInfo(WorldInfo.Game) != None && ROGameInfo(WorldInfo.Game).bRoundHasBegun;
+}
+
+// Seconds since the match went live, -1 when it isn't. The flags ask every second, so it is noticed going live within a
+// second (Realism Match's LIVE); a round start without Realism Match is the game's own round start time.
+function float LiveFor()
+{
+    if (!MatchIsLive())
+    {
+        LiveSince = -1;
+        return -1;
+    }
+    if (LiveSince < 0)
+    {
+        LiveSince = WorldInfo.TimeSeconds;
+        if (FindRealismMatch() == None || !FindRealismMatch().bMatchEnabled)
+            LiveSince = FMin(LiveSince, ROGameInfo(WorldInfo.Game).RoundStartTime);
+    }
+    return WorldInfo.TimeSeconds - LiveSince;
 }
 
 // north/south, axis/allies, 0/1, and on Winter War maps finnish/soviet. -1 when it is none of them
@@ -1041,9 +1119,10 @@ function string FlagTeamChoices()
     return Locs(class'CMAFlag'.static.TeamWord(WorldInfo, `AXIS_TEAM_INDEX))$"|"$Locs(class'CMAFlag'.static.TeamWord(WorldInfo, `ALLIES_TEAM_INDEX))$"|0|1";
 }
 
-// Places a flag of that faction just above Loc, and it falls to the ground. Used by spawnflag and the Builder's Actors
-// menu.
-function CMAFlag PlaceFlag(PlayerController Sender, vector Loc, int Faction, optional bool bBeam = true)
+// Places a flag of that faction just above Loc, and it falls to the ground, with its own options (see SpawnFlagCommand).
+// Used by spawnflag and the Builder's CTF Flags menu.
+function CMAFlag PlaceFlag(PlayerController Sender, vector Loc, int Faction, optional bool bBeam, optional bool bAnnounce,
+    optional int MapTeams, optional int MapDelay, optional bool bMapWhileCarried)
 {
     local CMAFlag F;
     local DummyActor DA;
@@ -1064,6 +1143,8 @@ function CMAFlag PlaceFlag(PlayerController Sender, vector Loc, int Faction, opt
     if (DA != None)
         DA.LastFlagTime = WorldInfo.TimeSeconds;
     F.SetBeam(bBeam);
+    F.bAnnounce = bAnnounce;
+    F.SetMapOptions(MapTeams, MapDelay, bMapWhileCarried);
     F.SetFaction(Faction);
     F.SetPhysics(PHYS_Falling);
 
@@ -1142,14 +1223,14 @@ function FlagAnnounce(string Msg)
         WorldInfo.Game.Broadcast(self, "[CMenu] "$Msg);
 }
 
-// mutate dropflag: anyone carrying a flag throws it down in front of them
+// mutate dropflag: anyone carrying a flag throws it down in front of them (from a vehicle too)
 function DropFlagCommand(PlayerController Sender)
 {
     local CMAFlag F;
 
     foreach DynamicActors(class'CMAFlag', F)
     {
-        if (F.Carrier != None && F.Carrier == Sender.Pawn)
+        if (F.IsCarriedBy(Sender.Pawn))
         {
             F.Drop(true);
             return;
@@ -1230,7 +1311,7 @@ function bool CommandOptions(string Command, out string Known)
             Known = "obj/o";
             return true;
         case "SPAWNFLAG":
-            Known = "team/t flag/f nobeam/n";
+            Known = "team/t flag/f beam/b announce/a map/m timer/d carried/c nobeam/n";
             return true;
         case "CMENUPCMANAGER":
         case "KILLPLAYER":
@@ -3730,4 +3811,5 @@ function int AddSharedContent(string Path)
 
 defaultproperties
 {
+    LiveSince=-1
 }

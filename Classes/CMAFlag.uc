@@ -1,7 +1,10 @@
 // Capture the Flag flag: a physical flag on a pole that anyone can pick up by walking over it. It rides on the carrier's
-// back, is dropped on purpose with "mutate dropflag", and is dropped where its carrier dies, gets into a vehicle or leaves.
-// It never despawns, goes back to where it was placed when the round restarts or it falls out of the map, and shows a beam
-// so it can be found.
+// back, and stays with them in a vehicle (on top of the vehicle when they can't be seen in their seat). It is dropped on
+// purpose with "mutate dropflag", and is dropped where its carrier dies or leaves.
+// It never despawns and goes back to where it was placed when the round restarts or it falls out of the map.
+// Each flag is placed with its own options (all off unless asked for): a beam above it so it can be found, pickups and
+// drops announced to the server, and which team's players see it on their map (after a timer from the match going live,
+// and only on the ground unless it is also shown while carried). Spectators always see every flag on their map.
 // Each flag belongs to one faction (Factions: US Army, USMC, DAK, ...), chosen when it is placed and kept whoever carries
 // it. A team's faction comes from the map: its forces on a Vietnam map, its roles on a WW2 or Winter War map. Every flag
 // material used here fits the game's own waving flag mesh (S_VN_Flag_*, the same mesh as WW2's S_Jap_flag), so only the
@@ -25,6 +28,7 @@ const STYLE_GERMANY_SWASTIKA = 11;
 const STYLE_FINLAND = 12;
 const STYLE_WW_USSR = 13;
 const STYLE_FRANCE = 14;
+const STYLE_NEUTRAL = 15;
 
 // Indexes into Factions
 const FAC_US_ARMY = 0;
@@ -48,6 +52,13 @@ const FAC_SNLF = 17;
 const FAC_FINLAND = 18;
 const FAC_WW_RED_ARMY = 19;
 const FAC_FRANCE = 20;
+const FAC_NEUTRAL = 21;     // no team's: a plain white flag
+
+// MapTeams: whose players see the flag on their map (bits, so 3 is both)
+const MAP_NONE = 0;
+const MAP_NORTH = 1;
+const MAP_SOUTH = 2;
+const MAP_BOTH = 3;
 
 // Which game the map is from, by its roles
 const MOD_VN = 0;
@@ -90,9 +101,17 @@ var int                     Faction;
 var PlayerReplicationInfo   CarrierPRI;
 var bool                    bAtHome;        // Where it was placed (and not moved since)
 
+// Players' maps (not spectators'): which teams see it (MAP_ bits), whether it is shown while carried or only on the
+// ground, and whether its timer has run out (or it has none)
+var byte                    MapTeams;
+var bool                    bMapWhileCarried;
+var bool                    bMapTimeUp;
+
 // Server-side
 var int                     PlacerID;       // The PlayerID of whoever placed it (-1 when not known), for the per-player flag limit
-var MutCMenu                MyMut;          // Its bCTFSilent decides whether pickups and drops are announced
+var MutCMenu                MyMut;          // Its bCTFSilent silences every flag message
+var bool                    bAnnounce;      // Pickups and drops are told to the whole server (--announce)
+var int                     MapDelay;       // Seconds after the match goes live before players' maps show it (--timer)
 var vector                  HomeLocation;
 var vector                  LastCarrierLocation;
 var Pawn                    LastDropper;
@@ -110,7 +129,7 @@ var bool                    bHiddenFromView; // Client-side: hidden because this
 replication
 {
     if (bNetDirty && Role == ROLE_Authority)
-        Carrier, FlagStyle, bShowBeam, Faction, CarrierPRI, bAtHome;
+        Carrier, FlagStyle, bShowBeam, Faction, CarrierPRI, bAtHome, MapTeams, bMapWhileCarried, bMapTimeUp;
 }
 
 simulated function PostBeginPlay()
@@ -122,7 +141,35 @@ simulated function PostBeginPlay()
         HomeLocation = Location;
         bAtHome = true;
         SetTimer(0.2, true, 'CheckPickup');
+        SetTimer(1.0, true, 'UpdateMapTime');
+        UpdateMapTime();
     }
+}
+
+// Players' maps: what this flag shows on them. The timer counts from the match going live (Realism Match's LIVE, or the
+// round starting without it) and starts again each round; with no timer it is shown all the time.
+function SetMapOptions(byte NewTeams, int NewDelay, bool bWhileCarried)
+{
+    MapTeams = NewTeams & MAP_BOTH;
+    MapDelay = Max(NewDelay, 0);
+    bMapWhileCarried = bWhileCarried;
+    UpdateMapTime();
+}
+
+function UpdateMapTime()
+{
+    if (MapDelay <= 0)
+        bMapTimeUp = true;
+    else
+        bMapTimeUp = MyMut != None && MyMut.LiveFor() >= MapDelay;
+}
+
+// Whether a player on Team sees this flag on their map now (spectators see every flag whatever this says)
+simulated function bool OnTeamMap(int Team)
+{
+    if (Team < 0 || Team > 1 || (MapTeams & (1 << Team)) == 0 || !bMapTimeUp)
+        return false;
+    return CarrierPRI == None || bMapWhileCarried;
 }
 
 simulated event ReplicatedEvent(name VarName)
@@ -201,10 +248,40 @@ simulated function bool SeenThroughCarrier()
         return false;
     foreach LocalPlayerControllers(class'PlayerController', PC)
     {
-        if (PC.ViewTarget == Carrier && PC.UsingFirstPersonCamera())
+        if (!PC.UsingFirstPersonCamera())
+            continue;
+        if (PC.ViewTarget == Carrier)
+            return true;
+        // In a seat where they can be seen the flag is on their back, so it is in front of their own eyes there too
+        if (Carrier.DrivenVehicle != None && PC.ViewTarget == Carrier.DrivenVehicle && !OnVehicleRoof())
             return true;
     }
     return false;
+}
+
+// The vehicle the carrier is in (the vehicle itself for a passenger's seat), or None on foot
+simulated function Vehicle CarrierVehicle()
+{
+    local Vehicle V;
+
+    if (Carrier == None)
+        return None;
+    V = Carrier.DrivenVehicle;
+    if (ROWeaponPawn(V) != None && ROWeaponPawn(V).MyVehicle != None)
+        return ROWeaponPawn(V).MyVehicle;
+    return V;
+}
+
+// In a vehicle with the carrier hidden in their seat (a tank's crew), the flag stands on top of the vehicle
+simulated function bool OnVehicleRoof()
+{
+    return Carrier != None && Carrier.DrivenVehicle != None && (Carrier.bHidden || Carrier.Mesh == None || Carrier.Mesh.HiddenGame);
+}
+
+// Whether P carries this flag: the carrier themselves, or the vehicle or seat they are in (which is a player's pawn there)
+simulated function bool IsCarriedBy(Pawn P)
+{
+    return P != None && Carrier != None && (Carrier == P || Carrier.DrivenVehicle == P);
 }
 
 simulated function UpdateVisibility()
@@ -387,7 +464,8 @@ function bool CanPickUp(Pawn P)
     local CMAFlag Other;
     local vector Offset;
 
-    if (ROPawn(P) == None || !CanKeepCarrying(P))
+    // Picked up on foot: a vehicle driving over it doesn't take it
+    if (ROPawn(P) == None || P.DrivenVehicle != None || !CanKeepCarrying(P))
         return false;
     if (P == LastDropper && WorldInfo.TimeSeconds < DropperNoPickupUntil)
         return false;
@@ -408,11 +486,15 @@ function bool CanPickUp(Pawn P)
     return true;
 }
 
-// Alive, on foot and still controlled. A pawn that got into a vehicle has no controller and a DrivenVehicle
+// Alive and still controlled, on foot or in a vehicle. A pawn in a vehicle has no controller of its own (the vehicle or
+// seat has it) but has a DrivenVehicle.
 function bool CanKeepCarrying(Pawn P)
 {
-    return P != None && !P.bDeleteMe && P.Health > 0 && P.Controller != None && P.DrivenVehicle == None
-        && P.PlayerReplicationInfo != None;
+    if (P == None || P.bDeleteMe || P.Health <= 0)
+        return false;
+    if (P.DrivenVehicle != None)
+        return !P.DrivenVehicle.bDeleteMe;
+    return P.Controller != None && P.PlayerReplicationInfo != None;
 }
 
 function PickUp(Pawn P)
@@ -425,7 +507,8 @@ function PickUp(Pawn P)
     Velocity = vect(0, 0, 0);
     CarrierChanged();
     FollowCarrier();
-    Announce(P.PlayerReplicationInfo.PlayerName$" picked up the "$Label()$" flag");
+    if (bAnnounce)
+        Announce(P.PlayerReplicationInfo.PlayerName$" picked up the "$Label()$" flag");
 }
 
 // Runs on the server and every client
@@ -440,7 +523,7 @@ simulated event Tick(float DeltaTime)
 {
     super.Tick(DeltaTime);
 
-    // The camera can change to and from the carrier's eyes at any time
+    // The camera can change to and from the carrier's eyes at any time (and the carrier get in and out of a vehicle)
     if (SeenThroughCarrier() != bHiddenFromView)
         UpdateVisibility();
     if (Carrier == None)
@@ -456,13 +539,30 @@ simulated event Tick(float DeltaTime)
 
 // Upright behind the carrier's upper back, cloth trailing. Clients use the animated bone; a dedicated server doesn't
 // animate meshes, so it uses the pawn's position (only the drop point depends on it there).
+// In a vehicle where the carrier is hidden, it stands on the vehicle's roof above their seat.
 simulated function FollowCarrier()
 {
     local vector Loc, X, Y, Z;
     local rotator Facing;
+    local Vehicle V;
 
     if (Carrier == None || Carrier.bDeleteMe)
         return;
+
+    V = CarrierVehicle();
+    if (V != None && OnVehicleRoof())
+    {
+        Facing.Yaw = V.Rotation.Yaw;
+        Loc = Carrier.Location;
+        if (V.Mesh != None)
+            Loc.Z = V.Mesh.Bounds.Origin.Z + V.Mesh.Bounds.BoxExtent.Z;
+        LastCarrierLocation = Loc;
+        // The pole's foot (the bottom of its collision) on the roof
+        SetLocation(Loc + vect(0, 0, 1) * CylinderComponent(CollisionComponent).CollisionHeight);
+        Facing.Yaw += 32768;
+        SetRotation(Facing);
+        return;
+    }
 
     Facing.Yaw = Carrier.Rotation.Yaw;
     GetAxes(Facing, X, Y, Z);
@@ -494,11 +594,15 @@ function Drop(optional bool bThrow)
 
     if (!P.bDeleteMe)
     {
-        LastCarrierLocation = P.Location;
+        // In a vehicle it falls from where it rode (the roof, or the carrier's seat), so not from inside the vehicle
+        if (P.DrivenVehicle == None)
+            LastCarrierLocation = P.Location;
         Facing.Yaw = P.Rotation.Yaw;
         if (P.PlayerReplicationInfo != None)
             Who = P.PlayerReplicationInfo.PlayerName;
     }
+    if (Who == "" && CarrierPRI != None)
+        Who = CarrierPRI.PlayerName;
 
     Carrier = None;
     CarrierPRI = None;
@@ -513,7 +617,8 @@ function Drop(optional bool bThrow)
     Velocity = bThrow ? (X * 250 + vect(0, 0, 200)) : vect(0, 0, 100);
     SetPhysics(PHYS_Falling);
 
-    Announce((Who != "" ? Who : "The carrier")$" dropped the "$Label()$" flag");
+    if (bAnnounce)
+        Announce((Who != "" ? Who : "The carrier")$" dropped the "$Label()$" flag");
 }
 
 simulated event Landed(vector HitNormal, Actor FloorActor)
@@ -592,6 +697,8 @@ defaultproperties
     Styles(STYLE_FINLAND)=(MaterialPath="WinterWar_ENV_Flags.MIC.Flag_Finland")
     Styles(STYLE_WW_USSR)=(MaterialPath="WinterWar_ENV_Flags.MIC.Flag_USSR")
     Styles(STYLE_FRANCE)=(MaterialPath="ENV_VN_Flags.Materials.ActiveFlags.M_VN_Flag_French")
+    // Neutral: the game's flag with plain white cloth (the engine's own white texture, always loaded)
+    Styles(STYLE_NEUTRAL)=(MaterialPath="ENV_VN_Flags.Materials.ActiveFlags.M_VN_Flag_USA",TexturePath="EngineResources.WhiteSquareTexture")
 
     // The first name in Keys is the one listed in the usage message. Style, Mod and Faction are the numbers of the STYLE_,
     // MOD_ and FAC_ constants at the top (constants are not allowed inside struct values here).
@@ -616,6 +723,7 @@ defaultproperties
     Factions(FAC_FINLAND)=(Label="Finnish Army",Keys="finland finnish fin",Style=12,Mod=2)
     Factions(FAC_WW_RED_ARMY)=(Label="Red Army",Keys="wwredarmy wwsoviet wwussr",Style=13,Mod=2)
     Factions(FAC_FRANCE)=(Label="French Army",Keys="france french",Style=14)
+    Factions(FAC_NEUTRAL)=(Label="Neutral",Keys="neutral white none",Style=15)
 
     // WW2 role class names: WW2RoleInfoAxis_DAK_Assault, WW2RoleInfoAllies_USMC_Rifleman, ...
     WW2AxisTags(0)=(Tag="Axis_WH",Faction=11)
@@ -637,8 +745,6 @@ defaultproperties
     DropperDelay=3.0
     CarryBone=CHR_Spine3
     CarryBehind=14
-
-    bShowBeam=true
 
     // Only world geometry stops it: players walk through it and it doesn't stop bullets
     Begin Object Class=CylinderComponent Name=CollisionCylinder

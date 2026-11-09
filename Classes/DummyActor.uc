@@ -215,6 +215,7 @@ reliable client function CMenuSetup()
 
     pc.Interactions.additem(new(pc) class'CMenuBMain');
     pc.Interactions.additem(new(pc) class'CMenuBActors');
+    pc.Interactions.additem(new(pc) class'CMenuBFlags');
     pc.Interactions.additem(new(pc) class'CMenuBMeshes');
     pc.Interactions.additem(new(pc) class'CMenuBStructures');
     pc.Interactions.additem(new(pc) class'CMenuBVehicles');
@@ -869,16 +870,23 @@ reliable server function ClearAllActors()
     `log("All actors have been cleared.");
 }
 
-// The Builder's Capture the Flag entries. Anyone can place a flag; only clearing them is for admins.
-reliable server function ServerPlaceFlag(vector PlaceLoc, int TeamIdx)
+// The Builder's Capture the Flag entries. Anyone can place a flag; only clearing them is for admins. TeamIdx 0 or 1 is
+// that team's flag, anything else the neutral flag. The rest are the flag's options from the CTF Flags menu's switches.
+reliable server function ServerPlaceFlag(vector PlaceLoc, int TeamIdx, optional bool bBeam, optional bool bAnnounce,
+    optional byte MapTeams, optional int MapDelay, optional bool bMapWhileCarried)
 {
     local PlayerController PC;
+    local int Faction;
 
     PC = PlayerController(Owner);
     if (MyMut == None || PC == None)
         return;
 
-    MyMut.PlaceFlag(PC, PlaceLoc, class'CMAFlag'.static.FactionForTeam(WorldInfo, TeamIdx));
+    if (TeamIdx == `AXIS_TEAM_INDEX || TeamIdx == `ALLIES_TEAM_INDEX)
+        Faction = class'CMAFlag'.static.FactionForTeam(WorldInfo, TeamIdx);
+    else
+        Faction = class'CMAFlag'.const.FAC_NEUTRAL;
+    MyMut.PlaceFlag(PC, PlaceLoc, Faction, bBeam, bAnnounce, MapTeams, Clamp(MapDelay, 0, 3600), bMapWhileCarried);
 }
 
 // Builds a capture objective from the corners the builder marked. Checked here too: anyone can open the Builder and call this.
