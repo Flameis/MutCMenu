@@ -39,6 +39,7 @@ var string PendingLookCommand; // server-side: the command waiting for ServerLoo
 // Client side: the Builder's catalogue the server sent, when it has its own (otherwise the built-in one is used)
 var array<BuilderPiece> ServerCatalogue;
 var bool bServerCatalogue;
+var CMPaintSplats PaintSplats; // client-side: paintball's splat paint, loaded on the first splat
 
 replication
 {
@@ -186,6 +187,14 @@ simulated function GetBuilderPieces(out array<BuilderPiece> List)
         List = ServerCatalogue;
     else
         List = class'CMBuilderCatalogue'.default.Pieces;
+}
+
+// Paintball: paint on a soldier where a shot hit them, in the shooter's team colour (unreliable: a lost splat is fine)
+unreliable client function ClientPaintSplat(Pawn Victim, vector HitLocation, vector Dir, byte Team)
+{
+    if (PaintSplats == None)
+        PaintSplats = new(self) class'CMPaintSplats';
+    PaintSplats.Splat(Victim, HitLocation, Dir, Team);
 }
 
 // The bomb mode's key (CMModeInteraction): held to plant or defuse

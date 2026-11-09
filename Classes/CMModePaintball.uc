@@ -9,6 +9,8 @@ struct PaintballTally
     var int Hits, Taken;
 };
 var array<PaintballTally> Tallies;
+var int SplatsSent;         // Server: paint splats sent to the players' games (for the test harness)
+var vector LastSplatAt;
 
 function int DamagePercent()
 {
@@ -59,6 +61,31 @@ function NetDamage(int OriginalDamage, out int Damage, Pawn Injured, Controller 
     {
         Tallies[TallyFor(InstigatedBy.PlayerReplicationInfo)].Hits++;
         Tallies[TallyFor(Injured.PlayerReplicationInfo)].Taken++;
+        SendSplat(Injured, InstigatedBy, HitLocation, Momentum);
+    }
+}
+
+// Paint where the shot hit, in the shooter's team colour, for every player's game (CMPaintSplats draws it). Only for a hit
+// on the body: an explosion's radius damage has no spot to paint.
+function SendSplat(Pawn Injured, Controller Shooter, vector HitLocation, vector Momentum)
+{
+    local DummyActor DA;
+    local vector Dir;
+
+    if (ROPawn(Injured) == None || VSize(HitLocation - Injured.Location) > 150)
+        return;
+    if (Shooter.Pawn != None)
+        Dir = Normal(HitLocation - Shooter.Pawn.GetPawnViewLocation());
+    if (VSizeSq(Dir) < 0.5)
+        Dir = Normal(Momentum);
+    if (VSizeSq(Dir) < 0.5)
+        Dir = Normal(HitLocation - Injured.Location) * -1;
+    LastSplatAt = HitLocation;
+    SplatsSent++;
+    foreach Mut.DummyActors(DA)
+    {
+        if (DA != None && !DA.bDeleteMe)
+            DA.ClientPaintSplat(Injured, HitLocation, Dir, TeamOf(Shooter));
     }
 }
 
