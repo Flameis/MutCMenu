@@ -63,6 +63,7 @@ const A_CTX = 15;          // an entry of the middle-click menu (Arg: a CTX_ val
 const A_CTX_ICON = 16;     // a marker icon in the middle-click menu (Arg: the icon)
 const A_CTX_COLOUR = 17;   // a colour in the middle-click menu on a drawing (Arg: the colour)
 const A_ZONE_BUILD = 18;   // the Restrict tool draws build zones (for the Builder) instead of movement restrictions
+const A_OPACITY = 19;     // the drawings' opacity slider (dragged)
 
 // The middle-click menus
 const MENU_NONE = 0;
@@ -145,6 +146,7 @@ const SPOT_FADE = 3.0;       // the last seconds of that, which it fades out ove
 const BORDER_FILL_ALPHA = 0.12; // the fill inside a custom objective's border: this part of the border's strength
 const BORDER_FILL_STEP = 2.0;   // pixels at 1080p: the height of each strip of that fill
 
+const MAX_FADE = 90;        // the drawings never go fully see-through, so they can't be lost
 const LINE_WIDTH = 3.0;     // pixels at 1080p
 const ICON_SIZE = 26.0;     // marker size, pixels at 1080p
 const PICK_RADIUS = 12.0;   // how close (pixels at 1080p) the cursor must be to a drawing to pick it
@@ -186,6 +188,7 @@ struct SentItem
 };
 
 var config bool bToolsHidden; // the player folded the toolbar away
+var config byte DrawingFade;  // how see-through the map drawings are, in percent (0, solid, when not set; at most MAX_FADE)
 var config string ZoneDecalMaterial, ZoneDecalTexture; // the paint for movement restrictions (CMZoneDecals has the defaults)
 var config bool bNoPlayerNames; // the player turned off the name shown when the cursor is over a player on the map (on when not set)
 var config bool bIconsMenuOpen; // the Map icons menu in the toolbar is folded open
@@ -217,6 +220,9 @@ var vector2D Mouse;
 var float PanelX, PanelY, PanelW, PanelH;
 
 var bool bPressOwned; // the left mouse press went to this tool, so its release does too
+var bool bSliding;    // the opacity slider is being dragged, until the left mouse button is let go
+var float SliderX, SliderW; // where the slider's track was last drawn
+var float DrawAlpha;  // what the drawing functions multiply their alpha by: the drawings' opacity while they are drawn, else 1
 var bool bGameFiring; // a click with the map cursor hidden started firing, so its release stops it
 var bool bDragging;
 var array<vector2D> DragPoints;
@@ -534,6 +540,11 @@ function bool InputKey(int ControllerId, name Key, EInputEvent EventType, option
         if (EventType == IE_Released && bPressOwned)
         {
             bPressOwned = false;
+            if (bSliding)
+            {
+                bSliding = false;
+                SaveConfig();
+            }
             if (bDragging)
                 FinishDrag();
             // A move from the middle-click menu waits for the next click
@@ -964,7 +975,33 @@ function PressButton(ToolButton B)
         case A_MAP_ICON:
             ToggleMapIcon(B.Arg);
             break;
+        case A_OPACITY:
+            bSliding = true; // follows the mouse until the button is let go (UpdateSlider)
+            UpdateSlider();
+            break;
     }
+}
+
+// The drawings' opacity slider: from MAX_FADE see-through at the left to solid at the right
+function UpdateSlider()
+{
+    local float T;
+
+    if (SliderW <= 0)
+        return;
+    T = FClamp((Mouse.X - SliderX) / SliderW, 0.0, 1.0);
+    DrawingFade = Clamp(Round((1.0 - T) * MAX_FADE / 5.0) * 5, 0, MAX_FADE); // in steps of 5%
+}
+
+// How solid the drawings are drawn, 0 to 1
+function float DrawingOpacity()
+{
+    return 1.0 - Min(DrawingFade, MAX_FADE) / 100.0;
+}
+
+function byte Faded(byte A)
+{
+    return byte(A * FClamp(DrawAlpha, 0.0, 1.0));
 }
 
 // The Map icons menu: whether one kind of map icon is shown
@@ -1037,6 +1074,11 @@ function bool ToolAllowed(byte Which)
 // Stops whatever was being drawn or typed, without sending it
 function Cancel()
 {
+    if (bSliding)
+    {
+        bSliding = false;
+        SaveConfig();
+    }
     bDragging = false;
     bMoving = false;
     bTyping = false;
@@ -1566,6 +1608,7 @@ event PostRender(Canvas C)
 
         if (!bHideDrawings)
         {
+            DrawAlpha = DrawingOpacity();
             // A spectator sees every team's drawings, each with an edge in the colour of the team it is for. The edges
             // all go first, so none is drawn over a drawing.
             if (PC.PlayerReplicationInfo != None && PC.PlayerReplicationInfo.bOnlySpectator)
@@ -1597,6 +1640,7 @@ event PostRender(Canvas C)
             }
             for (i = 0; i < Sent.Length; i++)
                 DrawItem(C, Sent[i].Item, false);
+            DrawAlpha = 1.0;
         }
 
         if (bZoneLining)
@@ -1646,6 +1690,8 @@ event PostRender(Canvas C)
         return;
     }
 
+    if (bSliding)
+        UpdateSlider();
     DrawToolbar(C, PC);
     DrawContextMenu(C, PC);
     SetMapState("drawn");
@@ -1856,7 +1902,7 @@ function DrawScreenLine(Canvas C, vector2D A, vector2D B, float Width, color Col
         return;
 
     Rot.Yaw = Atan2(B.Y - A.Y, B.X - A.X) * 32768.0 / Pi;
-    C.SetDrawColor(Col.R, Col.G, Col.B, Col.A);
+    C.SetDrawColor(Col.R, Col.G, Col.B, Faded(Col.A));
     // A little longer than the segment, so the joins in a freehand line don't show gaps
     C.SetPos((A.X + B.X) * 0.5 - (Len2D + Width) * 0.5, (A.Y + B.Y) * 0.5 - Width * 0.5);
     C.DrawRotatedTile(C.DefaultTexture, Rot, Len2D + Width, Width, 0, 0, C.DefaultTexture.SizeX, C.DefaultTexture.SizeY);
@@ -2054,7 +2100,7 @@ function DrawGlow(Canvas C, CMMapInfo.ClientMapItem Item, color Col)
             if (!InMap(A))
                 return;
             Size = ICON_SIZE * UIScale * 1.35;
-            C.SetDrawColor(Col.R, Col.G, Col.B, Col.A);
+            C.SetDrawColor(Col.R, Col.G, Col.B, Faded(Col.A));
             C.SetPos(A.X - Size * 0.5, A.Y - Size * 0.5);
             C.DrawTile(C.DefaultTexture, Size, Size, 0, 0, C.DefaultTexture.SizeX, C.DefaultTexture.SizeY);
             return;
@@ -2065,7 +2111,7 @@ function DrawGlow(Canvas C, CMMapInfo.ClientMapItem Item, color Col)
             S = UIScale * 1.1;
             C.Font = class'Engine'.static.GetSmallFont();
             C.TextSize(Item.Text, XL, YL);
-            C.SetDrawColor(Col.R, Col.G, Col.B, Col.A);
+            C.SetDrawColor(Col.R, Col.G, Col.B, Faded(Col.A));
             C.SetPos(A.X - 3 * UIScale, A.Y - YL * S * 0.5 - 2 * UIScale);
             C.DrawTile(C.DefaultTexture, XL * S + 6 * UIScale, YL * S + 4 * UIScale, 0, 0, C.DefaultTexture.SizeX, C.DefaultTexture.SizeY);
             return;
@@ -2123,16 +2169,16 @@ function DrawMarker(Canvas C, vector2D At, byte Which, color Col, bool bHighligh
     {
         // A diamond with a dark edge
         Diamond.Yaw = 8192;
-        C.SetDrawColor(0, 0, 0, 200);
+        C.SetDrawColor(0, 0, 0, Faded(200));
         C.SetPos(At.X - Size * 0.3, At.Y - Size * 0.3);
         C.DrawRotatedTile(C.DefaultTexture, Diamond, Size * 0.6, Size * 0.6, 0, 0, C.DefaultTexture.SizeX, C.DefaultTexture.SizeY);
-        C.SetDrawColor(Col.R, Col.G, Col.B, Col.A);
+        C.SetDrawColor(Col.R, Col.G, Col.B, Faded(Col.A));
         C.SetPos(At.X - Size * 0.22, At.Y - Size * 0.22);
         C.DrawRotatedTile(C.DefaultTexture, Diamond, Size * 0.44, Size * 0.44, 0, 0, C.DefaultTexture.SizeX, C.DefaultTexture.SizeY);
         return;
     }
 
-    C.SetDrawColor(Col.R, Col.G, Col.B, Col.A);
+    C.SetDrawColor(Col.R, Col.G, Col.B, Faded(Col.A));
     C.SetPos(At.X - Size * 0.5, At.Y - Size * 0.5);
     C.DrawTile(Tex, Size, Size, 0, 0, Tex.SizeX, Tex.SizeY);
 }
@@ -2166,7 +2212,7 @@ function DrawLabel(Canvas C, vector2D At, string Text, color Col, bool bBox)
     {
         // The box over the player icons and its text above that, or the text could end up under the box (see PushLayer)
         PushPriority(C, DSP_SkyHigh);
-        C.SetDrawColor(0, 0, 0, 180);
+        C.SetDrawColor(0, 0, 0, Faded(180));
         C.SetPos(At.X - 4 * UIScale, At.Y - YL * 0.5 - 2 * UIScale);
         C.DrawTile(C.DefaultTexture, XL + 8 * UIScale, YL + 4 * UIScale, 0, 0, C.DefaultTexture.SizeX, C.DefaultTexture.SizeY);
         PopLayer(C);
@@ -2174,12 +2220,12 @@ function DrawLabel(Canvas C, vector2D At, string Text, color Col, bool bBox)
     }
     else
     {
-        C.SetDrawColor(0, 0, 0, 230);
+        C.SetDrawColor(0, 0, 0, Faded(230));
         C.SetPos(At.X + 1, At.Y - YL * 0.5 + 1);
         C.DrawText(Text, false, S, S);
     }
 
-    C.SetDrawColor(Col.R, Col.G, Col.B, 255);
+    C.SetDrawColor(Col.R, Col.G, Col.B, Faded(255));
     C.SetPos(At.X, At.Y - YL * 0.5);
     C.DrawText(Text, false, S, S);
     if (bBox)
@@ -2444,6 +2490,11 @@ function DrawToolbar(Canvas C, PlayerController PC)
     }
     AddButton(X, Y, Inner, BtnH, A_HIDE, 0, bHideDrawings ? "Show drawings" : "Hide drawings", bHideDrawings);
     Y += BtnH + Gap;
+    // Drag (or click) along it: how solid the drawings are, from 10% at the left to 100% at the right
+    AddButton(X, Y, Inner, BtnH, A_OPACITY, 0, "Opacity: "$Round(DrawingOpacity() * 100)$"%", bSliding);
+    SliderX = X;
+    SliderW = Inner;
+    Y += BtnH + Gap;
 
     // The Map icons menu: what the map shows besides the drawings. Each button is framed while that kind is shown.
     AddButton(X, Y, Inner, BtnH, A_ICONS_MENU, 0, bIconsMenuOpen ? "Map icons  (fold)" : "Map icons...", bIconsMenuOpen);
@@ -2548,6 +2599,9 @@ function DrawButtons(Canvas C, bool bTop, optional int First)
             continue;
         }
 
+        if (Buttons[i].Action == A_OPACITY)
+            DrawSliderFill(C, Buttons[i]);
+
         if (Buttons[i].Action == A_ICON || Buttons[i].Action == A_CTX_ICON)
         {
             Inset = Buttons[i].W * 0.12;
@@ -2576,6 +2630,23 @@ function DrawButtons(Canvas C, bool bTop, optional int First)
         DrawBoldText(C, Buttons[i].Label, Buttons[i].X + (Buttons[i].W - XL * TextScale) * 0.5,
             Buttons[i].Y + (Buttons[i].H - YL * TextScale) * 0.5, TextScale, Col);
     }
+}
+
+// The opacity slider's fill: the part of the track up to its setting, in amber, with a handle at its end (drawn in the
+// labels' layer, before the label, so the label stays readable on it)
+function DrawSliderFill(Canvas C, ToolButton B)
+{
+    local float Fill, Inset, HandleW;
+
+    Inset = FMax(2.0, 2.0 * UIScale);
+    HandleW = FMax(3.0, 4.0 * UIScale);
+    Fill = (B.W - Inset * 2) * (1.0 - Min(DrawingFade, MAX_FADE) / float(MAX_FADE));
+    C.SetDrawColor(230, 170, 40, 110);
+    C.SetPos(B.X + Inset, B.Y + Inset);
+    C.DrawTile(C.DefaultTexture, Fill, B.H - Inset * 2, 0, 0, C.DefaultTexture.SizeX, C.DefaultTexture.SizeY);
+    C.SetDrawColor(255, 220, 120, 255);
+    C.SetPos(B.X + Inset + FMax(Fill - HandleW, 0), B.Y + Inset);
+    C.DrawTile(C.DefaultTexture, HandleW, B.H - Inset * 2, 0, 0, C.DefaultTexture.SizeX, C.DefaultTexture.SizeY);
 }
 
 // The toolbar's text, a little bold so it reads well over the map: drawn twice a pixel apart, over a drop shadow in
@@ -4729,6 +4800,7 @@ function DrawTriangle(Canvas C, float X, float Y, float Size, color Col)
 
 defaultproperties
 {
+    DrawAlpha=1.0
     SpotTeam=255
     CtxArmed=255
     Colour=0

@@ -480,6 +480,7 @@ Use it to show players where they may or may not go. The button under the shapes
 | Clear all for ... | Clears every drawing in the group picked under "Draw for". Squad: only the squad leader. Team: only the commander. Scrim admins: any group. Everyone sees the button, but it is greyed out and does nothing for those who may not use it |
 | Clear every drawing | Scrim admins only: clears the map for everyone |
 | Hide drawings | Hides all drawings on your own map (nothing changes for anyone else) |
+| Opacity | A slider for how solid the drawings are on your own map: drag (or click) along it, from 10% at the left to 100% (solid) at the right, in steps of 5%. Only the drawings fade; the map, players and icons don't. Your setting is kept for next time and changes nothing for anyone else. *Not yet checked in a game: how it looks* |
 | Map icons | Folds open a small menu of what the map shows besides the drawings. Each button has a gold frame while that kind is shown; click it to hide or show it. Your choices are kept for next time (see the table below) |
 
 **The Map icons menu**
