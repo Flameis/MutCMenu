@@ -432,13 +432,17 @@ function DrawPlacingHints(ROCanvas C)
 	X = TEXT_OFFSET * MenuScale;
 	Y = MenuHeight + (ClickActive() ? 130 : 80) * MenuScale;
 
-	C.PushDepthSortPriority(DSP_Insane);
+	// The box a layer below its text: the canvas draws everything with one texture together, so in the same layer the
+	// box could be drawn over the text (as the menu itself does it)
 	if (bDrawBackground)
 	{
+		C.PushDepthSortPriority(DSP_SkyHigh);
 		C.SetPos(X - 6 * MenuScale, Y - 6 * MenuScale);
 		C.SetDrawColorStruct(BackgroundColor);
 		C.DrawRect(W + 12 * MenuScale, H * (Lines.Length + (CantPlaceWhy != "" ? 1 : 0)) + 12 * MenuScale);
+		C.PopDepthSortPriority();
 	}
+	C.PushDepthSortPriority(DSP_Insane);
 	for (i = 0; i < Lines.Length; i++)
 	{
 		DrawShadowText(C, Lines[i], X, Y, S, (i == Lines.Length - 1 && StatusText == Lines[i]) ? MakeColor(255, 255, 255, 255) : TextColor);

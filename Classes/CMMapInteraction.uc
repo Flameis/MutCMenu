@@ -2989,17 +2989,7 @@ static function int FlagTeam(WorldInfo WI, int Faction)
     return 255;
 }
 
-// What is happening to a flag, as a spectator's map says it
-static function string FlagStatus(CMAFlag F)
-{
-    if (F.CarrierPRI != None)
-        return "carried by "$F.CarrierPRI.PlayerName;
-    if (F.bAtHome)
-        return "at its spot";
-    return "dropped";
-}
-
-// Capture the Flag flags, with what is happening to them. Spectators see every flag; a player sees the flags placed to
+// Capture the Flag flags, as a small flag icon each. Spectators see every flag; a player sees the flags placed to
 // show on their team's map, once their timer is up, and while carried only if the flag is shown then too.
 function DrawFlagsOnMap(Canvas C, ROHUD H, bool bSpectatorView)
 {
@@ -3009,7 +2999,6 @@ function DrawFlagsOnMap(Canvas C, ROHUD H, bool bSpectatorView)
     local color Col;
     local int Team;
     local float Size;
-    local string FlagName;
 
     PC = PlayerController(Outer);
     Size = ICON_SIZE * UIScale;
@@ -3023,10 +3012,7 @@ function DrawFlagsOnMap(Canvas C, ROHUD H, bool bSpectatorView)
         Team = FlagTeam(PC.WorldInfo, F.Faction);
         Col = (Team < 2) ? TeamColour(H, Team) : MakeColor(255, 255, 255, 255);
         S = WorldToScreen(V2(F.Location.X, F.Location.Y));
-        DrawFlagIcon(C, S, Size, Col);
-
-        FlagName = (F.Faction >= 0 && F.Faction < F.Factions.Length) ? F.Factions[F.Faction].Label$" flag" : "Flag";
-        DrawLabel(C, V2(S.X + Size * 0.6, S.Y - Size * 0.2), FlagName$": "$FlagStatus(F), Col, false);
+        DrawFlagIcon(C, S, Size, Col); // just the flag, in its team's colour (no text)
     }
 }
 

@@ -804,9 +804,11 @@ defaultproperties
     PoleMesh=FlagPole
     Components.Add(FlagPole)
 
-    // The commander's map-mark beam, standing on top of the pole
+    // The commander's map-mark beam, standing on top of the pole. Hidden until the flag says it has one: with no beam,
+    // bShowBeam stays at its default and is never sent to the players' games, so a beam shown here stayed on for them.
     Begin Object Class=StaticMeshComponent Name=FlagBeam
         StaticMesh=StaticMesh'FX_VN_Materials.Commander.S_ENV_CommanderMark_Beam'
+        HiddenGame=true
         Translation=(X=0,Y=0,Z=60)
         CastShadow=false
         CollideActors=false

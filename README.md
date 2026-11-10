@@ -359,7 +359,7 @@ Spectators normally only see players near them. With CMenu, spectators get:
 - **Everyone on the overhead map:** a marker for every living player, using the game's own player and vehicle icons (tank, truck, each helicopter) in the team colour. Squad and team leaders get the leader icon.
 - **Empty vehicles on the map:** vehicles nobody is in are shown too, with the game's icon for that kind of vehicle in its team's colour (grey if it has no team), a little faded so they stand apart from vehicles with a crew.
 - **Deaths on the map:** someone who dies shows the game's death icon where they fell, in their team's colour, like the base game does for teammates. It stays for 2 seconds, then fades out over 3.
-- **Capture the Flag flags on the map:** every flag is shown, whichever team could normally see it, as a small flag in the colour of the team it belongs to, labelled with what is happening to it: "PAVN flag: at its spot", "PAVN flag: carried by Smith" or "PAVN flag: dropped".
+- **Capture the Flag flags on the map:** every flag is shown, whichever team could normally see it, as a small flag in the colour of the team it belongs to (white for the neutral flag), with no text beside it.
 - **Triangles over players:** a small triangle in the team colour sitting just above the head of every player in view. When that player is hit, the triangle **strobes white** for about two and a half seconds, like in Arma. A player in a vehicle has their triangle and name over the vehicle (they used to stay behind where the player got in).
 - **Warning strobe for near misses:** when bullets fly close to a player (within about 3 meters, other than their own), their triangle **strobes amber** for as long as the shots keep coming, plus a moment after, so you can see who is under fire before anyone is hurt. When they are actually hit it strobes white instead, so amber means "shots nearby" and white means "damaged". It is part of the spectator view, so `bDisableEnhancedSpectator` turns it off. Only bullets count, not shells or grenades.
 - **Death icon over the body:** someone who dies gets the game's death icon over their body instead of the triangle, in their team's colour, fading out after a few seconds.
@@ -489,7 +489,7 @@ Use it to show players where they may or may not go. The button under the shapes
 | :--- | :--- |
 | Players | Spectators: every player's icon on the map (and their name under the cursor) |
 | Vehicles | Spectators: vehicles nobody is in |
-| Flags | The Capture the Flag flags and who carries them. Spectators see every flag; players see the flags placed to show on their team's map (see **Each flag's options** in section 5) |
+| Flags | The Capture the Flag flags, each as a small flag icon. Spectators see every flag; players see the flags placed to show on their team's map (see **Each flag's options** in section 5) |
 | Deaths | Spectators: the death icons where players fell |
 | Teams shown | Spectators: show both teams' drawings, or only North's or only South's (the button uses the map's own team names). Drawings for everyone, for spectators and your own always show |
 | Names | The name shown when the cursor is over a player |
