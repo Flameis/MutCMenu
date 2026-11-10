@@ -125,6 +125,7 @@ var float                   CarryBehind;                    // How far behind th
 var SkeletalMeshComponent   FlagMesh;
 var StaticMeshComponent     PoleMesh, BeamMesh;
 var bool                    bHiddenFromView; // Client-side: hidden because this player looks through the carrier's eyes
+var bool                    bLooksSet;       // Client-side: the first tick set the beam and parts from the values received
 
 replication
 {
@@ -523,6 +524,14 @@ simulated event Tick(float DeltaTime)
 {
     super.Tick(DeltaTime);
 
+    // On a player's game the first tick comes after the flag's first values arrived. Values left at their defaults are
+    // never sent, so no ReplicatedEvent comes for them (a flag without a beam, or one with a beam by default): the beam
+    // and parts are set from them here.
+    if (!bLooksSet && WorldInfo.NetMode != NM_DedicatedServer)
+    {
+        bLooksSet = true;
+        UpdateVisibility();
+    }
     // The camera can change to and from the carrier's eyes at any time (and the carrier get in and out of a vehicle)
     if (SeenThroughCarrier() != bHiddenFromView)
         UpdateVisibility();
@@ -804,8 +813,8 @@ defaultproperties
     PoleMesh=FlagPole
     Components.Add(FlagPole)
 
-    // The commander's map-mark beam, standing on top of the pole. Hidden until the flag says it has one: with no beam,
-    // bShowBeam stays at its default and is never sent to the players' games, so a beam shown here stayed on for them.
+    // The commander's map-mark beam, standing on top of the pole. Hidden until the flag says it has one (UpdateVisibility):
+    // with no beam bShowBeam stays at its default and is never sent to players' games, and a beam shown here stayed on.
     Begin Object Class=StaticMeshComponent Name=FlagBeam
         StaticMesh=StaticMesh'FX_VN_Materials.Commander.S_ENV_CommanderMark_Beam'
         HiddenGame=true
