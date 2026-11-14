@@ -623,6 +623,7 @@ reliable server function SpawnVehicle(string VehicleName, vector PlaceLoc, rotat
         // the air, invisible, until something hit it
         if (ROV.Mesh == None || ROV.Mesh.SkeletalMesh == None)
         {
+            `log("[MutCMenu] Builder: "$VehicleName$" has no model on this server (mesh component "$ROV.Mesh$"), not placed");
             ROV.Destroy();
             MyMut.PrivateMessage(PlayerController(Owner), "[CMenu] That vehicle's model isn't on this server, so it can't be placed.");
             return;
