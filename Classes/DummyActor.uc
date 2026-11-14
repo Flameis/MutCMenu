@@ -6,6 +6,8 @@ var MutCMenu                     MyMut;
 // The Builder (see the server side further down)
 const MIN_PIECE_SCALE = 0.1;
 const MAX_PIECE_SCALE = 10.0;
+const SETTLE_REACH = 400.0; // how far below a placed vehicle the ground is looked for (8 m)
+const SETTLE_GAP = 10.0;    // and how far above it the vehicle's lowest point is put
 const BUILT_VEHICLE_TAG = 'CMBuilderVehicle'; // vehicles placed with the Builder, which players may remove again
 const MAX_PIECE_HEALTH = 100000;
 var string LastTold;         // Server side: the last Builder refusal this player was told, and when (the same one only once a second)
@@ -592,6 +594,7 @@ reliable server function SpawnVehicle(string VehicleName, vector PlaceLoc, rotat
 	local ROVehicle                 ROV;
     local ROPawn                    ROP;
     local bool                      bLandVic;
+    local float                     Drop;
 
     if (!CallerMayBuild('Vehicle', PlaceLoc, true))
         return;
@@ -616,8 +619,32 @@ reliable server function SpawnVehicle(string VehicleName, vector PlaceLoc, rotat
             MyMut.PrivateMessage(PlayerController(Owner), "[CMenu] That vehicle can't be placed there.");
             return;
         }
-        ROV.Mesh.AddImpulse(vect(0,0,1), ROV.Location);
+        // Without its model (a mod's vehicle whose content isn't on this server) it has no physics body: it would hang in
+        // the air, invisible, until something hit it
+        if (ROV.Mesh == None || ROV.Mesh.SkeletalMesh == None)
+        {
+            ROV.Destroy();
+            MyMut.PrivateMessage(PlayerController(Owner), "[CMenu] That vehicle's model isn't on this server, so it can't be placed.");
+            return;
+        }
+        // Put again lower down, just above the ground (moving a vehicle that has physics doesn't move its body)
+        Drop = SettleDrop(ROV);
+        if (Drop > 0)
+        {
+            ROV.Destroy();
+            ROV = Spawn(VehicleClass, , BUILT_VEHICLE_TAG, PlaceLoc - vect(0, 0, 1) * Drop, PlaceRot);
+            if (ROV == None)
+                ROV = Spawn(VehicleClass, , BUILT_VEHICLE_TAG, PlaceLoc, PlaceRot);
+            if (ROV == None)
+            {
+                MyMut.PrivateMessage(PlayerController(Owner), "[CMenu] That vehicle can't be placed there.");
+                return;
+            }
+        }
         ROV.bTeamLocked = false;
+        // The game's own vehicle spawners wake the physics: a vehicle left asleep stays where it was put, even in the
+        // air, until something touches it
+        ROV.Mesh.WakeRigidBody();
 
         // ROV.GroundSpeed=520
 	    // ROV.MaxSpeed=940 //67 km/h
@@ -633,6 +660,23 @@ reliable server function SpawnVehicle(string VehicleName, vector PlaceLoc, rotat
             ROV.TryToDrive(ROP);
         }
     }
+}
+
+// How far a placed vehicle can come down to sit just above the ground under it, so it doesn't drop from the placing
+// height and bounce or roll over when it lands. 0 when it is already low, or nothing is below it within reach (placed in
+// the air on purpose).
+function float SettleDrop(ROVehicle ROV)
+{
+    local vector HitLocation, HitNormal, Start, End;
+    local float Bottom;
+
+    Bottom = ROV.Mesh.Bounds.Origin.Z - ROV.Mesh.Bounds.BoxExtent.Z;
+    Start = ROV.Location;
+    Start.Z = Bottom + 5;
+    End = Start - vect(0, 0, 1) * SETTLE_REACH;
+    if (ROV.Trace(HitLocation, HitNormal, End, Start, false) == None)
+        return 0;
+    return FMax(0, Bottom - (HitLocation.Z + SETTLE_GAP));
 }
 
 // The role class a tank lets in, for the tanks that let in only one: WW2's (9) and Winter War's (8). 255 for the rest.
