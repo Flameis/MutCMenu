@@ -3,6 +3,9 @@
 // ammo as it is used), and shows as a resupply area on everyone's map.
 // It used to spawn a game resupply volume, but a volume made while the game runs has no shape, so nobody was ever inside
 // it: the crates resupplied nobody. It now looks for the players near it itself, once a second.
+// Explosives wait longer than at the map's resupply areas: grenades, satchels and the like come back once a minute (the
+// game's own wait, which it skipped when bandages were given at the same time), and rounds for grenade launchers (the
+// M79, a rifle's grenades such as the MAS-49's) and rocket launchers (the RPG) fill up, then not again for a minute.
 class CMAResupplyPoint extends CMAStaticMesh
     dependson(ROVolumeAmmoResupply);
 
@@ -10,9 +13,19 @@ var array<StaticMeshComponent> StaticMeshComponents;
 var array<ROPawn> InArea;   // Server: the players it is resupplying, so they can be told when they leave
 var int GRIIndex;           // Its place in the game's list of resupply areas (the map's resupply icons), -1 when none
 
+// Each player's wait for explosive rounds (grenade and rocket launchers)
+struct ExplosiveWait
+{
+    var ROPawn P;
+    var float Until;     // no explosive rounds before this time
+    var bool bFilling;   // being filled now: the wait starts once they are full
+};
+var array<ExplosiveWait> Waits;
+
 const RESUPPLY_RADIUS = 250.0;   // 5 meters round the crates
 const RESUPPLY_HEIGHT = 150.0;   // 3 meters above or below them
 const RESUPPLY_COOLDOWN = 60.0;  // seconds between full resupplies, as the game's own resupply areas
+const EXPLOSIVE_COOLDOWN = 60.0; // seconds after grenade or rocket launcher rounds were filled before more are given
 
 simulated function PostBeginPlay()
 {
@@ -109,7 +122,7 @@ function ResupplyTimer()
         if (bEligible && ROPRI.RoleIndex == `ROLE_INDEX_SQUADLEADER && ROPRI.RoleInfo != None)
             bResupplied = ROPRI.RoleInfo.GiveNewSLEquipment(ROP);
 
-        bResupplied = class'ROVolumeAmmoResupply'.static.ResupplyPlayer(ROP, GivenMags, bEligible, ResuppliedType) || bResupplied;
+        bResupplied = ResupplyPlayer(ROP, GivenMags, bEligible, ResuppliedType) || bResupplied;
 
         // The minute's wait starts only once their equipment was filled, not for spare ammo or bandages alone
         if (ResuppliedType == 2)
@@ -122,6 +135,180 @@ function ResupplyTimer()
 
         ROP.bCurrentResupplyActive = bResupplied;
     }
+}
+
+// Whether a weapon fires explosive rounds: grenade launchers and rocket launchers
+static function bool IsExplosiveLauncher(ROWeapon W)
+{
+    return W != None && (W.WeaponClassType == ROWCT_Explosive || W.WeaponClassType == ROWCT_ATRocket || W.IsA('RORocketWeapon'));
+}
+
+// This player's place in the waits (made when missing); players who are gone are dropped
+function int WaitIndex(ROPawn ROP)
+{
+    local int i;
+
+    for (i = Waits.Length - 1; i >= 0; i--)
+    {
+        if (Waits[i].P == None || Waits[i].P.bDeleteMe)
+            Waits.Remove(i, 1);
+    }
+    for (i = 0; i < Waits.Length; i++)
+    {
+        if (Waits[i].P == ROP)
+            return i;
+    }
+    Waits.Add(1);
+    Waits[i].P = ROP;
+    return i;
+}
+
+// One magazine of a rifle's own ammo, never its grenades (for a rifle grenade weapon whose grenades are waiting)
+function bool GiveRifleMagOnly(ROWeapon W)
+{
+    local bool bGave;
+
+    if (!W.bUseAltFireMode)
+        return W.GaveSingleMagAmmoActual();
+    W.SwapAmmoTypes(false, true);
+    bGave = W.GaveSingleMagAmmoActual();
+    W.SwapAmmoTypes(true, true);
+    return bGave;
+}
+
+// The game's ResupplyPlayer (ROVolumeAmmoResupply) with the explosives' wait. ItemType: 1 a magazine, 2 equipment
+// (grenades and the like, which starts the minute's wait), 3 bandages, 4 carried ammo. Equipment wins over bandages and
+// carried ammo given at the same time, so the wait always starts when grenades were given.
+function bool ResupplyPlayer(ROPawn ROP, out byte GivenMags, bool bResupplyTimeOK, optional out byte ItemType)
+{
+    local ROPlayerController ROPC;
+    local ROPlayerReplicationInfo ROPRI;
+    local ROGameReplicationInfo ROGRI;
+    local Inventory Inv, NewInv;
+    local ROWeapon W;
+    local bool bResupplied, bGaveEquipment, bWaiting, bGave;
+    local int i, j, NumOtherItems, OtherItemStart, RoleItemsIdx, WI, Primary;
+    local int Indexes[`MAX_RESUPPLY_INFOS];
+    local byte Count;
+
+    ROPRI = ROPlayerReplicationInfo(ROP.PlayerReplicationInfo);
+    ROGRI = ROGameReplicationInfo(WorldInfo.GRI);
+    ROPC = ROPlayerController(ROP.Controller);
+    if (ROPRI == None || ROGRI == None || ROP.InvManager == None)
+        return false;
+    RoleItemsIdx = ROGRI.RoleInfoItemsIdx;
+    for (i = 0; i < `MAX_RESUPPLY_INFOS; i++)
+        Indexes[i] = -1;
+
+    WI = WaitIndex(ROP);
+    bWaiting = WorldInfo.TimeSeconds < Waits[WI].Until;
+
+    // Weapons: one magazine a second, as the game does; explosive rounds only when not waiting
+    for (Inv = ROP.InvManager.InventoryChain; Inv != None; Inv = Inv.Inventory)
+    {
+        W = ROWeapon(Inv);
+        if (W == None || W.IsGrenade() || W.IsA('ROOneShotWeapon'))
+            continue;
+
+        if (IsExplosiveLauncher(W))
+        {
+            if (bWaiting)
+                continue;
+            bGave = W.GiveInitialAmmo(true);
+            if (bGave)
+                Waits[WI].bFilling = true;
+        }
+        else if (W.IsA('RORifleGrenadeWeapon'))
+        {
+            if (bWaiting)
+                bGave = GiveRifleMagOnly(W);
+            else
+            {
+                bGave = W.GiveInitialAmmo(true);
+                if (bGave)
+                    Waits[WI].bFilling = true;
+            }
+        }
+        else
+            bGave = W.GiveInitialAmmo(true);
+
+        if (bGave)
+        {
+            GivenMags = 1;
+            if (ROPC != None)
+                ROPC.ClientReceiveResupplyInfoSingleViaWeapon(W, W.InvIndex, true);
+            ItemType = 1;
+            return true;
+        }
+    }
+
+    // Nothing more to fill: explosive rounds that were being filled are full now, and their wait starts
+    if (Waits[WI].bFilling)
+    {
+        Waits[WI].bFilling = false;
+        Waits[WI].Until = WorldInfo.TimeSeconds + EXPLOSIVE_COOLDOWN;
+    }
+
+    // Grenades, satchels and the like, once the minute's wait is over (as the game)
+    if (bResupplyTimeOK && ROPRI.RoleInfo != None && ROPRI.RoleInfo.ActiveWeaponLoadout.PrimaryWeaponIndex != 255)
+    {
+        Primary = ROPRI.RoleInfo.ActiveWeaponLoadout.PrimaryWeaponIndex;
+        NumOtherItems = ROPRI.RoleInfo.Items[RoleItemsIdx].NumOtherItemsForPrimary[Primary];
+        if (NumOtherItems != 255)
+        {
+            OtherItemStart = ROPRI.RoleInfo.Items[RoleItemsIdx].OtherItemsStartIndexForPrimary[Primary];
+            for (i = OtherItemStart; i < ROPRI.RoleInfo.Items[RoleItemsIdx].OtherItems.Length && (NumOtherItems == 0 || j < NumOtherItems); i++)
+            {
+                j++;
+                if (i < ROPRI.RoleInfo.GetOtherItemsStart(ROPRI.ClassRank))
+                    continue;
+                if (ROPRI.RoleInfo.Items[RoleItemsIdx].OtherItems[i].default.WeaponClassType == ROWCT_Melee)
+                    continue;
+                if (ROPRI.RoleInfo.Items[RoleItemsIdx].OtherItems[i].default.WeaponClassType == ROWCT_ATRocket)
+                    continue;
+                if (ROInventoryManager(ROP.InvManager).RS2FindInventoryType(ROPRI.RoleInfo.Items[RoleItemsIdx].OtherItems[i]))
+                    continue;
+                NewInv = ROP.LoadAndCreateInventory(ROPRI.RoleInfo.Items[RoleItemsIdx].OtherItems[i].default.WeaponContentClass[0], true);
+                if (NewInv != None)
+                {
+                    bGaveEquipment = true;
+                    bResupplied = true;
+                    if (Count < `MAX_RESUPPLY_INFOS)
+                        Indexes[Count++] = NewInv.InvIndex;
+                }
+            }
+        }
+    }
+
+    if (ROP.NumBandages != ROP.default.NumBandages)
+    {
+        ROP.NumBandages = ROP.default.NumBandages;
+        bResupplied = true;
+        ItemType = 3;
+        if (Count < `MAX_RESUPPLY_INFOS)
+            Indexes[Count++] = `ROII_Bandage;
+    }
+
+    if (ROP.bUsedCarriedMGAmmo)
+    {
+        ROP.bUsedCarriedMGAmmo = false;
+        bResupplied = true;
+        ItemType = 4;
+        if (Count < `MAX_RESUPPLY_INFOS)
+            Indexes[Count++] = `ROII_CarriedAmmo;
+    }
+
+    if (bGaveEquipment)
+        ItemType = 2;
+
+    if (Count > 0 && ROPC != None)
+    {
+        if (Count > 1)
+            ROPC.ClientReceiveResupplyInfo(Indexes);
+        else
+            ROPC.ClientReceiveResupplyInfoSingle(Indexes[0]);
+    }
+    return bResupplied;
 }
 
 simulated event Destroyed()
@@ -140,6 +327,7 @@ simulated event Destroyed()
             }
         }
         InArea.Length = 0;
+        Waits.Length = 0;
         RemoveFromMap();
     }
 
