@@ -1724,6 +1724,12 @@ event PostRender(Canvas C)
         DrawCursor(C, CursorComp);
         PopLayer(C);
     }
+
+    // While the right-click menu is open the game's cursor is hidden from the next frame on. The canvas draws a layer's
+    // textures in the order they were first used, so with the game's cursor drawn first the menu was drawn over it; with
+    // only ours, drawn after the menu, the cursor stays in front.
+    if (CursorComp != None)
+        CursorComp.bVisible = (CtxMenu == MENU_NONE) && bCursor;
 }
 
 // The map is open and the cursor is over a player's icon: their name next to the cursor, in their team's colour. Players
