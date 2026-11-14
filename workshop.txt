@@ -2,6 +2,7 @@
 {
 	"appid"			"418460"
 	"publishedfileid"	"2855015377"
+	"visibility"		"3"
 	"contentfolder"		""
 	"title"			"29th ID CMenu Mutator"
 	"description"		"[h1]29th ID CMenu Mutator[/h1]An on-screen menu for drill leaders and admins. Bind a key ([b]setbind F1 mutate cmenu[/b]) and pick entries with the number keys, or turn on mouse click mode in CMenu Settings.
