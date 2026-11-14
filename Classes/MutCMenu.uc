@@ -468,6 +468,13 @@ simulated function Mutate(string mutateString, PlayerController sender)
 
     // Parse the mutate string into command and parameters
     params = SplitString(mutateString, " ", true);
+    // An empty command (a bare "mutate") has no first word: reading it crashed the server
+    if (params.Length == 0)
+    {
+        if (LookCaller == None)
+            super.Mutate(mutateString, sender);
+        return;
+    }
     command = Caps(params[0]);
 
     if (class'CmdOptions'.static.AnyOptions(params))
