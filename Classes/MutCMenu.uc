@@ -289,6 +289,7 @@ function NavigationPoint FindPlayerStart(Controller Player, optional byte InTeam
     local NavigationPoint SpawnPoint;
     local ROGameInfo ROGI;
     local vector SpawnLoc;
+    local int Tries;
 
     ROGI = ROGameInfo(WorldInfo.Game);
     if (ROGI == None || Player == None)
@@ -309,12 +310,23 @@ function NavigationPoint FindPlayerStart(Controller Player, optional byte InTeam
     if (Chosen == None)
         Chosen = First;
 
-    if (Chosen != None)
+    // The game's search picks random spots around the spawn (five tries a call) and can find none; then the spot it gives
+    // back is the map's origin, often under the map. So it is asked a few times, and with no room around the spawn the
+    // player uses the team's normal spawns.
+    if (Chosen != None && Chosen.PSP != None)
     {
-        ROGI.FindSpawnablePointForTunnel(Chosen.PSP, SpawnLoc);
-        SpawnPoint = Spawn(class'ROSpawnNavigationPoint',,, SpawnLoc);
-        Chosen.MySpawns.AddItem(SpawnPoint);
-        return SpawnPoint;
+        for (Tries = 0; Tries < 4; Tries++)
+        {
+            if (ROGI.FindSpawnablePointForTunnel(Chosen.PSP, SpawnLoc))
+            {
+                SpawnPoint = Spawn(class'ROSpawnNavigationPoint',,, SpawnLoc);
+                if (SpawnPoint != None)
+                {
+                    Chosen.MySpawns.AddItem(SpawnPoint);
+                    return SpawnPoint;
+                }
+            }
+        }
     }
     return super.FindPlayerStart(Player, InTeam, incomingName);
 }

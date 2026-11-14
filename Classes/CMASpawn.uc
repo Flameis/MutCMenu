@@ -26,6 +26,10 @@ function SetSpawnTeam(int NewTeam)
 	RemoveFromDeployMap();
 	TeamIndex = NewTeam;
 	bNetDirty = true;
+	// The game's search for a spot around the spawn refuses spots in the other team's protected spawn area, going by
+	// this team. Without it, every spot in the South's protected area was refused, for both teams' spawns.
+	if (PSP != None)
+		PSP.TeamNum = NewTeam;
 
 	if (WorldInfo.GRI == None || TeamIndex < 0 || TeamIndex >= WorldInfo.GRI.Teams.Length || ROTeamInfo(WorldInfo.GRI.Teams[TeamIndex]) == None)
 		return;

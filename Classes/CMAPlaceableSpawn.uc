@@ -10,6 +10,13 @@ function SetTeam(ROTeamInfo NewTeam, ROSquadInfo NewSquad)
 	TeamNum = Team.TeamIndex;
 }
 
+// The team of the Builder spawn it belongs to (set by CMASpawn.SetSpawnTeam). The game's own placeable spawns answer
+// 255 here, which made the game's spot search check the wrong team's protected area.
+simulated event byte ScriptGetTeamNum()
+{
+	return TeamNum;
+}
+
 simulated function bool IsDestroyed()
 {
 	return false;
