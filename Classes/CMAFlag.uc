@@ -6,7 +6,7 @@
 // drops announced to the server, and which team's players see it on their map (after a timer from the match going live,
 // and only on the ground unless it is also shown while carried). Spectators always see every flag on their map.
 // Each flag belongs to one faction (Factions: US Army, USMC, DAK, ...), chosen when it is placed and kept whoever carries
-// it. A team's faction comes from the map: its forces on a Vietnam map, its roles on a WW2 or Winter War map. Every flag
+// it. A neutral flag is white until picked up, then shows the flag of the last team to carry it until it goes home. A team's faction comes from the map: its forces on a Vietnam map, its roles on a WW2 or Winter War map. Every flag
 // material used here fits the game's own waving flag mesh (S_VN_Flag_*, the same mesh as WW2's S_Jap_flag), so only the
 // material changes. WW2 and Winter War materials are loaded by name, so nothing here depends on those mods.
 class CMAFlag extends Actor
@@ -504,6 +504,7 @@ function PickUp(Pawn P)
     CarrierPRI = P.PlayerReplicationInfo;
     bAtHome = false;
     LastCarrierLocation = P.Location;
+    ShowCarrierTeam(P);
     SetPhysics(PHYS_None);
     Velocity = vect(0, 0, 0);
     CarrierChanged();
@@ -651,6 +652,33 @@ function ReturnHome()
     SetLocation(HomeLocation);
     Velocity = vect(0, 0, 0);
     SetPhysics(PHYS_Falling);
+    // A neutral flag is white again until someone picks it up
+    if (Faction == FAC_NEUTRAL && FlagStyle != STYLE_NEUTRAL)
+    {
+        FlagStyle = STYLE_NEUTRAL;
+        ApplyStyle();
+    }
+}
+
+// A neutral flag shows the flag of the team that carries it, and keeps showing the last carrier's flag after it is
+// dropped, until it goes home. It stays the neutral flag in messages and on the map.
+function ShowCarrierTeam(Pawn P)
+{
+    local int Team, TeamFaction;
+
+    if (Faction != FAC_NEUTRAL || P == None)
+        return;
+    Team = P.GetTeamNum();
+    if (Team < 0 || Team > 1)
+        return;
+    TeamFaction = FactionForTeam(WorldInfo, Team);
+    if (TeamFaction < 0 || TeamFaction >= Factions.Length || TeamFaction == FAC_NEUTRAL)
+        return;
+    if (FlagStyle != Factions[TeamFaction].Style)
+    {
+        FlagStyle = Factions[TeamFaction].Style;
+        ApplyStyle();
+    }
 }
 
 function Reset()
