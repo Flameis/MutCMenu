@@ -57,7 +57,10 @@ var bool bFormShift;
 var name NumberKeys[20];
 
 var config Color TextColor, BackgroundColor, BorderColor;
-var config bool bKeepOpen, bDrawBackground, bCMenuDebug;
+// Keep open, the background and debug logging are on by default. A bool missing from an ini loads as false, so what is
+// saved is the opposite (bDisable...) and bKeepOpen, bDrawBackground and bCMenuDebug are worked out from it once (Initialize).
+var config bool bDisableKeepOpen, bDisableBackground, bDisableCMenuDebug;
+var bool bKeepOpen, bDrawBackground, bCMenuDebug, bSettingsRead;
 var config bool bStyledUI; // the menus, forms and map toolbar drawn with the game's own UI pieces (Toggle RS2 Style)
 
 // RS2 style: the textures the game's HUD menus use
@@ -261,13 +264,22 @@ function Initialize()
 {
 	MenuPage = 0;
 
-	if (TextColor.a == 0)
+	if (!bSettingsRead)
 	{
-		TextColor.r = 255;
-		TextColor.g = 128;
-		TextColor.b = 0;
-		TextColor.a = 255;
+		bSettingsRead = true;
+		bKeepOpen = !bDisableKeepOpen;
+		bDrawBackground = !bDisableBackground;
+		bCMenuDebug = !bDisableCMenuDebug;
 	}
+
+	// Colours not in the ini (or with no opacity) get the defaults: orange text, dark background, green border. (A config
+	// property can't be given a value in defaultproperties.)
+	if (TextColor.A == 0)
+		TextColor = MakeColor(255, 128, 0, 255);
+	if (BackgroundColor.A == 0)
+		BackgroundColor = MakeColor(20, 20, 20, 255);
+	if (BorderColor.A == 0)
+		BorderColor = MakeColor(0, 255, 0, 255);
 
 	FindCMenuLength(); // Do this here and in HandleInput() so we aren't spamming a loop every tick
 }
@@ -1370,16 +1382,14 @@ function ToggleCMenuBackground()
 {
 	local int i;
 
-	if(!bDrawBackground) 
-	{bDrawBackground = true;}
-	else 
-	{bDrawBackground = false;}
+	bDrawBackground = !bDrawBackground;
 
     for (i = 0; i < PC.Interactions.Length; i++)
     {
         if (InStr(PC.Interactions[i].name, "CMenu",,true) != -1)
         {
             CMenu(PC.Interactions[i]).bDrawBackground = bDrawBackground;
+            CMenu(PC.Interactions[i]).bDisableBackground = !bDrawBackground;
 			CMenu(PC.Interactions[i]).SaveConfig();
         }
     }
@@ -1408,16 +1418,14 @@ function ToggleCMenuStay()
 {
     local int i;
 
-	if(!bKeepOpen) 
-	{bKeepOpen = true;}
-	else 
-	{bKeepOpen = false;}
+	bKeepOpen = !bKeepOpen;
 
     for (i = 0; i < PC.Interactions.Length; i++)
     {
         if (InStr(PC.Interactions[i].name, "CMenu",,true) != -1)
         {
             CMenu(PC.Interactions[i]).bKeepOpen = bKeepOpen;
+            CMenu(PC.Interactions[i]).bDisableKeepOpen = !bKeepOpen;
 			CMenu(PC.Interactions[i]).SaveConfig();
         }
     }
@@ -1644,6 +1652,10 @@ defaultproperties
     NumberKeys[19]=numpadnine
 
 	MenuScale=1.0
+
+	bKeepOpen=true
+	bDrawBackground=true
+	bCMenuDebug=true
 
 	DefaultTexture_Black=Texture2D'EngineResources.Black'
 	DefaultTexture_White=Texture2D'EngineResources.WhiteSquareTexture'
