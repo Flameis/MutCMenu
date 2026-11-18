@@ -34,6 +34,11 @@ const TOOL_MOVE = 10;
 const TOOL_ZONE = 11;   // movement restrictions, in the shape ZoneShape
 const NUM_TOOLS = 12;
 
+// The Restrict tool's Holds switch (ZoneBoundTeam)
+const BOUND_DRAWN_FOR = 0;
+const BOUND_NORTH = 1;
+const BOUND_SOUTH = 2;
+
 // The Restrict tool's shapes
 const ZONE_LINES = 0;   // click point after point; clicking the first point again closes it
 const ZONE_BOX = 1;
@@ -61,6 +66,7 @@ const A_CTX_ICON = 16;     // a marker icon in the middle-click menu (Arg: the i
 const A_CTX_COLOUR = 17;   // a colour in the middle-click menu on a drawing (Arg: the colour)
 const A_ZONE_BUILD = 18;   // the Restrict tool's switch: movement restrictions, boundaries (kept in while live) or build zones
 const A_OPACITY = 19;     // the drawings' opacity slider (dragged)
+const A_BOUND_TEAM = 20;  // the Restrict tool's Holds switch for boundaries: the team it is drawn for, North or South
 
 // The middle-click menus
 const MENU_NONE = 0;
@@ -194,6 +200,7 @@ var config byte SavedColour, SavedIcon;
 var config byte ZoneShape;    // the Restrict tool's shape (ZONE_LINES when not set)
 var config bool bZoneBuild;   // the Restrict tool draws build zones: where a team may build when the Builder's build zones are on
 var config bool bZoneBound;   // the Restrict tool draws boundaries: areas a team can't leave while the match is live
+var config byte ZoneBoundTeam; // who a boundary holds: BOUND_DRAWN_FOR (the team it is drawn for), BOUND_NORTH or BOUND_SOUTH
 
 var byte Tool, Colour, Icon, Channel;
 var bool bChannelPicked;       // the player picked Channel themselves, so it is only changed when no longer allowed
@@ -914,6 +921,11 @@ function PressButton(ToolButton B)
             NextZoneMode();
             SaveConfig();
             break;
+        case A_BOUND_TEAM:
+            Cancel();
+            ZoneBoundTeam = (ZoneBoundTeam + 1) % 3;
+            SaveConfig();
+            break;
         case A_CTX:
             ContextEntry(B.Arg);
             break;
@@ -1288,7 +1300,25 @@ function string ZoneText()
 {
     if (bZoneBuild)
         return class'CMMapInfo'.const.BUILD_ZONE_TEXT;
-    return bZoneBound ? class'CMMapInfo'.const.BOUNDARY_TEXT : "";
+    if (!bZoneBound)
+        return "";
+    switch (ZoneBoundTeam)
+    {
+        case BOUND_NORTH: return class'CMMapInfo'.const.BOUNDARY_TEXT$class'CMMapInfo'.const.BOUNDARY_NORTH;
+        case BOUND_SOUTH: return class'CMMapInfo'.const.BOUNDARY_TEXT$class'CMMapInfo'.const.BOUNDARY_SOUTH;
+    }
+    return class'CMMapInfo'.const.BOUNDARY_TEXT;
+}
+
+// The Holds switch: which team the boundaries drawn next keep in
+function string BoundTeamLabel()
+{
+    switch (ZoneBoundTeam)
+    {
+        case BOUND_NORTH: return "Holds: "$class'CMAFlag'.static.TeamWord(PlayerController(Outer).WorldInfo, `AXIS_TEAM_INDEX);
+        case BOUND_SOUTH: return "Holds: "$class'CMAFlag'.static.TeamWord(PlayerController(Outer).WorldInfo, `ALLIES_TEAM_INDEX);
+    }
+    return "Holds: team drawn for";
 }
 
 // The Restrict tool's switch: restrictions, then boundaries, then build zones, then restrictions again
@@ -2466,6 +2496,11 @@ function DrawToolbar(Canvas C, PlayerController PC)
             AddButton(X + i * (Cell + Gap), Y, Cell, BtnH, A_ZONE_SHAPE, i, ZoneShapeName(i), ZoneShape == i);
         Y += BtnH + Gap;
         AddButton(X, Y, Inner, BtnH, A_ZONE_BUILD, 0, ZoneModeLabel(), bZoneBuild || bZoneBound);
+        if (bZoneBound && !bZoneBuild)
+        {
+            Y += BtnH + Gap;
+            AddButton(X, Y, Inner, BtnH, A_BOUND_TEAM, 0, BoundTeamLabel(), ZoneBoundTeam != BOUND_DRAWN_FOR);
+        }
         Y += BtnH + Gap * 3;
     }
 
@@ -3161,7 +3196,11 @@ static function string KindName(CMMapInfo.ClientMapItem Item)
         case class'CMMapInfo'.const.KIND_TEXT:   return "Label";
     }
     if (class'CMMapInfo'.static.IsBoundary(Item.Kind, Item.Text))
+    {
+        if (class'CMMapInfo'.static.BoundaryTeam(Item.Text, Item.Team) != Item.Team)
+            return "Boundary ("$class'CMAFlag'.static.TeamWord(class'WorldInfo'.static.GetWorldInfo(), class'CMMapInfo'.static.BoundaryTeam(Item.Text, Item.Team))$")";
         return "Boundary";
+    }
     return class'CMMapInfo'.static.IsBuildZone(Item.Kind, Item.Text) ? "Build zone" : "Restriction";
 }
 

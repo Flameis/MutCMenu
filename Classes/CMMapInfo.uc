@@ -114,8 +114,11 @@ const KIND_ZONE_CIRCLE = 9; // centre and a point on the edge
 // build zones on, a team's players build only inside the build zones drawn for that team (or for everyone)
 const BUILD_ZONE_TEXT = "BUILD";
 // A movement restriction with this text is a boundary (the Restrict tool's Draws: boundaries switch): while the match is
-// live, a player of the team it is drawn for (or anyone, drawn for everyone) who is inside one can't walk or drive out
+// live, a player of the team it is drawn for (or anyone, drawn for everyone) who is inside one can't walk or drive out.
+// With BOUNDARY_NORTH or BOUNDARY_SOUTH added (the Holds switch) it holds only that team, whoever it is drawn for.
 const BOUNDARY_TEXT = "BOUND";
+const BOUNDARY_NORTH = "N";
+const BOUNDARY_SOUTH = "S";
 const NUM_KINDS = 10;
 
 // Who sees a drawing: a team (with a squad, or SQUAD_ALL for the whole team), everyone, only spectators, or only the
@@ -672,7 +675,18 @@ static function bool IsBuildZone(byte Kind, string Text)
 
 static function bool IsBoundary(byte Kind, string Text)
 {
-    return IsZone(Kind) && Text ~= BOUNDARY_TEXT;
+    return IsZone(Kind) && (Text ~= BOUNDARY_TEXT || Text ~= (BOUNDARY_TEXT$BOUNDARY_NORTH) || Text ~= (BOUNDARY_TEXT$BOUNDARY_SOUTH));
+}
+
+// Who a boundary holds, as a drawing's team (TEAM_NORTH, TEAM_SOUTH, TEAM_EVERYONE...): the team set with the Holds
+// switch, otherwise the team it is drawn for
+static function byte BoundaryTeam(string Text, byte DrawnFor)
+{
+    if (Text ~= (BOUNDARY_TEXT$BOUNDARY_NORTH))
+        return TEAM_NORTH;
+    if (Text ~= (BOUNDARY_TEXT$BOUNDARY_SOUTH))
+        return TEAM_SOUTH;
+    return DrawnFor;
 }
 
 // A build zone counts for a team when it was drawn for that team or for everyone

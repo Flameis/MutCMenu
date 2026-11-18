@@ -1318,9 +1318,13 @@ function RebuildBoundaries()
     Boundaries.Length = 0;
     for (i = 0; i < Items.Length; i++)
     {
-        if (!class'CMMapInfo'.static.IsBoundary(Items[i].Kind, Items[i].Text) || Items[i].Team > class'CMMapInfo'.const.TEAM_EVERYONE)
+        if (!class'CMMapInfo'.static.IsBoundary(Items[i].Kind, Items[i].Text))
             continue;
-        Z.Team = Items[i].Team;
+        // A boundary set to hold one team holds it whoever the drawing is for; otherwise it holds the team it is drawn
+        // for (or everyone). One drawn only for spectators or one player holds nobody.
+        Z.Team = class'CMMapInfo'.static.BoundaryTeam(Items[i].Text, Items[i].Team);
+        if (Z.Team > class'CMMapInfo'.const.TEAM_EVERYONE)
+            continue;
         Z.Kind = Items[i].Kind;
         class'CMMapInfo'.static.DecodePoints(Items[i].Points, Z.Pts);
         Boundaries.AddItem(Z);
