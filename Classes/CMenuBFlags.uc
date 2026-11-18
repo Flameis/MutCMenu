@@ -3,7 +3,7 @@
 // all off until switched on and remembered between games: a beam above the flag, pickups and drops announced to the
 // server, which team's players see the flag on their map, a timer from the match going live before they do, and whether
 // they see it there while it is carried, a timer from the match going live before it is given to a random player (and
-// which team's), and whether its carrier plants it instead of throwing it. The command line entry makes any other flag. Anyone can place a flag; resetting
+// which team's), and whether its carrier gets a CTF Flag item to plant it with. The command line entry makes any other flag. Anyone can place a flag; resetting
 // and removing them is for admins (the server checks again).
 class CMenuBFlags extends CMenuBActors
 	config(MutCMenu_Client);
@@ -167,7 +167,7 @@ function int GiveTeam()
 
 function string PlaceLabel()
 {
-	return "Planted When Dropped: "$SwitchText(bFlagPlace);
+	return "Flag Item In Inventory: "$SwitchText(bFlagPlace);
 }
 
 // A switch was changed: saved, shown in the menu, which stays open. Picked while a flag is being placed, the flag is
@@ -264,7 +264,7 @@ function bool CheckExceptions(string Command)
 				$"--carried / -c : they see it on the map while it is carried too (otherwise only on the ground)|"
 				$"--give / -g : seconds after the match goes LIVE before it is given to a random player (hidden until then)|"
 				$"--giveto / -o : who it is given to: north, south or anyone|"
-				$"--place / -p : its carrier plants it where they look instead of throwing it|"
+				$"--place / -p : its carrier gets a CTF Flag item in their inventory to plant it with, like a trap|"
 				$"Example: --team south --beam|Example: --flag dak --announce|Example: --team neutral --map both --timer 120|"
 				$"WW2 and Winter War flags on a map from another game need bLoadWW2 / bLoadWW.", "mutate spawnflag ", ,
 				"team,flag,beam!,announce!,map,timer,carried!,give,giveto,place!");

@@ -6,8 +6,8 @@
 // drops announced to the server, and which team's players see it on their map (after a timer from the match going live,
 // and only on the ground unless it is also shown while carried). Spectators always see every flag on their map.
 // Two more options: given out (--give) it stays hidden at home until the match has been live that long, then goes to a
-// random living player (of one team, or anyone); placeable (--place) its carrier plants it where they look instead of
-// throwing it.
+// random living player (of one team, or anyone); as an item (--place) its carrier also gets a CTF Flag item
+// (CMItem_CTFFlag) to plant it with, like a trap, which goes when the flag leaves them.
 // Each flag belongs to one faction (Factions: US Army, USMC, DAK, ...), chosen when it is placed and kept whoever carries
 // it. A neutral flag is white until picked up, then shows the flag of the last team to carry it until it goes home. A team's faction comes from the map: its forces on a Vietnam map, its roles on a WW2 or Winter War map. Every flag
 // material used here fits the game's own waving flag mesh (S_VN_Flag_*, the same mesh as WW2's S_Jap_flag), so only the
@@ -66,7 +66,6 @@ const MAP_BOTH = 3;
 // GiveTeam: who a given-out flag can go to (a team index, or anyone)
 const GIVE_ANYONE = 2;
 
-const PLANT_RANGE = 300.0;  // (6 meters) how far from the carrier's eyes a placeable flag can be planted
 
 // Which game the map is from, by its roles
 const MOD_VN = 0;
@@ -115,8 +114,9 @@ var byte                    MapTeams;
 var bool                    bMapWhileCarried;
 var bool                    bMapTimeUp;
 
-// Placeable (--place): the carrier's drop key plants it where they look (FlagCarrierInteraction) instead of throwing it
+// As an item (--place): the carrier gets a CTF Flag item (CMItem_CTFFlag) to plant it with
 var bool                    bPlaceable;
+var CMItem_CTFFlag          FlagItem;       // Server: the item the carrier has for it
 
 // Server-side
 var int                     PlacerID;       // The PlayerID of whoever placed it (-1 when not known), for the per-player flag limit
@@ -591,13 +591,52 @@ function PickUp(Pawn P, optional bool bGivenOut)
     Velocity = vect(0, 0, 0);
     CarrierChanged();
     FollowCarrier();
+    GiveItem(P);
     if (bAnnounce && P.PlayerReplicationInfo != None)
         Announce(P.PlayerReplicationInfo.PlayerName$(bGivenOut ? " was given the " : " picked up the ")$Label()$" flag");
+}
+
+// A flag carried as an item: the carrier gets the CTF Flag item to plant it with
+function GiveItem(Pawn P)
+{
+    if (!bPlaceable || P == None || P.InvManager == None)
+        return;
+    RemoveItem();
+    FlagItem = CMItem_CTFFlag(P.InvManager.CreateInventory(class'CMItem_CTFFlag'));
+    if (FlagItem != None)
+        FlagItem.Flag = self;
+}
+
+// The flag left its carrier some other way than being planted with the item (thrown, dropped on death, sent home,
+// removed): the item goes from their inventory
+function RemoveItem()
+{
+    local CMItem_CTFFlag Item;
+
+    Item = FlagItem;
+    FlagItem = None;
+    if (Item == None || Item.bDeleteMe)
+        return;
+    if (Item.Instigator != None && Item.Instigator.InvManager != None)
+        Item.Instigator.InvManager.RemoveFromInventory(Item);
+    Item.ForceEndFire();
+    Item.DetachWeapon();
+    Item.ClientWeaponThrown();
+    Item.Destroy();
+}
+
+simulated event Destroyed()
+{
+    if (Role == ROLE_Authority)
+        RemoveItem();
+    super.Destroyed();
 }
 
 // Runs on the server and every client
 simulated function CarrierChanged()
 {
+    if (Role == ROLE_Authority && Carrier == None)
+        RemoveItem();
     SetOwner(Carrier);
     bCollideWorld = (Carrier == None); // While carried it is placed every frame and must never get stuck on walls
     UpdateVisibility();
@@ -713,7 +752,7 @@ function Drop(optional bool bThrow)
         Announce((Who != "" ? Who : "The carrier")$" dropped the "$Label()$" flag");
 }
 
-// Placeable flags: put down standing at Spot (on the ground where the carrier looks), facing away from them. False when
+// Flags carried as an item: put down standing at Spot (where the item placed it), facing away from the carrier. False when
 // it doesn't fit there; it is still carried then.
 function bool Plant(vector Spot)
 {

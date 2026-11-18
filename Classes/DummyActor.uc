@@ -699,13 +699,6 @@ reliable server function DropCarriedFlag()
         MyMut.DropFlagCommand(PlayerController(Owner));
 }
 
-// Server side of planting a placeable flag (FlagCarrierInteraction): the spot it is put down on
-reliable server function ServerPlantFlag(vector Spot)
-{
-    if (MyMut != None && PlayerController(Owner) != None)
-        MyMut.PlantFlagCommand(PlayerController(Owner), Spot);
-}
-
 // Server side of the tank entry prompt (TankEntryInteraction). Gets past the game's gates on tanks (bInfantryCanUse, and
 // the one role class WW2 and Winter War tanks let in) but keeps the normal TryToDrive checks: a free seat, no enemies
 // aboard, not prone, the vehicle's own team lock. Returns whether the player got in.

@@ -983,8 +983,8 @@ function string ObjectiveOwnerWord(ROObjective O)
 // options, all off unless given: --beam a beam above it, --announce pickups and drops told to the server, --map which
 // team's players see it on their map (north, south, both or none), --timer how long after the match goes live they first
 // see it there, --carried that they see it there while it is carried too, --give that it is hidden until the match has been
-// live that long and then given to a random player (--giveto: of one team, or anyone), --place that its carrier plants it
-// where they look instead of throwing it. (--nobeam is still taken, from before beams were off by default.)
+// live that long and then given to a random player (--giveto: of one team, or anyone), --place that its carrier gets a
+// CTF Flag item to plant it with. (--nobeam is still taken, from before beams were off by default.)
 function SpawnFlagCommand(PlayerController Sender, array<string> Tokens)
 {
     local vector ViewLoc, HitLoc, HitNorm, Loc;
@@ -1272,38 +1272,6 @@ function DropFlagCommand(PlayerController Sender)
             F.Drop(true);
             return;
         }
-    }
-    PrivateMessage(Sender, "[CMenu] You are not carrying a flag");
-}
-
-// A placeable flag's carrier plants it at Spot (FlagCarrierInteraction, through DummyActor.ServerPlantFlag). The spot must be
-// within reach of their eyes and in sight; any other flag is thrown as with dropflag.
-function PlantFlagCommand(PlayerController Sender, vector Spot)
-{
-    local CMAFlag F;
-    local vector ViewLoc;
-    local rotator ViewRot;
-
-    if (Sender == None || Sender.Pawn == None)
-        return;
-    foreach DynamicActors(class'CMAFlag', F)
-    {
-        if (!F.IsCarriedBy(Sender.Pawn))
-            continue;
-        if (!F.bPlaceable)
-        {
-            F.Drop(true);
-            return;
-        }
-        Sender.GetPlayerViewPoint(ViewLoc, ViewRot);
-        if (VSize(Spot - ViewLoc) > class'CMAFlag'.const.PLANT_RANGE + 50 || !FastTrace(Spot + vect(0, 0, 10), ViewLoc))
-        {
-            PrivateMessage(Sender, "[CMenu] Too far away or out of sight to plant the flag there");
-            return;
-        }
-        if (!F.Plant(Spot))
-            PrivateMessage(Sender, "[CMenu] The flag doesn't fit there");
-        return;
     }
     PrivateMessage(Sender, "[CMenu] You are not carrying a flag");
 }
