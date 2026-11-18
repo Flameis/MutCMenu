@@ -7,6 +7,7 @@
 //  - map drawings: every drawing lives here; each player is sent the ones they may see, a few at a time, and is told
 //    when one goes away. When a player's team, squad or role changes they are sent the whole set again for their new
 //    view. Drawings are cleared at the start of each round unless the server keeps them.
+//  - ten times a second while any boundary is drawn, keeps players inside them while the match is live (KeepInBoundaries).
 class CMMapManager extends Info;
 
 struct MapDrawItem
@@ -16,6 +17,23 @@ struct MapDrawItem
     var int OwnerID;
     var string OwnerName, Text, Points; // Points packed as in CMMapInfo.EncodePoint
     var int OwnerToken;                 // the number the owner gave it, sent back to them only
+};
+
+// A boundary (the Restrict tool's Draws: boundaries), unpacked for the ten-a-second check
+struct BoundaryZone
+{
+    var byte Team, Kind;
+    var array<vector2D> Pts;
+};
+
+// A player the boundaries watch: where they last were inside one, and where they were at the last look
+struct BoundaryWatch
+{
+    var Controller C;
+    var Pawn P;
+    var vector LastIn, LastSeen;
+    var bool bHasIn;
+    var float NextWarn;
 };
 
 // A teammate the game's map leaves out, remembered so they can still be shown for a moment after they die
@@ -41,6 +59,9 @@ const MIN_SEGMENT = 25.0;      // a stretch shorter than this (half a meter) isn
 const DEAD_ICON_TIME = 5.0;
 const GUNSHIP_LINES = 2;       // AC-47 tracer lines per look while it fires
 const GUNSHIP_DIP = 100;       // how much further down (rotation units, about half a degree) the AC-47's lines point than at the aim point
+const BOUNDARY_STEP = 0.1;     // seconds between boundary checks
+const BOUNDARY_JUMP = 1000.0;  // 20 meters: moved further than this between two checks is a teleport (an admin's, a respawn), which frees them
+const BOUNDARY_WARN = 2.0;     // seconds between the "can't leave" messages to one player
 const STRIKE_SEARCH = 10000.0; // 200 meters: how far from a barrage or an aircraft a shell with no team can start and be counted as its
     // seconds a left-out teammate (or, for spectators, anyone) stays on the map after dying, as the game does
 
@@ -99,6 +120,9 @@ var array<TrackedShot> Tracked;
 var float LastTrackTime;      // when TrackProjectiles last looked: anything fired after it can't be in Tracked yet
 var array<FlashWatch> Flashes;
 var array<Pawn> FreshShooters; // who fired a bullet first seen in this look
+var array<BoundaryZone> Boundaries;
+var bool bBoundariesDirty;     // a drawing came, went or moved: Boundaries is made again at the next check
+var array<BoundaryWatch> BoundWatch;
 
 function PostBeginPlay()
 {
@@ -107,6 +131,8 @@ function PostBeginPlay()
     SetTimer(0.25, true, 'RefreshSnapshots');
     SetTimer(0.5, true, 'CheckDemoCamera');
     SetTimer(TRACK_STEP, true, 'TrackProjectiles');
+    SetTimer(BOUNDARY_STEP, true, 'KeepInBoundaries');
+    bBoundariesDirty = true;
 }
 
 function bool DrawingEnabled()
@@ -1249,6 +1275,7 @@ function bool CommitItem(CMMapInfo From, CMMapInfo.PendingMapItem P)
     Item.Points = P.Points;
     Item.OwnerToken = P.Token;
     Items.AddItem(Item);
+    bBoundariesDirty = true;
 
     for (i = 0; i < Infos.Length; i++)
     {
@@ -1276,6 +1303,165 @@ function bool InBuildZone(byte Team, vector Loc, out int Zones)
         }
     }
     return false;
+}
+
+// ====================================================
+// Boundaries
+// ====================================================
+
+function RebuildBoundaries()
+{
+    local BoundaryZone Z;
+    local int i;
+
+    bBoundariesDirty = false;
+    Boundaries.Length = 0;
+    for (i = 0; i < Items.Length; i++)
+    {
+        if (!class'CMMapInfo'.static.IsBoundary(Items[i].Kind, Items[i].Text) || Items[i].Team > class'CMMapInfo'.const.TEAM_EVERYONE)
+            continue;
+        Z.Team = Items[i].Team;
+        Z.Kind = Items[i].Kind;
+        class'CMMapInfo'.static.DecodePoints(Items[i].Points, Z.Pts);
+        Boundaries.AddItem(Z);
+    }
+}
+
+// Whether a spot is inside a boundary drawn for Team (or for everyone). Open lines aren't an area, so never count.
+function bool InBoundary(byte Team, vector Loc)
+{
+    local int i;
+
+    if (bBoundariesDirty)
+        RebuildBoundaries();
+    for (i = 0; i < Boundaries.Length; i++)
+    {
+        if (class'CMMapInfo'.static.BuildZoneFor(Boundaries[i].Team, Team)
+            && class'CMMapInfo'.static.PointInZone(Boundaries[i].Kind, Boundaries[i].Pts, Loc))
+            return true;
+    }
+    return false;
+}
+
+// What moves when this pawn moves: the vehicle for anyone in one (a gunner's seat moves with its vehicle), else the pawn
+static function Actor BoundaryMover(Pawn P)
+{
+    if (ROWeaponPawn(P) != None && ROWeaponPawn(P).MyVehicle != None)
+        return ROWeaponPawn(P).MyVehicle;
+    if (P.DrivenVehicle != None)
+        return BoundaryMover(P.DrivenVehicle);
+    return P;
+}
+
+// While the match is live, a player who was inside a boundary for their team can't leave it: on foot or in a vehicle they
+// are put back where they last were inside. Outside every boundary when the match goes live, or moved out by a
+// teleport or a new life, they are free until they walk into one. Before the match is live nobody is held.
+function KeepInBoundaries()
+{
+    local Controller C;
+    local Actor Mover;
+    local vector Loc;
+    local int i, Team;
+    local bool bLive;
+
+    if (bBoundariesDirty)
+        RebuildBoundaries();
+    if (Boundaries.Length == 0)
+    {
+        BoundWatch.Length = 0;
+        return;
+    }
+    bLive = Mut != None && Mut.LiveFor() >= 0;
+
+    // Players who left or have no pawn are forgotten
+    for (i = BoundWatch.Length - 1; i >= 0; i--)
+    {
+        if (BoundWatch[i].C == None || BoundWatch[i].C.bDeleteMe || BoundWatch[i].C.Pawn == None)
+            BoundWatch.Remove(i, 1);
+    }
+
+    foreach WorldInfo.AllControllers(class'Controller', C)
+    {
+        if (C.Pawn == None || C.PlayerReplicationInfo == None || C.PlayerReplicationInfo.bOnlySpectator || C.Pawn.Health <= 0)
+            continue;
+        Team = C.GetTeamNum();
+        if (Team > 1)
+            continue;
+        Mover = BoundaryMover(C.Pawn);
+        Loc = Mover.Location;
+
+        i = FindBoundWatch(C);
+        if (BoundWatch[i].P != C.Pawn || VSize(Loc - BoundWatch[i].LastSeen) > BOUNDARY_JUMP)
+        {
+            // A new life, a seat change or a teleport: free until they are inside one again
+            BoundWatch[i].P = C.Pawn;
+            BoundWatch[i].bHasIn = false;
+        }
+        BoundWatch[i].LastSeen = Loc;
+
+        if (InBoundary(Team, Loc))
+        {
+            BoundWatch[i].LastIn = Loc;
+            BoundWatch[i].bHasIn = true;
+        }
+        else if (!bLive || !BoundWatch[i].bHasIn)
+            BoundWatch[i].bHasIn = false;
+        else
+        {
+            PutBack(Mover, BoundWatch[i].LastIn);
+            BoundWatch[i].LastSeen = BoundWatch[i].LastIn;
+            if (PlayerController(C) != None && WorldInfo.TimeSeconds >= BoundWatch[i].NextWarn)
+            {
+                BoundWatch[i].NextWarn = WorldInfo.TimeSeconds + BOUNDARY_WARN;
+                PrivateMessage(PlayerController(C), "You can't leave this area while the match is live.");
+            }
+        }
+    }
+}
+
+function int FindBoundWatch(Controller C)
+{
+    local BoundaryWatch W;
+    local int i;
+
+    for (i = 0; i < BoundWatch.Length; i++)
+    {
+        if (BoundWatch[i].C == C)
+            return i;
+    }
+    W.C = C;
+    W.P = C.Pawn;
+    W.LastSeen = BoundaryMover(C.Pawn).Location;
+    BoundWatch.AddItem(W);
+    return BoundWatch.Length - 1;
+}
+
+// Back to a spot inside, stopped. A vehicle is a physics body, so the body is moved and stopped too.
+function PutBack(Actor Mover, vector Spot)
+{
+    local Vehicle V;
+    local vector Vel;
+
+    V = Vehicle(Mover);
+    if (V != None)
+    {
+        V.SetLocation(Spot);
+        V.Velocity = vect(0, 0, 0);
+        if (V.Mesh != None)
+        {
+            V.Mesh.SetRBPosition(Spot);
+            V.Mesh.SetRBLinearVelocity(vect(0, 0, 0));
+            V.Mesh.SetRBAngularVelocity(vect(0, 0, 0));
+        }
+        return;
+    }
+    if (!Mover.SetLocation(Spot))
+        Mover.SetLocation(Spot + vect(0, 0, 10));
+    // Stopped going out; a fall keeps falling
+    Vel = Mover.Velocity;
+    Vel.X = 0;
+    Vel.Y = 0;
+    Mover.Velocity = Vel;
 }
 
 // The oldest drawing that isn't a marker or movement restriction, INDEX_NONE when there are only those
@@ -1316,6 +1502,7 @@ function RemoveItemAt(int Index)
             Infos[i].RemoveQueue.AddItem(Items[Index].ID);
     }
     Items.Remove(Index, 1);
+    bBoundariesDirty = true;
 }
 
 function EraseItem(PlayerController PC, int ID)
@@ -1368,6 +1555,7 @@ function MoveItem(PlayerController PC, int ID, int DX, int DY)
         S $= class'CMMapInfo'.static.EncodePoint(Points[i]);
     }
     Items[Index].Points = S;
+    bBoundariesDirty = true;
 
     for (i = 0; i < Infos.Length; i++)
     {
@@ -1509,6 +1697,7 @@ function ClearAll()
     local int i;
 
     Items.Length = 0;
+    bBoundariesDirty = true;
     for (i = 0; i < Infos.Length; i++)
     {
         if (Infos[i] == None)

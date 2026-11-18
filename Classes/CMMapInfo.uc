@@ -113,6 +113,9 @@ const KIND_ZONE_CIRCLE = 9; // centre and a point on the edge
 // A movement restriction with this text is a build zone (the Restrict tool's Build zone switch): with the Builder's
 // build zones on, a team's players build only inside the build zones drawn for that team (or for everyone)
 const BUILD_ZONE_TEXT = "BUILD";
+// A movement restriction with this text is a boundary (the Restrict tool's Draws: boundaries switch): while the match is
+// live, a player of the team it is drawn for (or anyone, drawn for everyone) who is inside one can't walk or drive out
+const BOUNDARY_TEXT = "BOUND";
 const NUM_KINDS = 10;
 
 // Who sees a drawing: a team (with a squad, or SQUAD_ALL for the whole team), everyone, only spectators, or only the
@@ -665,6 +668,11 @@ static function bool IsZone(byte Kind)
 static function bool IsBuildZone(byte Kind, string Text)
 {
     return IsZone(Kind) && Text ~= BUILD_ZONE_TEXT;
+}
+
+static function bool IsBoundary(byte Kind, string Text)
+{
+    return IsZone(Kind) && Text ~= BOUNDARY_TEXT;
 }
 
 // A build zone counts for a team when it was drawn for that team or for everyone

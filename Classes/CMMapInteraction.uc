@@ -59,7 +59,7 @@ const A_ZONE_SHAPE = 14;   // picks the Restrict tool's shape (Arg: a ZONE_ valu
 const A_CTX = 15;          // an entry of the middle-click menu (Arg: a CTX_ value)
 const A_CTX_ICON = 16;     // a marker icon in the middle-click menu (Arg: the icon)
 const A_CTX_COLOUR = 17;   // a colour in the middle-click menu on a drawing (Arg: the colour)
-const A_ZONE_BUILD = 18;   // the Restrict tool draws build zones (for the Builder) instead of movement restrictions
+const A_ZONE_BUILD = 18;   // the Restrict tool's switch: movement restrictions, boundaries (kept in while live) or build zones
 const A_OPACITY = 19;     // the drawings' opacity slider (dragged)
 
 // The middle-click menus
@@ -193,6 +193,7 @@ var config name TracersKey;   // spectators hold it to see the tracers, or tap i
 var config byte SavedColour, SavedIcon;
 var config byte ZoneShape;    // the Restrict tool's shape (ZONE_LINES when not set)
 var config bool bZoneBuild;   // the Restrict tool draws build zones: where a team may build when the Builder's build zones are on
+var config bool bZoneBound;   // the Restrict tool draws boundaries: areas a team can't leave while the match is live
 
 var byte Tool, Colour, Icon, Channel;
 var bool bChannelPicked;       // the player picked Channel themselves, so it is only changed when no longer allowed
@@ -910,7 +911,7 @@ function PressButton(ToolButton B)
             break;
         case A_ZONE_BUILD:
             Cancel();
-            bZoneBuild = !bZoneBuild;
+            NextZoneMode();
             SaveConfig();
             break;
         case A_CTX:
@@ -1282,10 +1283,36 @@ function ZoneClick(vector2D W)
     }
 }
 
-// What a Restrict tool drawing carries: the build zone mark, or nothing for a movement restriction
+// What a Restrict tool drawing carries: the build zone or boundary mark, or nothing for a movement restriction
 function string ZoneText()
 {
-    return bZoneBuild ? class'CMMapInfo'.const.BUILD_ZONE_TEXT : "";
+    if (bZoneBuild)
+        return class'CMMapInfo'.const.BUILD_ZONE_TEXT;
+    return bZoneBound ? class'CMMapInfo'.const.BOUNDARY_TEXT : "";
+}
+
+// The Restrict tool's switch: restrictions, then boundaries, then build zones, then restrictions again
+function NextZoneMode()
+{
+    if (bZoneBuild)
+    {
+        bZoneBuild = false;
+        bZoneBound = false;
+    }
+    else if (bZoneBound)
+    {
+        bZoneBound = false;
+        bZoneBuild = true;
+    }
+    else
+        bZoneBound = true;
+}
+
+function string ZoneModeLabel()
+{
+    if (bZoneBuild)
+        return "Draws: build zones";
+    return bZoneBound ? "Draws: boundaries (live)" : "Draws: restrictions";
 }
 
 function FinishZoneLines()
@@ -2438,7 +2465,7 @@ function DrawToolbar(Canvas C, PlayerController PC)
         for (i = 0; i < NUM_ZONE_SHAPES; i++)
             AddButton(X + i * (Cell + Gap), Y, Cell, BtnH, A_ZONE_SHAPE, i, ZoneShapeName(i), ZoneShape == i);
         Y += BtnH + Gap;
-        AddButton(X, Y, Inner, BtnH, A_ZONE_BUILD, 0, bZoneBuild ? "Draws: build zones" : "Draws: restrictions", bZoneBuild);
+        AddButton(X, Y, Inner, BtnH, A_ZONE_BUILD, 0, ZoneModeLabel(), bZoneBuild || bZoneBound);
         Y += BtnH + Gap * 3;
     }
 
@@ -2675,12 +2702,22 @@ function DrawStyledButton(Canvas C, ToolButton B, bool bHover)
 // Spectator overlay, left-out teammates and objective borders
 // ====================================================
 
-// Colour for a team: whatever the running HUD uses (north is SideColors[0], south SideColors[1])
+// Colour for a team: whatever the running HUD uses (north is SideColors[0], south SideColors[1]). With the game's
+// friend and foe colours on (bUseFriendAndFoeColours), a player on a team sees their own side in SideColors[1] and the
+// enemy in SideColors[0], as the game's own map does; spectators always see north and south.
 function color TeamColour(ROHUD H, byte Team)
 {
-    if (H != None && Team < 2)
-        return H.SideColors[Team];
-    return MakeColor(255, 255, 255, 255);
+    local int MyTeam;
+
+    if (H == None || Team >= 2)
+        return MakeColor(255, 255, 255, 255);
+    if (H.bUseFriendAndFoeColours && PlayerController(Outer) != None)
+    {
+        MyTeam = PlayerController(Outer).GetTeamNum();
+        if (MyTeam < 2)
+            return H.SideColors[(Team == MyTeam) ? 1 : 0];
+    }
+    return H.SideColors[Team];
 }
 
 // The game's own name display (distance setting 0 = none) is turned off while the overlay is on and put back afterwards.
@@ -2973,6 +3010,23 @@ static function int FlagTeam(WorldInfo WI, int Faction)
     return 255;
 }
 
+// The team whose flag this one shows in the game now, 255 for neither: its own faction's team, or for a neutral flag
+// the team of the last carrier (it shows their flag until it goes home), so the map icon matches the flag on the ground
+static function int ShownFlagTeam(WorldInfo WI, int Faction, byte Style)
+{
+    local int Team;
+
+    Team = FlagTeam(WI, Faction);
+    if (Team < 2 || Faction != class'CMAFlag'.const.FAC_NEUTRAL || Style == class'CMAFlag'.const.STYLE_NEUTRAL)
+        return Team;
+    for (Team = 0; Team < 2; Team++)
+    {
+        if (class'CMAFlag'.default.Factions[class'CMAFlag'.static.FactionForTeam(WI, Team)].Style == Style)
+            return Team;
+    }
+    return 255;
+}
+
 // Capture the Flag flags, as a small flag icon each. Spectators see every flag; a player sees the flags placed to
 // show on their team's map, once their timer is up, and while carried only if the flag is shown then too.
 function DrawFlagsOnMap(Canvas C, ROHUD H, bool bSpectatorView)
@@ -2988,15 +3042,16 @@ function DrawFlagsOnMap(Canvas C, ROHUD H, bool bSpectatorView)
     Size = ICON_SIZE * UIScale;
     foreach PC.DynamicActors(class'CMAFlag', F)
     {
-        if (F.bDeleteMe || F.Location.X < MinWX || F.Location.X > MaxWX || F.Location.Y < MinWY || F.Location.Y > MaxWY)
+        // A flag waiting to be given out is hidden until then, on the map too
+        if (F.bDeleteMe || F.bHidden || F.Location.X < MinWX || F.Location.X > MaxWX || F.Location.Y < MinWY || F.Location.Y > MaxWY)
             continue;
         if (!bSpectatorView && !F.OnTeamMap(PC.GetTeamNum()))
             continue;
 
-        Team = FlagTeam(PC.WorldInfo, F.Faction);
+        Team = ShownFlagTeam(PC.WorldInfo, F.Faction, F.FlagStyle);
         Col = (Team < 2) ? TeamColour(H, Team) : MakeColor(255, 255, 255, 255);
         S = WorldToScreen(V2(F.Location.X, F.Location.Y));
-        DrawFlagIcon(C, S, Size, Col); // just the flag, in its team's colour (no text)
+        DrawFlagIcon(C, S, Size, Col); // just the flag, in its team's colour as the player has the game's colours set (no text)
     }
 }
 
@@ -3105,6 +3160,8 @@ static function string KindName(CMMapInfo.ClientMapItem Item)
         case class'CMMapInfo'.const.KIND_MARKER: return class'CMMapInfo'.static.IconName(Item.Icon)$" marker";
         case class'CMMapInfo'.const.KIND_TEXT:   return "Label";
     }
+    if (class'CMMapInfo'.static.IsBoundary(Item.Kind, Item.Text))
+        return "Boundary";
     return class'CMMapInfo'.static.IsBuildZone(Item.Kind, Item.Text) ? "Build zone" : "Restriction";
 }
 
