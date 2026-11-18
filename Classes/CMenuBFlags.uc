@@ -2,19 +2,28 @@
 // Actors menu's (whose preview code it shares). Switches in the menu set the options the next flags placed from it get,
 // all off until switched on and remembered between games: a beam above the flag, pickups and drops announced to the
 // server, which team's players see the flag on their map, a timer from the match going live before they do, and whether
-// they see it there while it is carried. The command line entry makes any other flag. Anyone can place a flag; resetting
+// they see it there while it is carried, a timer from the match going live before it is given to a random player (and
+// which team's), and whether its carrier plants it instead of throwing it. The command line entry makes any other flag. Anyone can place a flag; resetting
 // and removing them is for admins (the server checks again).
 class CMenuBFlags extends CMenuBActors
 	config(MutCMenu_Client);
 
-var config bool bFlagBeam, bFlagAnnounce, bFlagMapCarried;
+var config bool bFlagBeam, bFlagAnnounce, bFlagMapCarried, bFlagPlace;
+var config int FlagGiveTimer;   // seconds after the match goes live before the flag is given to a random player, 0 for never
+var config byte FlagGiveTo;     // GIVETO_: who it is given to
 var config byte FlagMapTeams;   // CMAFlag's MAP_ bits: whose players see the flags on their map
 var config int FlagMapTimer;    // seconds after the match goes live before they do
 
 var array<int> TimerSteps;      // what the Map Timer switch steps through
+var array<int> GiveSteps;       // what the Give Timer switch steps through
 var string PlacingCmd;          // the flag being placed, so a switch picked while placing doesn't lose it
 
 const TEAM_NEUTRAL = 2;
+
+// FlagGiveTo (a config byte, so 0, the value when it isn't set, is anyone)
+const GIVETO_ANYONE = 0;
+const GIVETO_NORTH = 1;
+const GIVETO_SOUTH = 2;
 
 function Initialize()
 {
@@ -31,6 +40,9 @@ function Initialize()
 		AddEntry(MapLabel(), "FLAGOPT_MAP");
 		AddEntry(TimerLabel(), "FLAGOPT_TIMER");
 		AddEntry(CarriedLabel(), "FLAGOPT_CARRIED");
+		AddEntry(GiveLabel(), "FLAGOPT_GIVE");
+		AddEntry(GiveToLabel(), "FLAGOPT_GIVETO");
+		AddEntry(PlaceLabel(), "FLAGOPT_PLACE");
 		// No preview: types the command in the console with the options explained, for flags the entries above can't make
 		AddEntry("CTF Flag: Command Line", "CTFFLAGCMD");
 	}
@@ -112,14 +124,50 @@ function string CarriedLabel()
 // The next step of the Map Timer switch after the current value (back to None after the last)
 function int NextTimer(int Current)
 {
+	return NextStep(TimerSteps, Current);
+}
+
+static function int NextStep(array<int> Steps, int Current)
+{
 	local int i;
 
-	for (i = 0; i < TimerSteps.Length; i++)
+	for (i = 0; i < Steps.Length; i++)
 	{
-		if (TimerSteps[i] > Current)
-			return TimerSteps[i];
+		if (Steps[i] > Current)
+			return Steps[i];
 	}
 	return 0;
+}
+
+function string GiveLabel()
+{
+	return "Give To Random Player: "$(FlagGiveTimer > 0 ? TimerText(FlagGiveTimer) : "Off");
+}
+
+function string GiveToLabel()
+{
+	switch (FlagGiveTo)
+	{
+		case GIVETO_NORTH: return "Given To: "$class'CMAFlag'.static.TeamWord(PC.WorldInfo, `AXIS_TEAM_INDEX);
+		case GIVETO_SOUTH: return "Given To: "$class'CMAFlag'.static.TeamWord(PC.WorldInfo, `ALLIES_TEAM_INDEX);
+	}
+	return "Given To: Anyone";
+}
+
+// The team index (or CMAFlag's GIVE_ANYONE) the server is sent
+function int GiveTeam()
+{
+	switch (FlagGiveTo)
+	{
+		case GIVETO_NORTH: return `AXIS_TEAM_INDEX;
+		case GIVETO_SOUTH: return `ALLIES_TEAM_INDEX;
+	}
+	return class'CMAFlag'.const.GIVE_ANYONE;
+}
+
+function string PlaceLabel()
+{
+	return "Planted When Dropped: "$SwitchText(bFlagPlace);
 }
 
 // A switch was changed: saved, shown in the menu, which stays open. Picked while a flag is being placed, the flag is
@@ -144,6 +192,9 @@ function RefreshLabels()
 	SetLabel("FLAGOPT_MAP", MapLabel());
 	SetLabel("FLAGOPT_TIMER", TimerLabel());
 	SetLabel("FLAGOPT_CARRIED", CarriedLabel());
+	SetLabel("FLAGOPT_GIVE", GiveLabel());
+	SetLabel("FLAGOPT_GIVETO", GiveToLabel());
+	SetLabel("FLAGOPT_PLACE", PlaceLabel());
 	FindCMenuLength();
 }
 
@@ -186,6 +237,21 @@ function bool CheckExceptions(string Command)
 			SwitchChanged(CarriedLabel());
 			return true;
 
+		case "FLAGOPT_GIVE":
+			FlagGiveTimer = NextStep(GiveSteps, FlagGiveTimer);
+			SwitchChanged(GiveLabel());
+			return true;
+
+		case "FLAGOPT_GIVETO":
+			FlagGiveTo = (FlagGiveTo + 1) % 3;
+			SwitchChanged(GiveToLabel());
+			return true;
+
+		case "FLAGOPT_PLACE":
+			bFlagPlace = !bFlagPlace;
+			SwitchChanged(PlaceLabel());
+			return true;
+
 		case "CTFFLAGCMD":
 			PlacingCmd = "";
 			PromptForText("CTF Flag|Places a flag where you are looking. Add options after the command, or just press Enter for your own team's flag. Leave a box blank for its default (off).|"
@@ -196,9 +262,12 @@ function bool CheckExceptions(string Command)
 				$"--map / -m : whose players see it on their map: north, south, both or none|"
 				$"--timer / -d : seconds after the match goes LIVE before they see it there|"
 				$"--carried / -c : they see it on the map while it is carried too (otherwise only on the ground)|"
+				$"--give / -g : seconds after the match goes LIVE before it is given to a random player (hidden until then)|"
+				$"--giveto / -o : who it is given to: north, south or anyone|"
+				$"--place / -p : its carrier plants it where they look instead of throwing it|"
 				$"Example: --team south --beam|Example: --flag dak --announce|Example: --team neutral --map both --timer 120|"
 				$"WW2 and Winter War flags on a map from another game need bLoadWW2 / bLoadWW.", "mutate spawnflag ", ,
-				"team,flag,beam!,announce!,map,timer,carried!");
+				"team,flag,beam!,announce!,map,timer,carried!,give,giveto,place!");
 			return true;
 
 		case "CTFFLAGNORTH":
@@ -230,7 +299,8 @@ function DoPlace()
 		case "CTFFLAGNORTH":
 		case "CTFFLAGSOUTH":
 		case "CTFFLAGNEUTRAL":
-			MyDA.ServerPlaceFlag(PlaceLoc, SpawnTeamIndex, bFlagBeam, bFlagAnnounce, FlagMapTeams, FlagMapTimer, bFlagMapCarried);
+			MyDA.ServerPlaceFlag(PlaceLoc, SpawnTeamIndex, bFlagBeam, bFlagAnnounce, FlagMapTeams, FlagMapTimer, bFlagMapCarried,
+				FlagGiveTimer, GiveTeam(), bFlagPlace);
 			return;
 	}
 }
@@ -248,4 +318,19 @@ defaultproperties
 	TimerSteps(2)=120
 	TimerSteps(3)=300
 	TimerSteps(4)=600
+
+	// 10, 20 and 30 seconds, then every minute up to 10
+	GiveSteps(0)=10
+	GiveSteps(1)=20
+	GiveSteps(2)=30
+	GiveSteps(3)=60
+	GiveSteps(4)=120
+	GiveSteps(5)=180
+	GiveSteps(6)=240
+	GiveSteps(7)=300
+	GiveSteps(8)=360
+	GiveSteps(9)=420
+	GiveSteps(10)=480
+	GiveSteps(11)=540
+	GiveSteps(12)=600
 }

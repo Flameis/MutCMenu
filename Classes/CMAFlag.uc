@@ -5,6 +5,9 @@
 // Each flag is placed with its own options (all off unless asked for): a beam above it so it can be found, pickups and
 // drops announced to the server, and which team's players see it on their map (after a timer from the match going live,
 // and only on the ground unless it is also shown while carried). Spectators always see every flag on their map.
+// Two more options: given out (--give) it stays hidden at home until the match has been live that long, then goes to a
+// random living player (of one team, or anyone); placeable (--place) its carrier plants it where they look instead of
+// throwing it.
 // Each flag belongs to one faction (Factions: US Army, USMC, DAK, ...), chosen when it is placed and kept whoever carries
 // it. A neutral flag is white until picked up, then shows the flag of the last team to carry it until it goes home. A team's faction comes from the map: its forces on a Vietnam map, its roles on a WW2 or Winter War map. Every flag
 // material used here fits the game's own waving flag mesh (S_VN_Flag_*, the same mesh as WW2's S_Jap_flag), so only the
@@ -60,6 +63,11 @@ const MAP_NORTH = 1;
 const MAP_SOUTH = 2;
 const MAP_BOTH = 3;
 
+// GiveTeam: who a given-out flag can go to (a team index, or anyone)
+const GIVE_ANYONE = 2;
+
+const PLANT_RANGE = 300.0;  // (6 meters) how far from the carrier's eyes a placeable flag can be planted
+
 // Which game the map is from, by its roles
 const MOD_VN = 0;
 const MOD_WW2 = 1;
@@ -107,11 +115,17 @@ var byte                    MapTeams;
 var bool                    bMapWhileCarried;
 var bool                    bMapTimeUp;
 
+// Placeable (--place): the carrier's drop key plants it where they look (FlagCarrierInteraction) instead of throwing it
+var bool                    bPlaceable;
+
 // Server-side
 var int                     PlacerID;       // The PlayerID of whoever placed it (-1 when not known), for the per-player flag limit
 var MutCMenu                MyMut;          // Its bCTFSilent silences every flag message
 var bool                    bAnnounce;      // Pickups and drops are told to the whole server (--announce)
 var int                     MapDelay;       // Seconds after the match goes live before players' maps show it (--timer)
+var int                     GiveDelay;      // Seconds after the match goes live before it is given to a random player (--give), 0 for never
+var byte                    GiveTeam;       // Who it can be given to: a team index or GIVE_ANYONE (--giveto)
+var bool                    bGiven;         // Given out since it last went home
 var vector                  HomeLocation;
 var vector                  LastCarrierLocation;
 var Pawn                    LastDropper;
@@ -130,7 +144,7 @@ var bool                    bLooksSet;       // Client-side: the first tick set 
 replication
 {
     if (bNetDirty && Role == ROLE_Authority)
-        Carrier, FlagStyle, bShowBeam, Faction, CarrierPRI, bAtHome, MapTeams, bMapWhileCarried, bMapTimeUp;
+        Carrier, FlagStyle, bShowBeam, Faction, CarrierPRI, bAtHome, MapTeams, bMapWhileCarried, bMapTimeUp, bPlaceable;
 }
 
 simulated function PostBeginPlay()
@@ -157,8 +171,81 @@ function SetMapOptions(byte NewTeams, int NewDelay, bool bWhileCarried)
     UpdateMapTime();
 }
 
+// Given out: hidden at home until the match has been live for Delay seconds, then given to a random living player of
+// Team (GIVE_ANYONE for anyone). It goes hidden again each time it goes home. Delay 0 turns it off.
+function SetGiveOptions(int Delay, byte Team)
+{
+    GiveDelay = Clamp(Delay, 0, 3600);
+    GiveTeam = Min(Team, GIVE_ANYONE);
+    bGiven = false;
+    UpdateWaiting();
+}
+
+// Waiting to be given out: hidden, and nobody can pick it up
+function UpdateWaiting()
+{
+    SetHidden(GiveDelay > 0 && !bGiven && Carrier == None);
+}
+
+function bool WaitingToBeGiven()
+{
+    return GiveDelay > 0 && !bGiven && Carrier == None;
+}
+
+function CheckGive()
+{
+    local Pawn P;
+    local PlayerController PC;
+
+    if (!WaitingToBeGiven() || MyMut == None || MyMut.LiveFor() < GiveDelay)
+        return;
+    P = RandomRecipient();
+    if (P == None)
+        return; // nobody to give it to: tried again next second
+    bGiven = true;
+    SetHidden(false);
+    PickUp(P, true);
+    PC = PlayerController(P.Controller);
+    if (PC == None && P.DrivenVehicle != None)
+        PC = PlayerController(P.DrivenVehicle.Controller);
+    if (PC != None)
+        MyMut.PrivateMessage(PC, "[CMenu] You have been given the "$Label()$" flag");
+}
+
+// A random living player who could carry it: of GiveTeam (or anyone), on foot or in a vehicle, not carrying a flag
+function Pawn RandomRecipient()
+{
+    local array<Pawn> Candidates;
+    local ROPawn P;
+
+    foreach WorldInfo.AllPawns(class'ROPawn', P)
+    {
+        if (!CanKeepCarrying(P) || CarriesAFlag(P))
+            continue;
+        if (GiveTeam < 2 && P.GetTeamNum() != GiveTeam)
+            continue;
+        Candidates.AddItem(P);
+    }
+    if (Candidates.Length == 0)
+        return None;
+    return Candidates[Rand(Candidates.Length)];
+}
+
+function bool CarriesAFlag(Pawn P)
+{
+    local CMAFlag Other;
+
+    foreach DynamicActors(class'CMAFlag', Other)
+    {
+        if (Other.Carrier == P)
+            return true;
+    }
+    return false;
+}
+
 function UpdateMapTime()
 {
+    CheckGive();
     if (MapDelay <= 0)
         bMapTimeUp = true;
     else
@@ -447,7 +534,7 @@ function CheckPickup()
 {
     local Pawn P;
 
-    if (Carrier != None || WorldInfo.TimeSeconds < NoPickupUntil)
+    if (Carrier != None || WorldInfo.TimeSeconds < NoPickupUntil || WaitingToBeGiven())
         return;
 
     foreach WorldInfo.AllPawns(class'Pawn', P, Location, PickupRadius + PickupHeight)
@@ -462,7 +549,6 @@ function CheckPickup()
 
 function bool CanPickUp(Pawn P)
 {
-    local CMAFlag Other;
     local vector Offset;
 
     // Picked up on foot: a vehicle driving over it doesn't take it
@@ -479,12 +565,7 @@ function bool CanPickUp(Pawn P)
         return false;
 
     // One flag per player
-    foreach DynamicActors(class'CMAFlag', Other)
-    {
-        if (Other.Carrier == P)
-            return false;
-    }
-    return true;
+    return !CarriesAFlag(P);
 }
 
 // Alive and still controlled, on foot or in a vehicle. A pawn in a vehicle has no controller of its own (the vehicle or
@@ -498,7 +579,8 @@ function bool CanKeepCarrying(Pawn P)
     return P.Controller != None && P.PlayerReplicationInfo != None;
 }
 
-function PickUp(Pawn P)
+// bGivenOut: handed to them by the give timer, so it is told as given rather than picked up
+function PickUp(Pawn P, optional bool bGivenOut)
 {
     Carrier = P;
     CarrierPRI = P.PlayerReplicationInfo;
@@ -509,8 +591,8 @@ function PickUp(Pawn P)
     Velocity = vect(0, 0, 0);
     CarrierChanged();
     FollowCarrier();
-    if (bAnnounce)
-        Announce(P.PlayerReplicationInfo.PlayerName$" picked up the "$Label()$" flag");
+    if (bAnnounce && P.PlayerReplicationInfo != None)
+        Announce(P.PlayerReplicationInfo.PlayerName$(bGivenOut ? " was given the " : " picked up the ")$Label()$" flag");
 }
 
 // Runs on the server and every client
@@ -631,6 +713,40 @@ function Drop(optional bool bThrow)
         Announce((Who != "" ? Who : "The carrier")$" dropped the "$Label()$" flag");
 }
 
+// Placeable flags: put down standing at Spot (on the ground where the carrier looks), facing away from them. False when
+// it doesn't fit there; it is still carried then.
+function bool Plant(vector Spot)
+{
+    local Pawn P;
+    local rotator Facing;
+    local string Who;
+
+    P = Carrier;
+    if (P == None)
+        return false;
+    Facing.Yaw = P.Rotation.Yaw + 32768;
+    if (!SetLocation(Spot + vect(0, 0, 1) * CylinderComponent(CollisionComponent).CollisionHeight))
+        return false;
+    if (P.PlayerReplicationInfo != None)
+        Who = P.PlayerReplicationInfo.PlayerName;
+    else if (CarrierPRI != None)
+        Who = CarrierPRI.PlayerName;
+
+    Carrier = None;
+    CarrierPRI = None;
+    CarrierChanged();
+    LastDropper = P;
+    DropperNoPickupUntil = WorldInfo.TimeSeconds + DropperDelay;
+    NoPickupUntil = WorldInfo.TimeSeconds + 0.5;
+    SetRotation(Facing);
+    Velocity = vect(0, 0, 0);
+    SetPhysics(PHYS_Falling); // settles onto the ground just under it
+
+    if (bAnnounce)
+        Announce((Who != "" ? Who : "The carrier")$" planted the "$Label()$" flag");
+    return true;
+}
+
 simulated event Landed(vector HitNormal, Actor FloorActor)
 {
     SetPhysics(PHYS_None);
@@ -647,6 +763,8 @@ function ReturnHome()
     }
     CarrierPRI = None;
     bAtHome = true;
+    bGiven = false;
+    UpdateWaiting();
     LastDropper = None;
     NoPickupUntil = WorldInfo.TimeSeconds + 1.0;
     SetLocation(HomeLocation);

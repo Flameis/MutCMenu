@@ -699,6 +699,13 @@ reliable server function DropCarriedFlag()
         MyMut.DropFlagCommand(PlayerController(Owner));
 }
 
+// Server side of planting a placeable flag (FlagCarrierInteraction): the spot it is put down on
+reliable server function ServerPlantFlag(vector Spot)
+{
+    if (MyMut != None && PlayerController(Owner) != None)
+        MyMut.PlantFlagCommand(PlayerController(Owner), Spot);
+}
+
 // Server side of the tank entry prompt (TankEntryInteraction). Gets past the game's gates on tanks (bInfantryCanUse, and
 // the one role class WW2 and Winter War tanks let in) but keeps the normal TryToDrive checks: a free seat, no enemies
 // aboard, not prone, the vehicle's own team lock. Returns whether the player got in.
@@ -918,7 +925,8 @@ reliable server function ClearAllActors()
 // The Builder's Capture the Flag entries. Anyone can place a flag; only clearing them is for admins. TeamIdx 0 or 1 is
 // that team's flag, anything else the neutral flag. The rest are the flag's options from the CTF Flags menu's switches.
 reliable server function ServerPlaceFlag(vector PlaceLoc, int TeamIdx, optional bool bBeam, optional bool bAnnounce,
-    optional byte MapTeams, optional int MapDelay, optional bool bMapWhileCarried)
+    optional byte MapTeams, optional int MapDelay, optional bool bMapWhileCarried, optional int GiveDelay,
+    optional int GiveTeam = 2, optional bool bPlaceable)
 {
     local PlayerController PC;
     local int Faction;
@@ -931,7 +939,8 @@ reliable server function ServerPlaceFlag(vector PlaceLoc, int TeamIdx, optional 
         Faction = class'CMAFlag'.static.FactionForTeam(WorldInfo, TeamIdx);
     else
         Faction = class'CMAFlag'.const.FAC_NEUTRAL;
-    MyMut.PlaceFlag(PC, PlaceLoc, Faction, bBeam, bAnnounce, MapTeams, Clamp(MapDelay, 0, 3600), bMapWhileCarried);
+    MyMut.PlaceFlag(PC, PlaceLoc, Faction, bBeam, bAnnounce, MapTeams, Clamp(MapDelay, 0, 3600), bMapWhileCarried,
+        Clamp(GiveDelay, 0, 3600), GiveTeam, bPlaceable);
 }
 
 // Builds a capture objective from the corners the builder marked. Checked here too: anyone can open the Builder and call this.

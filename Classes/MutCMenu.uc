@@ -977,19 +977,33 @@ function string ObjectiveOwnerWord(ROObjective O)
 // Capture the Flag flags (CMAFlag)
 // =================================================================
 // mutate spawnflag [--team <team>] [--flag <faction>] [--beam] [--announce] [--map <teams>] [--timer <seconds>] [--carried]
-// (-t, -f, -b, -a, -m, -d, -c): a flag where the sender is looking. Anyone can place one. It shows the flag of the sender's
+// [--give <seconds>] [--giveto <team>] [--place] (-t, -f, -b, -a, -m, -d, -c, -g, -o, -p): a flag where the sender is looking. Anyone can place one. It shows the flag of the sender's
 // team, the team named with --team (north/south, axis/allies, finnish/soviet, 0/1 or neutral, so any team's flag can be
 // placed), or exactly the faction named with --flag. A spectator has no team, so they name one. The rest are the flag's own
 // options, all off unless given: --beam a beam above it, --announce pickups and drops told to the server, --map which
 // team's players see it on their map (north, south, both or none), --timer how long after the match goes live they first
-// see it there, --carried that they see it there while it is carried too. (--nobeam is still taken, from before beams were
-// off by default.)
+// see it there, --carried that they see it there while it is carried too, --give that it is hidden until the match has been
+// live that long and then given to a random player (--giveto: of one team, or anyone), --place that its carrier plants it
+// where they look instead of throwing it. (--nobeam is still taken, from before beams were off by default.)
 function SpawnFlagCommand(PlayerController Sender, array<string> Tokens)
 {
     local vector ViewLoc, HitLoc, HitNorm, Loc;
     local rotator ViewRot;
-    local string TeamText, FlagText, MapText;
-    local int Team, Faction, MapTeams;
+    local string TeamText, FlagText, MapText, GiveToText;
+    local int Team, Faction, MapTeams, GiveTeam;
+
+    GiveTeam = class'CMAFlag'.const.GIVE_ANYONE;
+    GiveToText = class'CmdOptions'.static.Get(Tokens, "giveto", "o");
+    if (GiveToText != "" && !(GiveToText ~= "anyone") && !(GiveToText ~= "any") && !(GiveToText ~= "both"))
+    {
+        GiveTeam = ParseFlagTeam(GiveToText);
+        if (GiveTeam != `AXIS_TEAM_INDEX && GiveTeam != `ALLIES_TEAM_INDEX)
+        {
+            PrivateMessage(Sender, "[CMenu] --giveto takes "$Locs(class'CMAFlag'.static.TeamWord(WorldInfo, `AXIS_TEAM_INDEX))$"|"
+                $Locs(class'CMAFlag'.static.TeamWord(WorldInfo, `ALLIES_TEAM_INDEX))$"|anyone (who the flag can be given to)");
+            return;
+        }
+    }
 
     MapTeams = 0;
     MapText = class'CmdOptions'.static.Get(Tokens, "map", "m");
@@ -1027,7 +1041,7 @@ function SpawnFlagCommand(PlayerController Sender, array<string> Tokens)
             if (TeamText == "")
                 PrivateMessage(Sender, "[CMenu] You are not on a team: say whose flag it is with --team "$FlagTeamChoices()$", or pick one with --flag");
             else
-                PrivateMessage(Sender, "[CMenu] Usage: mutate spawnflag [--team "$FlagTeamChoices()$"|neutral] [--flag <name>] [--beam] [--announce] [--map "$FlagMapChoices()$"] [--timer <seconds>] [--carried]");
+                PrivateMessage(Sender, "[CMenu] Usage: mutate spawnflag [--team "$FlagTeamChoices()$"|neutral] [--flag <name>] [--beam] [--announce] [--map "$FlagMapChoices()$"] [--timer <seconds>] [--carried] [--give <seconds>] [--giveto <team>|anyone] [--place]");
             return;
         }
         Faction = class'CMAFlag'.static.FactionForTeam(WorldInfo, Team);
@@ -1058,7 +1072,8 @@ function SpawnFlagCommand(PlayerController Sender, array<string> Tokens)
 
     PlaceFlag(Sender, Loc, Faction, class'CmdOptions'.static.Has(Tokens, "beam", "b") && !class'CmdOptions'.static.Has(Tokens, "nobeam", "n"),
         class'CmdOptions'.static.Has(Tokens, "announce", "a"), MapTeams, int(class'CmdOptions'.static.Get(Tokens, "timer", "d")),
-        class'CmdOptions'.static.Has(Tokens, "carried", "c"));
+        class'CmdOptions'.static.Has(Tokens, "carried", "c"), int(class'CmdOptions'.static.Get(Tokens, "give", "g")), GiveTeam,
+        class'CmdOptions'.static.Has(Tokens, "place", "p"));
 }
 
 // --map: north, south, both or none (the map's own team words and 0 / 1 too). -1 when it is none of them
@@ -1141,7 +1156,8 @@ function string FlagTeamChoices()
 // Places a flag of that faction just above Loc, and it falls to the ground, with its own options (see SpawnFlagCommand).
 // Used by spawnflag and the Builder's CTF Flags menu.
 function CMAFlag PlaceFlag(PlayerController Sender, vector Loc, int Faction, optional bool bBeam, optional bool bAnnounce,
-    optional int MapTeams, optional int MapDelay, optional bool bMapWhileCarried)
+    optional int MapTeams, optional int MapDelay, optional bool bMapWhileCarried, optional int GiveDelay,
+    optional int GiveTeam = 2, optional bool bPlaceable)
 {
     local CMAFlag F;
     local DummyActor DA;
@@ -1164,7 +1180,9 @@ function CMAFlag PlaceFlag(PlayerController Sender, vector Loc, int Faction, opt
     F.SetBeam(bBeam);
     F.bAnnounce = bAnnounce;
     F.SetMapOptions(MapTeams, MapDelay, bMapWhileCarried);
+    F.bPlaceable = bPlaceable;
     F.SetFaction(Faction);
+    F.SetGiveOptions(GiveDelay, GiveTeam);
     F.SetPhysics(PHYS_Falling);
 
     FlagAnnounce(Sender.PlayerReplicationInfo.PlayerName$" placed the "$F.Label()$" flag");
@@ -1258,6 +1276,38 @@ function DropFlagCommand(PlayerController Sender)
     PrivateMessage(Sender, "[CMenu] You are not carrying a flag");
 }
 
+// A placeable flag's carrier plants it at Spot (FlagCarrierInteraction, through DummyActor.ServerPlantFlag). The spot must be
+// within reach of their eyes and in sight; any other flag is thrown as with dropflag.
+function PlantFlagCommand(PlayerController Sender, vector Spot)
+{
+    local CMAFlag F;
+    local vector ViewLoc;
+    local rotator ViewRot;
+
+    if (Sender == None || Sender.Pawn == None)
+        return;
+    foreach DynamicActors(class'CMAFlag', F)
+    {
+        if (!F.IsCarriedBy(Sender.Pawn))
+            continue;
+        if (!F.bPlaceable)
+        {
+            F.Drop(true);
+            return;
+        }
+        Sender.GetPlayerViewPoint(ViewLoc, ViewRot);
+        if (VSize(Spot - ViewLoc) > class'CMAFlag'.const.PLANT_RANGE + 50 || !FastTrace(Spot + vect(0, 0, 10), ViewLoc))
+        {
+            PrivateMessage(Sender, "[CMenu] Too far away or out of sight to plant the flag there");
+            return;
+        }
+        if (!F.Plant(Spot))
+            PrivateMessage(Sender, "[CMenu] The flag doesn't fit there");
+        return;
+    }
+    PrivateMessage(Sender, "[CMenu] You are not carrying a flag");
+}
+
 // mutate resetflags (every flag back where it was placed) / mutate removeflags
 function FlagAdminCommand(PlayerController Sender, string Command)
 {
@@ -1330,7 +1380,7 @@ function bool CommandOptions(string Command, out string Known)
             Known = "obj/o";
             return true;
         case "SPAWNFLAG":
-            Known = "team/t flag/f beam/b announce/a map/m timer/d carried/c nobeam/n";
+            Known = "team/t flag/f beam/b announce/a map/m timer/d carried/c give/g giveto/o place/p nobeam/n";
             return true;
         case "CMENUPCMANAGER":
         case "KILLPLAYER":

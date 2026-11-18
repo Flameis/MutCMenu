@@ -28,9 +28,29 @@ function bool CheckExceptions(string Command)
             ToggleCMenuStyle();
             return true;
 
+        case "SETDROPFLAGKEY":
+            SetDropFlagKey();
+            return true;
+
         default:
             return false;
     }
+}
+
+// The next key pressed becomes the key that drops (or plants) a carried Capture the Flag flag
+function SetDropFlagKey()
+{
+    local int i;
+
+    for (i = 0; i < PC.Interactions.Length; i++)
+    {
+        if (FlagCarrierInteraction(PC.Interactions[i]) != None)
+        {
+            FlagCarrierInteraction(PC.Interactions[i]).StartKeyCapture();
+            return;
+        }
+    }
+    MessageSelf("The flag carrier's key isn't set up yet. Try again in a moment.");
 }
 
 defaultproperties
@@ -44,6 +64,7 @@ defaultproperties
     MenuText.add("Toggle CMenu Stay")
     MenuText.add("Toggle Mouse Click Mode")
     MenuText.add("Toggle RS2 Style")
+    MenuText.add("Set Drop Flag Key")
     
     MenuCommand.add("SETCMENUCOLOR --text")
     MenuCommand.add("SETCMENUCOLOR --background")
@@ -52,4 +73,5 @@ defaultproperties
     MenuCommand.add("TOGGLECMENUSTAY")
     MenuCommand.add("TOGGLECLICKMODE")
     MenuCommand.add("TOGGLECMENUSTYLE")
+    MenuCommand.add("SETDROPFLAGKEY")
 }
