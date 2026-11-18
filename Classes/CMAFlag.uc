@@ -172,9 +172,10 @@ function SetMapOptions(byte NewTeams, int NewDelay, bool bWhileCarried)
     UpdateMapTime();
 }
 
-// Given out: it stands where it was placed, and nobody can pick it up, until the match has been live for Delay seconds
-// and it has waited that long since it was placed (so one placed after LIVE still waits the full time). Then it goes to
-// a random living player of Team (GIVE_ANYONE for anyone). It waits again each time it goes home. Delay 0 turns it off.
+// Given out, as a tie breaker: until the match has been live for Delay seconds and it has waited that long since it was
+// placed (so one placed after LIVE still waits the full time), it is an ordinary flag that anyone can pick up. If nobody
+// carries it when the time is up, it goes to a random living player of Team (GIVE_ANYONE for anyone), from wherever it
+// lies; if someone does, it stays with them. Either way that is once, until it next goes home. Delay 0 turns it off.
 function SetGiveOptions(int Delay, byte Team)
 {
     GiveDelay = Clamp(Delay, 0, 3600);
@@ -183,7 +184,7 @@ function SetGiveOptions(int Delay, byte Team)
     UpdateWaiting();
 }
 
-// Waiting to be given out: it stands where it is and nobody can pick it up; the wait starts now
+// The give timer starts again now (placed, or back home)
 function UpdateWaiting()
 {
     WaitStart = WorldInfo.TimeSeconds;
@@ -199,8 +200,13 @@ function CheckGive()
     local Pawn P;
     local PlayerController PC;
 
-    if (!WaitingToBeGiven() || MyMut == None || MyMut.LiveFor() < GiveDelay || WorldInfo.TimeSeconds - WaitStart < GiveDelay)
+    if (GiveDelay <= 0 || bGiven || MyMut == None || MyMut.LiveFor() < GiveDelay || WorldInfo.TimeSeconds - WaitStart < GiveDelay)
         return;
+    if (Carrier != None)
+    {
+        bGiven = true; // someone took it in time: no tie breaker needed
+        return;
+    }
     P = RandomRecipient();
     if (P == None)
         return; // nobody to give it to: tried again next second
@@ -535,7 +541,7 @@ function CheckPickup()
 {
     local Pawn P;
 
-    if (Carrier != None || WorldInfo.TimeSeconds < NoPickupUntil || WaitingToBeGiven())
+    if (Carrier != None || WorldInfo.TimeSeconds < NoPickupUntil)
         return;
 
     foreach WorldInfo.AllPawns(class'Pawn', P, Location, PickupRadius + PickupHeight)
