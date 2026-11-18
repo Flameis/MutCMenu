@@ -8,6 +8,7 @@
 class CMItem_CTFFlag extends ROItem_PlaceableAmmoCrate;
 
 var CMAFlag Flag;                   // Server: the flag this item plants
+var string IconPath;                // Its picture in the inventory and weapon boxes (MutCMenuContent, see Content\README.md)
 var vector PoleOffset;              // From the flag's foot to the pole mesh's origin, so the preview stands on the ground
 var float PoleScale;
 
@@ -20,6 +21,40 @@ simulated function PostBeginPlay()
     super(ROItemPlaceable).PostBeginPlay();
     if (PreviewStaticMesh != None)
         PreviewStaticMesh.SetScale(PoleScale);
+    AddHUDIcon();
+}
+
+// The game's HUD finds an item's picture in its own list by class, first match wins, so without this the item would show
+// the ammo crate's. The flag's picture goes at the front of the list on this player's HUD (once). Without the content
+// package nothing is added and the slot shows the crate's picture.
+simulated function AddHUDIcon()
+{
+    local ROPlayerController PC;
+    local ROHUDWidget.ROWeaponUV UV;
+    local Texture2D Icon;
+    local int i;
+
+    if (WorldInfo.NetMode == NM_DedicatedServer)
+        return;
+    foreach LocalPlayerControllers(class'ROPlayerController', PC)
+    {
+        if (PC.myROHUD == None)
+            continue;
+        for (i = 0; i < PC.myROHUD.WeaponUVs.Length; i++)
+        {
+            if (PC.myROHUD.WeaponUVs[i].WeaponClass == Class.Name)
+                return;
+        }
+        if (Icon == None)
+            Icon = Texture2D(DynamicLoadObject(IconPath, class'Texture2D', true));
+        if (Icon == None)
+            return;
+        UV.WeaponClass = Class.Name;
+        UV.WeaponTexture = Icon;
+        UV.KillMessageWidth = 128;
+        UV.KillMessageHeight = 64;
+        PC.myROHUD.WeaponUVs.InsertItem(0, UV);
+    }
 }
 
 // The ground under the placing spot (PlaceLoc is lifted by PlaceOffset for the game's checks)
@@ -78,7 +113,8 @@ defaultproperties
 {
     WeaponContentClass(0)="MutCMenu.CMItem_CTFFlag"
     RoleSelectionImage(0)=Texture2D'VN_UI_Textures.menu.ProfileStats.class_icon_large_mg'
-    // ItemName ("CTF Flag") is in MutCMenu.int: it is a localized property
+    IconPath="MutCMenuContent.UI.UI_HUD_WeaponSelect_CTFFlag"
+    // Its names and description are in MutCMenu.int ([CMItem_CTFFlag]): they are localized properties
 
     Category=ROIC_PlaceableEquipment
     Weight=0

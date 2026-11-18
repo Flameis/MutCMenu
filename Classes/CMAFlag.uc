@@ -126,6 +126,7 @@ var int                     MapDelay;       // Seconds after the match goes live
 var int                     GiveDelay;      // Seconds after the match goes live before it is given to a random player (--give), 0 for never
 var byte                    GiveTeam;       // Who it can be given to: a team index or GIVE_ANYONE (--giveto)
 var bool                    bGiven;         // Given out since it last went home
+var float                   WaitStart;      // When it started waiting to be given out (placed, or back home)
 var vector                  HomeLocation;
 var vector                  LastCarrierLocation;
 var Pawn                    LastDropper;
@@ -171,8 +172,9 @@ function SetMapOptions(byte NewTeams, int NewDelay, bool bWhileCarried)
     UpdateMapTime();
 }
 
-// Given out: hidden at home until the match has been live for Delay seconds, then given to a random living player of
-// Team (GIVE_ANYONE for anyone). It goes hidden again each time it goes home. Delay 0 turns it off.
+// Given out: it stands where it was placed, and nobody can pick it up, until the match has been live for Delay seconds
+// and it has waited that long since it was placed (so one placed after LIVE still waits the full time). Then it goes to
+// a random living player of Team (GIVE_ANYONE for anyone). It waits again each time it goes home. Delay 0 turns it off.
 function SetGiveOptions(int Delay, byte Team)
 {
     GiveDelay = Clamp(Delay, 0, 3600);
@@ -181,10 +183,10 @@ function SetGiveOptions(int Delay, byte Team)
     UpdateWaiting();
 }
 
-// Waiting to be given out: hidden, and nobody can pick it up
+// Waiting to be given out: it stands where it is and nobody can pick it up; the wait starts now
 function UpdateWaiting()
 {
-    SetHidden(GiveDelay > 0 && !bGiven && Carrier == None);
+    WaitStart = WorldInfo.TimeSeconds;
 }
 
 function bool WaitingToBeGiven()
@@ -197,13 +199,12 @@ function CheckGive()
     local Pawn P;
     local PlayerController PC;
 
-    if (!WaitingToBeGiven() || MyMut == None || MyMut.LiveFor() < GiveDelay)
+    if (!WaitingToBeGiven() || MyMut == None || MyMut.LiveFor() < GiveDelay || WorldInfo.TimeSeconds - WaitStart < GiveDelay)
         return;
     P = RandomRecipient();
     if (P == None)
         return; // nobody to give it to: tried again next second
     bGiven = true;
-    SetHidden(false);
     PickUp(P, true);
     PC = PlayerController(P.Controller);
     if (PC == None && P.DrivenVehicle != None)
