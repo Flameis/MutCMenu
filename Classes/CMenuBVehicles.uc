@@ -184,12 +184,16 @@ static function GetModVehicles(bool bWW2, bool bWW, bool bGOM3, bool bGOM4, bool
         Names.AddItem("MutExtras AC Huey");
         Names.AddItem("MutExtras AC Bushranger");
         Names.AddItem("MutExtras O-1 Bird Dog (plane)");
+        Names.AddItem("MutExtras Plymouth sedan (car)");
+        Names.AddItem("MutExtras M102 howitzer (artillery)");
 
         Paths.AddItem("MutExtras.ACHeli_AH1G_Content");
         Paths.AddItem("MutExtras.ACHeli_OH6_Content");
         Paths.AddItem("MutExtras.ACHeli_UH1H_Content");
         Paths.AddItem("MutExtras.ACHeli_UH1H_Gunship_Content");
         Paths.AddItem("MutExtras.ACPlane_O1BirdDog");
+        Paths.AddItem("MutExtras.ACVehicle_Sedan");
+        Paths.AddItem("MutExtras.ACVehicle_M102");
     }
 }
 
