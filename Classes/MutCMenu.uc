@@ -11,6 +11,7 @@ class MutCMenu extends ROMutator
 
 // Help longer than this goes to the player in pieces (ShowHelpToPlayer); one network call can only carry so much
 const HELP_PART_CHARS = 400;
+const BIRD_DOG_CLASS = "MutExtras.ACPlane_O1BirdDog"; // the flyable plane (mutate spawnplane)
 
 var array<DummyActor>           DummyActors;
 
@@ -662,6 +663,11 @@ simulated function Mutate(string mutateString, PlayerController sender)
             DropFlagCommand(sender);
             break;
 
+        // The Builder's rules decide who may place it (checked inside)
+        case "SPAWNPLANE":
+            SpawnPlaneCommand(sender, params);
+            break;
+
         case "RESETFLAGS":
         case "REMOVEFLAGS":
             FlagAdminCommand(sender, command);
@@ -1076,6 +1082,68 @@ function SpawnFlagCommand(PlayerController Sender, array<string> Tokens)
         class'CmdOptions'.static.Has(Tokens, "place", "p"));
 }
 
+// mutate spawnplane [--fly]: MutExtras' O-1 Bird Dog. Placed on the ground where the caller looks, by the Builder's rules
+// (the same as placing it from Builder > Vehicles). With --fly the caller is put in it as pilot, flying level at cruise
+// speed 300 m above where they are, for maps with nowhere to take off.
+function SpawnPlaneCommand(PlayerController Sender, array<string> Tokens)
+{
+    local DummyActor DA;
+    local vector ViewLoc, HitLoc, HitNorm, Loc;
+    local rotator ViewRot, Rot;
+    local class<ROVehicle> PlaneClass;
+    local ROVehicle BirdDog;
+    local Pawn Pilot;
+
+    PlaneClass = class<ROVehicle>(DynamicLoadObject(BIRD_DOG_CLASS, class'Class', true));
+    if (PlaneClass == None)
+    {
+        PrivateMessage(Sender, "[CMenu] The Bird Dog needs MutExtras on the server.");
+        return;
+    }
+    DA = FindDummyActor(Sender);
+    if (DA == None)
+        return;
+
+    Sender.GetPlayerViewPoint(ViewLoc, ViewRot);
+    Rot.Yaw = ViewRot.Yaw;
+    if (!class'CmdOptions'.static.Has(Tokens, "fly", "f"))
+    {
+        if (Trace(HitLoc, HitNorm, ViewLoc + vector(ViewRot) * 5000, ViewLoc, false) == None)
+        {
+            PrivateMessage(Sender, "[CMenu] Look at the ground where the plane should go.");
+            return;
+        }
+        DA.SpawnVehicle(BIRD_DOG_CLASS, HitLoc + vect(0, 0, 150), Rot);
+        return;
+    }
+
+    Pilot = Sender.Pawn;
+    if (Pilot == None || Pilot.Health <= 0 || Vehicle(Pilot) != None || Pilot.DrivenVehicle != None)
+    {
+        PrivateMessage(Sender, "[CMenu] --fly needs you alive and on foot: you are put in the plane as its pilot.");
+        return;
+    }
+    Loc = Pilot.Location + vect(0, 0, 15000);
+    if (!DA.CallerMayBuild('Vehicle', Loc, true))
+        return;
+    BirdDog = Spawn(PlaneClass, , class'DummyActor'.const.BUILT_VEHICLE_TAG, Loc, Rot);
+    if (BirdDog == None)
+    {
+        PrivateMessage(Sender, "[CMenu] There is no room for the plane above you.");
+        return;
+    }
+    BirdDog.bTeamLocked = false;
+    BirdDog.Mesh.WakeRigidBody();
+    BirdDog.Mesh.SetRBLinearVelocity(vector(Rot) * 2200);
+    // The plane sets itself to cruise power when its pilot gets in while it is flying
+    if (!BirdDog.TryToDrive(Pilot))
+    {
+        PrivateMessage(Sender, "[CMenu] Couldn't put you in the plane.");
+        BirdDog.Destroy();
+        return;
+    }
+}
+
 // --map: north, south, both or none (the map's own team words and 0 / 1 too). -1 when it is none of them
 function int ParseFlagMapTeams(string Text)
 {
@@ -1349,6 +1417,9 @@ function bool CommandOptions(string Command, out string Known)
             return true;
         case "SPAWNFLAG":
             Known = "team/t flag/f beam/b announce/a map/m timer/d carried/c give/g giveto/o place/p nobeam/n";
+            return true;
+        case "SPAWNPLANE":
+            Known = "fly/f";
             return true;
         case "CMENUPCMANAGER":
         case "KILLPLAYER":
