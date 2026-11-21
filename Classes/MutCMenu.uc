@@ -1134,7 +1134,7 @@ function SpawnPlaneCommand(PlayerController Sender, array<string> Tokens)
     }
     BirdDog.bTeamLocked = false;
     BirdDog.Mesh.WakeRigidBody();
-    BirdDog.Mesh.SetRBLinearVelocity(vector(Rot) * 2200);
+    BirdDog.Mesh.SetRBLinearVelocity(vector(Rot) * 1400);
     // The plane sets itself to cruise power when its pilot gets in while it is flying
     if (!BirdDog.TryToDrive(Pilot))
     {
