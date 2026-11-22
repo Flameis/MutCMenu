@@ -8,10 +8,10 @@
 	"description"		"[h1]29th ID CMenu Mutator[/h1]An on-screen menu for drill leaders and admins. Bind a key ([b]setbind F1 mutate cmenu[/b]) and pick entries with the number keys, or turn on mouse click mode in CMenu Settings.
 
 [h2]What it does[/h2][list]
-[*][b]Builder:[/b] place vehicles (WW2, Winter War, GOM and GreenMen ones too when those mods are loaded), structures, weapon pickups, spawn points, turrets, resupply points, Capture the Flag flags and your own capture objectives.
+[*][b]Builder:[/b] place pieces from a catalogue with grid and facing snaps, copy and paste structures, save layouts and set match rules; place vehicles (WW2, Winter War, GOM and GreenMen ones too when those mods are loaded), structures, weapon pickups, spawn points, turrets, resupply points, Capture the Flag flags and your own capture objectives.
 [*][b]Fire support:[/b] mortar, artillery, airburst, rocket, white phosphorus, mixed, napalm, Canberra and AC-47 strikes on a grid square, a squad mark or the spot you look at.
 [*][b]Admin tools:[/b] move, rename, respawn or switch players, give weapons to a team, set helmet patches, and run Realism Match from the menu.
-[*][b]Overhead map:[/b] a spectator view with tracers and names, players past 32 on a team, custom objective borders, and drawing on the map for your squad or team.
+[*][b]Overhead map:[/b] a spectator view with tracers and names, players past 32 on a team, custom objective borders, drawing on the map for your squad or team, and movement restrictions and team boundaries set by admins.
 [*][b]Capture the Flag and game modes:[/b] flags to carry, plus Capture the Flag, bomb plant and defuse, convoy, gun game and paintball matches.
 [*][b]Tank entry:[/b] tank crews can get into any tank of their team, WW2 and Winter War tanks included.
 [/list]No HUD is replaced, so it works alongside WW2, Winter War and GOM.
