@@ -140,7 +140,6 @@ var float                       FSNextCallTime[2];
 var bool                        bObjectivesHidden;   // custom objectives are switched off for the game's spawn search (see HideObjectivesFromSpawnSearch)
 var bool                        bToldAmbushOff;      // the North team was told ambush respawn is off while a custom objective is open
 
-const DELETE_OBJ_RANGE = 2500.0; // 50 meters: how far from where an admin looks deleteobj finds an objective
 // =================================================================
 // Initialization
 // =================================================================
@@ -854,14 +853,15 @@ function SpawnObjectiveCommand(PlayerController Sender, array<string> Tokens)
     DA.ServerSpawnObjective(Where, NoCorners, class'CmdOptions'.static.GetOrPositional(Tokens, "name", "n"), CapTime, OwnerTeam);
 }
 
-// mutate deleteobj [--obj <letter or name>] (-o): removes one custom objective (admins). Without --obj, the one the sender
-// looks at: the one whose shape the spot is in, or else the nearest within 50 meters of it.
+// mutate deleteobj --obj <letter or name> (-o, or just the letter): removes one custom objective (admins). Only objectives
+// placed with CMenu; the map's own objectives can't be removed.
 function DeleteObjectiveCommand(PlayerController Sender, array<string> Tokens)
 {
     local CMAObjective O, Best;
+    local ROObjective MapObj;
+    local ROGameReplicationInfo GRI;
     local string Which, What;
-    local vector Target;
-    local float D, BestD;
+    local int i;
 
     if (!IsAuthorized(Sender))
     {
@@ -870,59 +870,34 @@ function DeleteObjectiveCommand(PlayerController Sender, array<string> Tokens)
     }
 
     Which = class'CmdOptions'.static.GetOrPositional(Tokens, "obj", "o");
-    if (Which != "")
+    if (Which == "")
     {
-        foreach DynamicActors(class'CMAObjective', O)
+        PrivateMessage(Sender, "[CMenu] Name the objective to remove by its letter or name, for example: mutate deleteobj --obj B. Custom objectives: "$CustomObjectiveList());
+        return;
+    }
+    foreach DynamicActors(class'CMAObjective', O)
+    {
+        if (O.bObjectiveReady && !O.bDeleteMe && (O.ObjShortName ~= Which || O.DisplayName ~= Which))
         {
-            if (O.bObjectiveReady && !O.bDeleteMe && (O.ObjShortName ~= Which || O.DisplayName ~= Which))
-            {
-                Best = O;
-                break;
-            }
-        }
-        if (Best == None)
-        {
-            PrivateMessage(Sender, "[CMenu] There is no custom objective '"$Which$"'. Custom objectives: "$CustomObjectiveList());
-            return;
+            Best = O;
+            break;
         }
     }
-    else
+    if (Best == None)
     {
-        // Where they are looking (their own game says where, for spectators)
-        if (AskClientForLook(Sender))
-            return;
-        if (!GetLookTarget(Sender, Target))
+        // The map's own objectives: lettered by their place in the game's list, as custom ones are
+        GRI = ROGameReplicationInfo(WorldInfo.GRI);
+        for (i = 0; GRI != None && i < GRI.Objectives.Length; i++)
         {
-            if (Sender.Pawn == None)
+            MapObj = GRI.Objectives[i];
+            if (MapObj != None && CMAObjective(MapObj) == None && (Chr(65 + i) ~= Which || MapObj.ObjName ~= Which))
             {
-                PrivateMessage(Sender, "[CMenu] Look at a custom objective, or name one with --obj. Custom objectives: "$CustomObjectiveList());
+                PrivateMessage(Sender, "[CMenu] Objective "$Chr(65 + i)$" is one of the map's own objectives and can't be removed. Custom objectives: "$CustomObjectiveList());
                 return;
             }
-            Target = Sender.Pawn.Location;
         }
-
-        BestD = DELETE_OBJ_RANGE;
-        foreach DynamicActors(class'CMAObjective', O)
-        {
-            if (!O.bObjectiveReady || O.bDeleteMe)
-                continue;
-            if (O.ContainsLocation(Target))
-            {
-                Best = O;
-                break;
-            }
-            D = VSize2D(O.Location - Target);
-            if (D < BestD)
-            {
-                BestD = D;
-                Best = O;
-            }
-        }
-        if (Best == None)
-        {
-            PrivateMessage(Sender, "[CMenu] There is no custom objective where you are looking. Name one with --obj. Custom objectives: "$CustomObjectiveList());
-            return;
-        }
+        PrivateMessage(Sender, "[CMenu] There is no custom objective '"$Which$"'. Custom objectives: "$CustomObjectiveList());
+        return;
     }
 
     What = Best.ObjShortName$" (\""$Best.DisplayName$"\")";

@@ -405,7 +405,7 @@ Admins can build their own capture objectives in the Builder's **Actors** menu: 
 - **Realism Match works on it.** `openobj`, `closeobj`, `setobjnorth`, `setobjsouth`, `setobjneutral` and the capture time apply to it by its letter, like the map's own objectives.
 - **Admins only.** The server checks that you are an admin, and tells you if the objective could not be built (too few corners, corners too close together, or all 16 objective slots in use). When it is built you are told its letter, name, capture time and owner.
 - **Spawning on the squad leader:** players and bots can spawn on their squad leader while a custom objective is open. The North commander's **ambush respawn** is not available while a custom objective is open, and the North team is told so.
-- **Taking them away (admins).** **Delete Obj** (`mutate deleteobj`) removes one objective: the one you are looking at, or the one you name by its letter or name (`--obj B`, `--obj Village`). **Clear Objs** (`mutate clearobjs`) removes all of them. Either way their letters are freed. **Clear All** removes them too, with everything else you placed. A removed objective goes from every player's map, its letter and area included.
+- **Taking them away (admins).** **Delete Obj** (`mutate deleteobj`) removes the objective you name by its letter or name (`--obj B`, `--obj Village`). Only objectives placed with CMenu can be removed; naming one of the map's own objectives is refused. **Clear Objs** (`mutate clearobjs`) removes all of them. Either way their letters are freed. **Clear All** removes them too, with everything else you placed. A removed objective goes from every player's map, its letter and area included.
 - **Steady objective icon.** While you stand in a custom objective, the objective icon at the bottom of the screen stays steady.
 
 ### Names on the map
@@ -568,7 +568,7 @@ Commands can be typed in the console as `mutate <command> --option value` (short
 | `forcerankpatch` | Change a player's rank patch | `--player/-p`, `--rank/-r` |
 | `scrimadminlogin` / `scrimadminlogout` | Log in or out as a scrim admin | `--user/-u`, `--password/-p` |
 | `spawnobj` | (Admin) Builds a custom objective from the corners you marked | `--name/-n <text>`, `--time/-t <seconds>`, `--owner/-o` (north, south, neutral) |
-| `deleteobj` | (Admin) Removes one custom objective: the one you look at, or the one named | `--obj/-o <letter or name>` |
+| `deleteobj` | (Admin) Removes the custom objective you name (not the map's own objectives) | `--obj/-o <letter or name>` |
 | `clearobjs` | (Admin) Removes every custom objective | none |
 | `clearcorners`, `delnorthspawns`, `delsouthspawns` | Remove your marked corners or custom spawn points | none |
 | `spawnflag` | Places a Capture the Flag flag where you are looking: your team's flag, a team's flag (or the neutral one) with `--team`, or exactly one flag with `--flag` (see the flag table in section 5), with the flag's own options, all off unless given (see **Each flag's options** in section 5). Spectators must use `--team` or `--flag` | `--team/-t` (north, south, axis, allies, finnish, soviet, 0, 1, neutral), `--flag/-f <name>`, `--beam/-b`, `--announce/-a`, `--map/-m` (north, south, both, none), `--timer/-d <seconds>`, `--carried/-c`, `--give/-g <seconds>`, `--giveto/-o` (north, south, anyone), `--place/-p` |

@@ -94,7 +94,7 @@ function bool CheckExceptions(string Command)
 			return true;
 
 		case "DELETEOBJ":
-			PromptForText("Delete Objective|Removes one custom objective. Leave it blank for the one you are looking at.|"
+			PromptForText("Delete Objective|Removes one custom objective (one you placed, not the map's own).|"
 				$"--obj / -o : the objective's letter or name|Example: --obj B", "mutate deleteobj ", , "obj");
 			return true;
 
