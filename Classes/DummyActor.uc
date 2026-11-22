@@ -668,10 +668,20 @@ reliable server function SpawnVehicle(string VehicleName, vector PlaceLoc, rotat
 // the air on purpose).
 function float SettleDrop(ROVehicle ROV)
 {
-    local vector HitLocation, HitNormal, Start, End;
+    local vector HitLocation, HitNormal, Start, End, WheelCentre;
     local float Bottom;
+    local int i;
 
     Bottom = ROV.Mesh.Bounds.Origin.Z - ROV.Mesh.Bounds.BoxExtent.Z;
+    // The bounds come from the physics bodies, which on some vehicles (MutExtras' sedan) leave out the wheels: their
+    // bottoms count too, or the wheels are put into the ground and the vehicle jumps out of it
+    for (i = 0; i < ROV.Wheels.Length; i++)
+    {
+        if (ROV.Wheels[i] == None || ROV.Wheels[i].BoneName == '')
+            continue;
+        WheelCentre = ROV.Mesh.GetBoneLocation(ROV.Wheels[i].BoneName) + (ROV.Wheels[i].BoneOffset >> ROV.Rotation);
+        Bottom = FMin(Bottom, WheelCentre.Z - ROV.Wheels[i].WheelRadius);
+    }
     Start = ROV.Location;
     Start.Z = Bottom + 5;
     End = Start - vect(0, 0, 1) * SETTLE_REACH;
