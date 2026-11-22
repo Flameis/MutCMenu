@@ -807,6 +807,8 @@ static function DecodePoints(string S, out array<vector2D> Out)
     local int i;
     local vector2D P;
 
+    // a fresh list: callers reuse one array for several drawings (each boundary or build zone in turn)
+    Out.Length = 0;
     for (i = 0; i + POINT_CHARS <= Len(S); i += POINT_CHARS)
     {
         P.X = DecodeCoord(S, i);
